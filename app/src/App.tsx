@@ -11,13 +11,13 @@ const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).
 const mRange = (m: string) => { const d = new Date(m + '-01'); const e = new Date(d.getFullYear(), d.getMonth() + 1, 0); return [m + '-01', `${m}-${String(e.getDate()).padStart(2, '0')}`] }
 
 export default function App() {
-  const [cfg] = useState(() => JSON.parse(localStorage.getItem('p4p_cfg') || 'null') || DEFAULT_CFG)
+  const [cfg, setCfg] = useState(() => JSON.parse(localStorage.getItem('p4p_cfg') || 'null') || DEFAULT_CFG)
   const sb: any = useMemo(() => createClient(cfg.url, cfg.key), [cfg])
   const [session, setSession] = useState<any>(undefined)
   useEffect(() => {
     if (!sb) return
-    sb.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data } = sb.auth.onAuthStateChange((_e, s) => setSession(s))
+    sb.auth.getSession().then(({ data }: any) => setSession(data.session))
+    const { data } = sb.auth.onAuthStateChange((_e: any, s: any) => setSession(s))
     return () => data.subscription.unsubscribe()
   }, [sb])
   if (session === undefined) return <p className="p-8">กำลังโหลด…</p>
@@ -32,18 +32,6 @@ function Shell({ children }: any) {
     <section className="auth-card">{children}</section>
     <p className="auth-footnote">P4P · NURSING DEPARTMENT · SAWANG DAEN DIN CROWN PRINCE HOSPITAL</p>
   </main>
-}
-function Setup({ onSave }: any) {
-  const [url, setUrl] = useState(''); const [key, setKey] = useState('')
-  return <Shell>
-    <div className="brand-mark"><div className="brand-mark-icon">P4P</div><div className="brand-caption">NURSING DEPARTMENT</div></div>
-    <div className="auth-heading"><p className="eyebrow">SYSTEM CONFIGURATION</p><h1>เชื่อมต่อ Supabase</h1><p>ใส่ Project URL และ publishable key จาก Project Settings → API</p></div>
-    <div className="auth-form">
-      <label className="field-label">Project URL</label><input className="inp" placeholder="https://xxxx.supabase.co" value={url} onChange={e => setUrl(e.target.value)} />
-      <label className="field-label">Publishable key</label><input className="inp" placeholder="sb_publishable_..." value={key} onChange={e => setKey(e.target.value)} />
-      <button className="btn auth-submit" disabled={!url || !key} onClick={() => onSave({ url: url.trim(), key: key.trim() })}>บันทึกการตั้งค่า</button>
-    </div>
-  </Shell>
 }
 function Login({ sb }: any) {
   const [mode, setMode] = useState<'in' | 'up'>('in')
@@ -257,7 +245,7 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
 function ReviewPage({ sb, people, unit, month, positions, audit }: any) {
   const [rows, reload] = useLogs(sb, month, null, unit)
   const [sel, setSel] = useState<string>('')
-  const [cfg] = useState<any>({ budget: 0, baht_per_point: 0, deduct_guarantee: true })
+  const [cfg, setCfg] = useState<any>({ budget: 0, baht_per_point: 0, deduct_guarantee: true })
   const m1 = month + '-01'
   useEffect(() => { sb.from('unit_settings').select('*').eq('unit_id', unit).eq('month', m1).maybeSingle().then((r: any) => setCfg(r.data || { budget: 0, baht_per_point: 0, deduct_guarantee: true })) }, [unit, month])
   const saveCfg = async () => { await sb.from('unit_settings').upsert({ unit_id: unit, month: m1, budget: +cfg.budget, baht_per_point: +cfg.baht_per_point, deduct_guarantee: cfg.deduct_guarantee }); alert('บันทึกแล้ว') }
