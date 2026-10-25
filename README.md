@@ -10,5 +10,7 @@
 เจ้าหน้าที่ (บันทึกของตนเอง) · หัวหน้างาน (บันทึกแทน/รับรอง/จัดการรายชื่อในหน่วย) · กรรมการ P4P (ตรวจสอบรายหน่วยงาน/รายบุคคล ตั้งงบ) · ผู้ดูแลระบบ (กำหนดสิทธิ์ผู้ใช้)
 
 ## ตั้งผู้ดูแลคนแรก
-หลังลงทะเบียนในเว็บแล้ว รันใน Supabase SQL Editor:
-`update profiles set role='admin' where user_id=(select id from auth.users where email='อีเมลของคุณ');`
+หลังลงทะเบียนบัญชีแรกแล้ว ให้รันใน Supabase SQL Editor โดยแทน `your_username` ด้วยชื่อผู้ใช้ที่ลงทะเบียน:
+`update public.profiles set role='admin' where username=lower('your_username');`
+
+ระบบเข้าสู่ระบบด้วย Username และรหัสผ่าน ไม่ต้องใช้อีเมลจริง บัญชีที่สมัครใหม่จะได้รับบทบาทเจ้าหน้าที่เป็นค่าเริ่มต้น
