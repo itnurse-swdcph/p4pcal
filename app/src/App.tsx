@@ -113,7 +113,7 @@ function Login({ sb }: any) {
       </div>
     </div>
   return <Shell>
-    <div className="brand-mark"><div className="brand-mark-icon">P4P</div><div className="brand-caption">NURSING DEPARTMENT</div></div>
+    <div className="brand-mark"><img className="brand-mark-icon" src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/icon.png" alt="P4P Nursing logo" /><div className="brand-caption">NURSING DEPARTMENT</div></div>
     <div className="auth-heading"><p className="hospital-name">กลุ่มการพยาบาล<br />โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</p><p className="eyebrow">P4P · SMART NURSING WORKFLOW</p><h1>{mode === 'in' ? 'ยินดีต้อนรับ' : 'สร้างบัญชีผู้ใช้งาน'}</h1><p>{mode === 'in' ? 'เข้าสู่ระบบบันทึกกิจกรรมและคำนวณแต้ม P4P' : 'กรอกข้อมูลเพื่อเริ่มใช้งานระบบ P4P'}</p></div>
     <div className="auth-form">
       {mode === 'up' && <>
