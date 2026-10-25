@@ -59,8 +59,10 @@ function Login({ sb }: any) {
     sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
   }, [sb])
   const grp = positions.find(x => x.name === f.position)?.grp
-  const groups = [...new Set(units.map(u => u.parent_group))]
+  const groups = [...new Set(units.map((u: any) => u.parent_group))]
   const isHead = f.position === 'หัวหน้ากลุ่มงานการพยาบาล' || f.position === 'หัวหน้าหอผู้ป่วย/หัวหน้างาน'
+  const primaryUnit = units.find((u: any) => String(u.id) === String(f.unit))
+  const extraUnitOptions = units.filter((u: any) => String(u.id) !== String(f.unit) && !(f.position === 'หัวหน้ากลุ่มงานการพยาบาล' && primaryUnit && u.parent_group === primaryUnit.parent_group))
   const usernameValid = /^[a-z0-9][a-z0-9._-]{2,29}$/.test(username.trim().toLowerCase())
   const profileValid = f.first.trim() && f.last.trim() && f.position && f.unit
   const passwordsMatch = pw === confirmPw
@@ -87,8 +89,13 @@ function Login({ sb }: any) {
         } else {
           const { data: sd, error: signInError } = await sb.auth.signInWithPassword({ email: cleanUsername + '@p4p.invalid', password: pw })
           const wanted = isHead ? extra.filter(id => id !== Number(f.unit)) : []
-          if (!signInError && sd?.user && wanted.length) await sb.from('profile_units').insert(wanted.map(id => ({ user_id: sd.user.id, unit_id: id, approved: false })))
+          let extraUnitsError: any = null
+          if (!signInError && sd?.user && wanted.length) {
+            const result = await sb.from('profile_units').upsert(wanted.map(id => ({ user_id: sd.user.id, unit_id: id, approved: true })), { onConflict: 'user_id,unit_id' })
+            extraUnitsError = result.error
+          }
           if (signInError) setMsg('ลงทะเบียนสำเร็จแล้ว แต่เข้าสู่ระบบอัตโนมัติไม่สำเร็จ กรุณาเข้าสู่ระบบอีกครั้ง')
+          else if (extraUnitsError) setMsg('ลงทะเบียนสำเร็จ แต่บันทึกหน่วยงานเพิ่มเติมไม่สำเร็จ กรุณาแจ้งผู้ดูแลระบบ: ' + extraUnitsError.message)
           else setSuccess(true)
         }
       }
@@ -116,13 +123,18 @@ function Login({ sb }: any) {
         </div>
         <div className="space-y-1"><label className="field-label">ตำแหน่ง</label><select className="inp" value={f.position} onChange={set('position')}><option value="">เลือกตำแหน่ง</option>{positions.map(x => <option key={x.name} value={x.name}>{x.name}</option>)}</select></div>
         {grp && <p className="field-hint">กลุ่มตำแหน่ง: <b>{grp}</b> · {positions.find(x => x.name === f.position)?.rate} แต้ม/นาที</p>}
-        <div className="space-y-1"><label className="field-label">หน่วยงาน</label><select className="inp" value={f.unit} onChange={set('unit')}><option value="">เลือกหน่วยงาน</option>{groups.map((g: any) => <optgroup key={g} label={g}>{units.filter(u => u.parent_group === g).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}</select></div>
+        <div className="space-y-1"><label className="field-label">หน่วยงาน</label><select className="inp" value={f.unit} onChange={e => { const next = e.target.value; setF((old: any) => ({ ...old, unit: next })); setExtra(old => old.filter(id => id !== Number(next))) }}><option value="">เลือกหน่วยงาน</option>{groups.map((g: any) => <optgroup key={g} label={g}>{units.filter(u => u.parent_group === g).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}</select></div>
         {isHead && <div className="space-y-1">
           <label className="field-label">หน่วยงานที่ดูแลเพิ่มเติม (ถ้ามี)</label>
           {f.position === 'หัวหน้ากลุ่มงานการพยาบาล' && <p className="field-hint">หัวหน้ากลุ่มงานดูแลทุกหน่วยในกลุ่มงานเดียวกับหน่วยหลักโดยอัตโนมัติ เลือกเพิ่มได้เฉพาะหน่วยนอกกลุ่มงาน</p>}
-          <div className="unit-check-list">{groups.map((g: any) => <div key={g}><div className="unit-check-head">{g}</div>
-            {units.filter(u => u.parent_group === g && String(u.id) !== String(f.unit)).map(u => <label key={u.id} className="unit-check"><input type="checkbox" checked={extra.includes(u.id)} onChange={e => setExtra(x => e.target.checked ? [...x, u.id] : x.filter(i => i !== u.id))} />{u.name}</label>)}</div>)}</div>
-          <p className="field-hint">หน่วยที่เลือกเพิ่มต้องรอผู้ดูแลระบบอนุมัติ และผู้ดูแลต้องตั้งสิทธิ์หัวหน้างานให้ก่อนจึงจะใช้งานได้</p>
+          {!f.unit ? <p className="field-hint">กรุณาเลือกหน่วยงานหลักก่อน จึงจะเลือกหน่วยงานเพิ่มเติมได้</p> : <>
+            <div className="unit-check-list">{groups.map((g: any) => {
+              const options = extraUnitOptions.filter((u: any) => u.parent_group === g)
+              return options.length ? <div key={g}><div className="unit-check-head">{g}</div>
+                {options.map((u: any) => <label key={u.id} className="unit-check"><input type="checkbox" checked={extra.includes(u.id)} onChange={e => setExtra(x => e.target.checked ? [...x.filter(i => i !== Number(f.unit)), u.id] : x.filter(i => i !== u.id))} />{u.name}</label>)}</div> : null
+            })}</div>
+            <p className="field-hint">หน่วยงานเพิ่มเติมที่เลือกจะมีผลทันทีหลังลงทะเบียน ไม่ต้องรออนุมัติจากผู้ดูแลระบบ</p>
+          </>}
         </div>}
       </>}
       <div className="space-y-1">
@@ -155,7 +167,7 @@ function Main({ sb, session }: any) {
   const [myUnits, setMyUnits] = useState<number[]>([])
   const loadPeople = () => sb.from('people').select('*').eq('active', true).order('name').then((r: any) => setPeople(r.data || []))
   useEffect(() => {
-    sb.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle().then((r: any) => { if (!r.data) { setNoProfile(true); return } setProfile(r.data); setUnit(r.data.unit_id ?? null) })
+    sb.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle().then((r: any) => { if (!r.data) { setNoProfile(true); return } setProfile(r.data); setUnit(r.data.role === 'admin' ? null : (r.data.unit_id ?? null)) })
     sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || []))
     sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
     sb.from('positions').select('*').then((r: any) => setPositions(r.data || []))
@@ -167,14 +179,14 @@ function Main({ sb, session }: any) {
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'
   const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน'], ['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้']] : [])]
-  const cur = tab || tabs[0]?.[0]
+  const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
   const unitOptions = role === 'head' ? units.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? units : units.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
   return <div className="min-h-screen flex flex-col"><div className="flex-1 w-full px-3 sm:px-6 lg:px-10 py-3 sm:py-6 space-y-4">
     <header className="flex flex-wrap items-center gap-3 border-b-2 border-stone-800 pb-3">
       <div className="mr-auto"><h1 className="text-xl font-bold leading-tight">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1><p className="text-xs font-bold text-teal-800">ระบบบันทึกกิจกรรมและคำนวณแต้ม P4P</p>
         <p className="text-sm text-stone-600">{profile.full_name || session.user.email} · <b>{ROLE_TH[role]}</b>{!isRev && units.find(u => u.id === profile.unit_id) && ` · ${units.find(u => u.id === profile.unit_id).name}`}{role === 'head' && unitOptions.length > 1 && ` (ดูแล ${unitOptions.length} หน่วยงาน)`}</p></div>
-      {(isRev || (role === 'head' && unitOptions.length > 1)) && <select className="inp !w-72" aria-label="หน่วยงาน" value={unit ?? ''} onChange={e => setUnit(+e.target.value)}>{unitOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>}
+      {(isRev || (role === 'head' && unitOptions.length > 1)) && <select className="inp !w-72" aria-label="หน่วยงาน" value={unit ?? ''} onChange={e => setUnit(e.target.value ? +e.target.value : null)}>{role === 'admin' && <option value="">เลือกหน่วยงานก่อน</option>}{unitOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>}
       <input type="month" className="inp !w-40" value={month} onChange={e => setMonth(e.target.value)} />
       <button className="btn sec" onClick={() => sb.auth.signOut()}>ออกจากระบบ</button>
     </header>
@@ -183,7 +195,8 @@ function Main({ sb, session }: any) {
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
       : <LogPage sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} />)}
-    {cur === 'review' && <ReviewPage sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
+    {cur === 'review' && role === 'admin' && !unit && <div className="card text-center space-y-2"><h2 className="font-bold">เลือกหน่วยงานเพื่อเริ่มตรวจ/รับรอง</h2><p className="text-sm text-stone-600">กรุณาเลือกหน่วยงานจากรายการด้านบน ระบบจะแสดงรายการทั้งหมดของหน่วยงานที่เลือก</p></div>}
+    {cur === 'review' && !(role === 'admin' && !unit) && <ReviewPage sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
     {cur === 'people' && <PeoplePage sb={sb} people={scope} unit={unit} positions={positions} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
     {cur === 'activities' && <ActivityLibrary sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
