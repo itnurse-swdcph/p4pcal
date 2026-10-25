@@ -307,9 +307,11 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
   const [form, setForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState('')
+  const [editEvidenceFile, setEditEvidenceFile] = useState<File | null>(null)
   const beginEdit = (r: any) => {
     setEditing(r)
     setForm({ work_date: r.work_date || '', activity_code: r.activity_code || '', qty: String(r.qty ?? 1), role: r.role || '', evidence: r.evidence || '', sub_activity: r.sub_activity || '' })
+    setEditEvidenceFile(null)
     setEditError('')
   }
   const set = async (id: number, status: string) => {
@@ -323,20 +325,28 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
     if (!form.work_date || !form.activity_code || !form.qty || Number(form.qty) <= 0) { setEditError('กรุณาระบุวันที่ กิจกรรม และจำนวนให้ถูกต้อง'); return }
     const activity = acts.find((a: any) => a.code === form.activity_code)
     if (!activity) { setEditError('ไม่พบกิจกรรมที่เลือกในคลังกิจกรรม'); return }
-    if (activity.need_evidence && !String(form.evidence || '').trim() && !editing.evidence_image_path) { setEditError('กิจกรรมนี้ต้องมีหลักฐาน กรุณาระบุรายละเอียดหลักฐานก่อนบันทึก'); return }
+    if (activity.need_evidence && !String(form.evidence || '').trim() && !editing.evidence_image_path && !editEvidenceFile) { setEditError('กิจกรรมนี้ต้องมีหลักฐาน กรุณาระบุรายละเอียดหลักฐานหรือแนบรูปถ่าย'); return }
+    if (editEvidenceFile && (!editEvidenceFile.type.startsWith('image/') || editEvidenceFile.size > 5 * 1024 * 1024)) { setEditError('กรุณาเลือกไฟล์รูปภาพ ขนาดไม่เกิน 5 MB'); return }
     setSaving(true)
     const payload = {
       work_date: form.work_date,
       activity_code: form.activity_code,
       qty: Number(form.qty),
       role: activity.use_role_mult ? (form.role || null) : null,
-      evidence: String(form.evidence || '').trim() || (editing.evidence_image_path ? 'แนบรูปถ่าย' : null),
+      evidence: String(form.evidence || '').trim() || ((editEvidenceFile || editing.evidence_image_path) ? 'แนบรูปถ่าย' : null),
       sub_activity: String(form.sub_activity || '').trim() || null
     }
     const { error } = await sb.from('logs').update(payload).eq('id', editing.id).eq('status', 'pending')
-    setSaving(false)
-    if (error) { setEditError('บันทึกการแก้ไขไม่สำเร็จ: ' + error.message); return }
-    setEditing(null); reload()
+    if (error) { setSaving(false); setEditError('บันทึกการแก้ไขไม่สำเร็จ: ' + error.message); return }
+    if (editEvidenceFile) {
+      const safeName = editEvidenceFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = editing.person_id + '/' + editing.id + '/' + crypto.randomUUID() + '-' + safeName
+      const { error: uploadError } = await sb.storage.from('p4p-evidence').upload(path, editEvidenceFile, { contentType: editEvidenceFile.type, upsert: false })
+      if (uploadError) { setSaving(false); setEditError('บันทึกข้อความแล้ว แต่แนบรูปไม่สำเร็จ: ' + uploadError.message); reload(); return }
+      const { error: pathError } = await sb.from('logs').update({ evidence_image_path: path }).eq('id', editing.id).eq('status', 'pending')
+      if (pathError) { setSaving(false); setEditError('อัปโหลดรูปแล้ว แต่เชื่อมโยงรูปกับรายการไม่สำเร็จ: ' + pathError.message); reload(); return }
+    }
+    setSaving(false); setEditing(null); setEditEvidenceFile(null); reload()
   }
   return <div className="card overflow-x-auto p-0">
     <table className="w-full"><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th></th></tr></thead>
@@ -355,13 +365,19 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
       {editError && <p role="alert" className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">{editError}</p>}
       <label className="field-label">วันที่ปฏิบัติงาน<input type="date" className="inp mt-1" value={form.work_date} onChange={e => setForm({...form, work_date:e.target.value})} /></label>
       <label className="field-label">กิจกรรม<select className="inp mt-1" value={form.activity_code} onChange={e => setForm({...form, activity_code:e.target.value})}>{acts.filter((a:any) => a.active !== false).map((a:any) => <option key={a.code} value={a.code}>{a.code} — {a.title}</option>)}</select></label>
-      {(() => { const a = acts.find((x:any) => x.code === form.activity_code); return a ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><b>{a.need_evidence ? 'หลักฐานที่จำเป็น' : 'หลักฐานประกอบ'}</b><p className="mt-1 whitespace-pre-wrap">{a.definition || (a.need_evidence ? 'ต้องระบุหลักฐานที่ตรวจสอบได้' : 'สามารถระบุหลักฐานเพิ่มเติมได้')}</p></div> : null })()}
+      {(() => { const a = acts.find((x:any) => x.code === form.activity_code); return a ? <div className={\`rounded-xl border p-3 text-sm \${a.need_evidence ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}\`}><b>{a.need_evidence ? 'หลักฐานที่ต้องใช้สำหรับกิจกรรมนี้ (จำเป็น)' : 'หลักฐานประกอบ'}</b><p className="mt-1 whitespace-pre-wrap">{a.definition || (a.need_evidence ? 'กรุณาระบุหลักฐานอ้างอิงที่ตรวจสอบได้' : 'สามารถระบุเอกสารหรือรูปถ่ายประกอบได้')}</p>{a.need_evidence && <p className="mt-2 text-xs">ต้องกรอกรายละเอียดหลักฐาน หรือมีรูปหลักฐานอย่างน้อย 1 อย่าง</p>}</div> : null })()}
       <label className="field-label">จำนวน ({acts.find((a:any) => a.code === form.activity_code)?.uom || editing.uom || 'หน่วย'})<input type="number" min="0.01" step="0.5" className="inp mt-1" value={form.qty} onChange={e => setForm({...form, qty:e.target.value})} /></label>
       {acts.find((a:any) => a.code === form.activity_code)?.use_role_mult && <label className="field-label">บทบาทในกิจกรรม<select className="inp mt-1" value={form.role} onChange={e => setForm({...form, role:e.target.value})}>{ROLES.map((r:string) => <option key={r}>{r}</option>)}</select></label>}
-      <label className="field-label">รายละเอียดกิจกรรมย่อย<textarea className="inp mt-1 min-h-20" value={form.sub_activity} onChange={e => setForm({...form, sub_activity:e.target.value})} /></label>
-      <label className="field-label">รายละเอียดหลักฐาน<textarea className="inp mt-1 min-h-20" value={form.evidence} onChange={e => setForm({...form, evidence:e.target.value})} placeholder="ระบุเอกสารอ้างอิงหรือรายละเอียดหลักฐาน" /></label>
-      {editing.evidence_image_path && <p className="text-xs text-stone-600">รูปหลักฐานเดิมจะคงอยู่: <button className="underline text-teal-800" onClick={() => openEvidence(sb, editing.evidence_image_path)}>ดูรูปหลักฐาน</button> (การแก้ไขนี้ไม่เปลี่ยนไฟล์รูป)</p>}
-      <div className="flex flex-wrap gap-2"><button className="btn" disabled={saving} onClick={saveEdit}>{saving ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button><button className="btn sec" onClick={() => setEditing(null)}>ยกเลิก</button></div>
+      <label className="field-label">รายละเอียดกิจกรรมย่อย / รายละเอียดการดำเนินงาน<textarea className="inp mt-1 min-h-24" value={form.sub_activity} onChange={e => setForm({...form, sub_activity:e.target.value})} placeholder="ระบุชื่องานย่อย รายละเอียดสิ่งที่ทำ ผลลัพธ์ หรือขอบเขตงาน" /></label>
+      <label className="field-label">รายละเอียดหลักฐาน {acts.find((a:any) => a.code === form.activity_code)?.need_evidence && <span className="text-red-700">* จำเป็น</span>}<textarea className="inp mt-1 min-h-24" value={form.evidence} onChange={e => setForm({...form, evidence:e.target.value})} placeholder={acts.find((a:any) => a.code === form.activity_code)?.need_evidence ? 'ระบุหลักฐานตามรายการที่แสดงด้านบน เช่น เลขที่เอกสาร วันที่ ผู้รับรอง หรือชื่อเอกสาร' : 'ระบุเอกสารอ้างอิงหรือคำอธิบายหลักฐาน (ถ้ามี)'} /></label>
+      <div className="space-y-1"><label className="field-label">แนบรูปถ่ายหลักฐาน {acts.find((a:any) => a.code === form.activity_code)?.need_evidence && <span className="text-slate-600">(หรือกรอกรายละเอียดหลักฐานด้านบน)</span>}</label>
+        <input className="inp" type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0] || null; if (f && (!f.type.startsWith('image/') || f.size > 5 * 1024 * 1024)) { setEditError('กรุณาเลือกไฟล์รูปภาพ ขนาดไม่เกิน 5 MB'); e.target.value = ''; setEditEvidenceFile(null); return } setEditError(''); setEditEvidenceFile(f) }} />
+        <p className="field-hint">แนบรูปใหม่ได้ 1 รูปต่อรายการ ขนาดไม่เกิน 5 MB</p>
+        {editEvidenceFile && <p className="text-xs text-teal-800">ไฟล์ใหม่ที่เลือก: {editEvidenceFile.name}</p>}
+      </div>
+      {editing.evidence_image_path && <p className="text-xs text-stone-600">มีรูปหลักฐานเดิม: <button className="underline text-teal-800" onClick={() => openEvidence(sb, editing.evidence_image_path)}>ดูรูปหลักฐานเดิม</button>{editEvidenceFile ? ' · เมื่อบันทึก รูปใหม่จะถูกใช้แทนรูปเดิมในรายการ' : ' · หากไม่เลือกรูปใหม่ รูปเดิมจะคงอยู่'}</p>}
+      <div className="rounded-lg bg-slate-50 p-3 text-sm">แต้มจะคำนวณใหม่ตามกิจกรรม จำนวน และบทบาทที่แก้ไข</div>
+      <div className="flex flex-wrap gap-2"><button className="btn" disabled={saving} onClick={saveEdit}>{saving ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button><button className="btn sec" disabled={saving} onClick={() => { setEditing(null); setEditEvidenceFile(null) }}>ยกเลิก</button></div>
     </div></div>}
   </div>
 }
