@@ -4,6 +4,7 @@ import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
 
 const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_publishable_8qxOgD-AHGnv9RWWAZTUQQ_I0MPIMv3' }
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ว่าที่ร้อยตรี', 'ว่าที่ร้อยตรีหญิง']
+const FOOTER_TEXT = '© 2026 Developed By Natnarinthorn | Nursing Informatics System'
 const ROLE_TH: any = { staff: 'เจ้าหน้าที่', head: 'หัวหน้างาน', committee: 'กรรมการ P4P', admin: 'ผู้ดูแลระบบ' }
 const ROLES = ['ประธาน', 'เลขานุการ/กรรมการ', 'สมาชิก/ผู้เข้าร่วม']
 const nf = (n: any, d = 2) => Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: d, minimumFractionDigits: d })
@@ -36,7 +37,7 @@ function Shell({ children }: any) {
     <span className="auth-orb auth-orb-one" aria-hidden="true" />
     <span className="auth-orb auth-orb-two" aria-hidden="true" />
     <section className="auth-card">{children}</section>
-    <p className="auth-footnote">P4P · NURSING DEPARTMENT · SAWANG DAEN DIN CROWN PRINCE HOSPITAL</p>
+    <p className="auth-footnote">{FOOTER_TEXT}</p>
   </main>
 }
 function Login({ sb }: any) {
@@ -101,7 +102,7 @@ function Login({ sb }: any) {
     </div>
   return <Shell>
     <div className="brand-mark"><div className="brand-mark-icon">P4P</div><div className="brand-caption">NURSING DEPARTMENT</div></div>
-    <div className="auth-heading"><p className="eyebrow">SMART NURSING WORKFLOW</p><h1>{mode === 'in' ? 'ยินดีต้อนรับ' : 'สร้างบัญชีผู้ใช้งาน'}</h1><p>{mode === 'in' ? 'เข้าสู่ระบบบันทึกกิจกรรมและคำนวณแต้ม P4P' : 'กรอกข้อมูลเพื่อเริ่มใช้งานระบบ P4P'}</p></div>
+    <div className="auth-heading"><p className="hospital-name">กลุ่มการพยาบาล<br />โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</p><p className="eyebrow">P4P · SMART NURSING WORKFLOW</p><h1>{mode === 'in' ? 'ยินดีต้อนรับ' : 'สร้างบัญชีผู้ใช้งาน'}</h1><p>{mode === 'in' ? 'เข้าสู่ระบบบันทึกกิจกรรมและคำนวณแต้ม P4P' : 'กรอกข้อมูลเพื่อเริ่มใช้งานระบบ P4P'}</p></div>
     <div className="auth-form">
       {mode === 'up' && <>
         <div className="name-grid">
@@ -152,9 +153,9 @@ function Main({ sb, session }: any) {
   const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน'], ['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้']] : [])]
   const cur = tab || tabs[0]?.[0]
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
-  return <div className="max-w-6xl mx-auto p-3 sm:p-6 space-y-4">
+  return <div className="min-h-screen flex flex-col"><div className="flex-1 w-full px-3 sm:px-6 lg:px-10 py-3 sm:py-6 space-y-4">
     <header className="flex flex-wrap items-center gap-3 border-b-2 border-stone-800 pb-3">
-      <div className="mr-auto"><h1 className="text-xl font-bold">P4P กลุ่มการพยาบาล</h1>
+      <div className="mr-auto"><h1 className="text-xl font-bold leading-tight">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1><p className="text-xs font-bold text-teal-800">ระบบบันทึกกิจกรรมและคำนวณแต้ม P4P</p>
         <p className="text-sm text-stone-600">{profile.full_name || session.user.email} · <b>{ROLE_TH[role]}</b>{!isRev && units.find(u => u.id === profile.unit_id) && ` · ${units.find(u => u.id === profile.unit_id).name}`}</p></div>
       {(isRev) && <select className="inp !w-56" value={unit ?? ''} onChange={e => setUnit(+e.target.value)}>{units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>}
       <input type="month" className="inp !w-40" value={month} onChange={e => setMonth(e.target.value)} />
@@ -169,6 +170,8 @@ function Main({ sb, session }: any) {
     {cur === 'people' && <PeoplePage sb={sb} people={scope} unit={unit} positions={positions} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
     {cur === 'audit' && <ReviewPage sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} audit />}
+    </div>
+    <footer className="app-footer">{FOOTER_TEXT}</footer>
   </div>
 }
 
