@@ -272,7 +272,7 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
     </div>
     <div className="space-y-3">
       <Totals rows={shown} people={person ? [person] : []} positions={positions} />
-      <LogTable sb={sb} rows={shown} reload={reload} canApprove={canApprove} showName={!pid && people.length > 1} />
+      <LogTable sb={sb} rows={shown} reload={reload} canApprove={canApprove} showName={!pid && people.length > 1} acts={acts} />
     </div>
   </div>
 }
@@ -289,9 +289,42 @@ function Totals({ rows, people, positions }: any) {
 const ST: any = { pending: ['รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); alert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = false }: any) {
-  const set = async (id: number, status: string) => { await sb.from('logs').update({ status }).eq('id', id); reload() }
-  const del = async (id: number) => { if (confirm('ลบรายการนี้?')) { await sb.from('logs').delete().eq('id', id); reload() } }
+function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = false, acts = [] }: any) {
+  const [editing, setEditing] = useState<any>(null)
+  const [form, setForm] = useState<any>({})
+  const [saving, setSaving] = useState(false)
+  const [editError, setEditError] = useState('')
+  const beginEdit = (r: any) => {
+    setEditing(r)
+    setForm({ work_date: r.work_date || '', activity_code: r.activity_code || '', qty: String(r.qty ?? 1), role: r.role || '', evidence: r.evidence || '', sub_activity: r.sub_activity || '' })
+    setEditError('')
+  }
+  const set = async (id: number, status: string) => {
+    const { error } = await sb.from('logs').update({ status }).eq('id', id)
+    if (error) { alert('เปลี่ยนสถานะไม่สำเร็จ: ' + error.message); return }
+    reload()
+  }
+  const del = async (id: number) => { if (confirm('ลบรายการนี้?')) { const { error } = await sb.from('logs').delete().eq('id', id); if (error) alert('ลบรายการไม่สำเร็จ: ' + error.message); else reload() } }
+  const saveEdit = async () => {
+    setEditError('')
+    if (!form.work_date || !form.activity_code || !form.qty || Number(form.qty) <= 0) { setEditError('กรุณาระบุวันที่ กิจกรรม และจำนวนให้ถูกต้อง'); return }
+    const activity = acts.find((a: any) => a.code === form.activity_code)
+    if (!activity) { setEditError('ไม่พบกิจกรรมที่เลือกในคลังกิจกรรม'); return }
+    if (activity.need_evidence && !String(form.evidence || '').trim() && !editing.evidence_image_path) { setEditError('กิจกรรมนี้ต้องมีหลักฐาน กรุณาระบุรายละเอียดหลักฐานก่อนบันทึก'); return }
+    setSaving(true)
+    const payload = {
+      work_date: form.work_date,
+      activity_code: form.activity_code,
+      qty: Number(form.qty),
+      role: activity.use_role_mult ? (form.role || null) : null,
+      evidence: String(form.evidence || '').trim() || (editing.evidence_image_path ? 'แนบรูปถ่าย' : null),
+      sub_activity: String(form.sub_activity || '').trim() || null
+    }
+    const { error } = await sb.from('logs').update(payload).eq('id', editing.id).eq('status', 'pending')
+    setSaving(false)
+    if (error) { setEditError('บันทึกการแก้ไขไม่สำเร็จ: ' + error.message); return }
+    setEditing(null); reload()
+  }
   return <div className="card overflow-x-auto p-0">
     <table className="w-full"><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th></th></tr></thead>
       <tbody>{rows.map((r: any) => <tr key={r.id}>
@@ -300,11 +333,25 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
         <td>{r.qty} {r.uom}</td><td className="whitespace-nowrap">{nf(r.counted_points)}{Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
         <td className="text-xs">{r.errors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{r.warnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!r.errors.length && !r.warnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
         <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span></td>
-        <td className="whitespace-nowrap space-x-1">{!readOnly && canApprove && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => set(r.id, 'rejected')}>ไม่รับรอง</button></>}
+        <td className="whitespace-nowrap space-x-1">{!readOnly && r.status === 'pending' && <button className="btn sec !py-0.5" onClick={() => beginEdit(r)}>แก้ไข</button>}
+          {!readOnly && canApprove && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => set(r.id, 'rejected')}>ไม่รับรอง</button></>}
           {!readOnly && (canApprove || r.status === 'pending') && <button className="text-xs underline" onClick={() => del(r.id)}>ลบ</button>}</td>
-      </tr>)}{!rows.length && <tr><td colSpan={8} className="text-center text-stone-500 py-6">ยังไม่มีรายการในเดือนนี้</td></tr>}</tbody></table></div>
+      </tr>)}{!rows.length && <tr><td colSpan={8} className="text-center text-stone-500 py-6">ยังไม่มีรายการในเดือนนี้</td></tr>}</tbody></table>
+    {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="edit-log-title"><div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4">
+      <div className="flex items-start justify-between gap-3 border-b pb-3"><div><h2 id="edit-log-title" className="text-lg font-bold">แก้ไขรายการที่รอรับรอง</h2><p className="text-xs text-stone-500">แก้ไขข้อมูลได้ก่อนรับรองรายการ ระบบจะคำนวณแต้มและตรวจเงื่อนไขใหม่จากข้อมูลล่าสุด</p></div><button className="btn sec" onClick={() => setEditing(null)}>ปิด</button></div>
+      {editError && <p role="alert" className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">{editError}</p>}
+      <label className="field-label">วันที่ปฏิบัติงาน<input type="date" className="inp mt-1" value={form.work_date} onChange={e => setForm({...form, work_date:e.target.value})} /></label>
+      <label className="field-label">กิจกรรม<select className="inp mt-1" value={form.activity_code} onChange={e => setForm({...form, activity_code:e.target.value})}>{acts.filter((a:any) => a.active !== false).map((a:any) => <option key={a.code} value={a.code}>{a.code} — {a.title}</option>)}</select></label>
+      {(() => { const a = acts.find((x:any) => x.code === form.activity_code); return a ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><b>{a.need_evidence ? 'หลักฐานที่จำเป็น' : 'หลักฐานประกอบ'}</b><p className="mt-1 whitespace-pre-wrap">{a.definition || (a.need_evidence ? 'ต้องระบุหลักฐานที่ตรวจสอบได้' : 'สามารถระบุหลักฐานเพิ่มเติมได้')}</p></div> : null })()}
+      <label className="field-label">จำนวน ({acts.find((a:any) => a.code === form.activity_code)?.uom || editing.uom || 'หน่วย'})<input type="number" min="0.01" step="0.5" className="inp mt-1" value={form.qty} onChange={e => setForm({...form, qty:e.target.value})} /></label>
+      {acts.find((a:any) => a.code === form.activity_code)?.use_role_mult && <label className="field-label">บทบาทในกิจกรรม<select className="inp mt-1" value={form.role} onChange={e => setForm({...form, role:e.target.value})}>{ROLES.map((r:string) => <option key={r}>{r}</option>)}</select></label>}
+      <label className="field-label">รายละเอียดกิจกรรมย่อย<textarea className="inp mt-1 min-h-20" value={form.sub_activity} onChange={e => setForm({...form, sub_activity:e.target.value})} /></label>
+      <label className="field-label">รายละเอียดหลักฐาน<textarea className="inp mt-1 min-h-20" value={form.evidence} onChange={e => setForm({...form, evidence:e.target.value})} placeholder="ระบุเอกสารอ้างอิงหรือรายละเอียดหลักฐาน" /></label>
+      {editing.evidence_image_path && <p className="text-xs text-stone-600">รูปหลักฐานเดิมจะคงอยู่: <button className="underline text-teal-800" onClick={() => openEvidence(sb, editing.evidence_image_path)}>ดูรูปหลักฐาน</button> (การแก้ไขนี้ไม่เปลี่ยนไฟล์รูป)</p>}
+      <div className="flex flex-wrap gap-2"><button className="btn" disabled={saving} onClick={saveEdit}>{saving ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button><button className="btn sec" onClick={() => setEditing(null)}>ยกเลิก</button></div>
+    </div></div>}
+  </div>
 }
-
 
 function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
   const [query, setQuery] = useState('')
@@ -385,7 +432,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
   </div>
 }
 
-function ReviewPage({ sb, people, unit, month, positions, audit }: any) {
+function ReviewPage({ sb, people, unit, month, acts, positions, audit }: any) {
   const [rows, reload] = useLogs(sb, month, null, unit)
   const [sel, setSel] = useState<string>('')
   const [cfg, setCfg] = useState<any>({ budget: 0, baht_per_point: 0, deduct_guarantee: true })
@@ -432,7 +479,7 @@ function ReviewPage({ sb, people, unit, month, positions, audit }: any) {
           <td className="text-xs text-red-700">{x.err > 0 && `✗${x.err} `}{x.warn > 0 && `!${x.warn} `}{x.pend > 0 && `รอรับรอง${x.pend} `}{ratio > 1.5 && 'สูงกว่าเฉลี่ยมาก '}{x.tot > 0 && ratio < .5 && 'ต่ำกว่าเฉลี่ยมาก'}{!x.n && 'ไม่มีบันทึก'}</td></tr> })}
         <tr className="font-bold"><td colSpan={5}>รวมทั้งหน่วย</td><td>{nf(sum.reduce((s: number, x: any) => s + x.tot, 0))}</td><td></td><td>{nf(pool)}</td><td>{nf(pool * rate)}</td><td></td></tr></tbody></table></div>
     <h2 className="font-bold">{sel ? 'รายการของ ' + people.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
-    <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} />
+    <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
   </div>
 }
 
