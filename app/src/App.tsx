@@ -16,7 +16,13 @@ export default function App() {
   const [session, setSession] = useState<any>(undefined)
   useEffect(() => {
     if (!sb) return
-    sb.auth.getSession().then(({ data }: any) => setSession(data.session))
+    // ตรวจกับเซิร์ฟเวอร์ว่าบัญชีใน session ยังมีอยู่จริง (กรณีผู้ดูแลลบบัญชีไปแล้ว แต่เบราว์เซอร์ยังจำ session เก่า)
+    sb.auth.getSession().then(async ({ data }: any) => {
+      if (!data.session) return setSession(null)
+      const { data: u, error } = await sb.auth.getUser()
+      if (error || !u?.user) { await sb.auth.signOut({ scope: 'local' }); return setSession(null) }
+      setSession(data.session)
+    })
     const { data } = sb.auth.onAuthStateChange((_e: any, s: any) => setSession(s))
     return () => data.subscription.unsubscribe()
   }, [sb])
@@ -55,7 +61,7 @@ function Login({ sb }: any) {
   const usernameValid = /^[a-z0-9][a-z0-9._-]{2,29}$/.test(username.trim().toLowerCase())
   const profileValid = f.first.trim() && f.last.trim() && f.position && f.unit
   const passwordsMatch = pw === confirmPw
-  const ok = !busy && usernameValid && pw.length >= 6 && (mode === 'in' || (passwordsMatch && profileValid))
+  const ok = !busy && usernameValid && pw.length >= (mode === 'in' ? 1 : 6) && (mode === 'in' || (passwordsMatch && profileValid))
   const set = (k: string) => (e: any) => setF((old: any) => ({ ...old, [k]: e.target.value }))
   const go = async () => {
     if (!ok) return
@@ -127,19 +133,20 @@ function Login({ sb }: any) {
 }
 
 function Main({ sb, session }: any) {
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null); const [noProfile, setNoProfile] = useState(false)
   const [people, setPeople] = useState<any[]>([]); const [acts, setActs] = useState<any[]>([]); const [units, setUnits] = useState<any[]>([])
   const [positions, setPositions] = useState<any[]>([])
   const [month, setMonth] = useState(today().slice(0, 7)); const [tab, setTab] = useState('')
   const [unit, setUnit] = useState<number | null>(null)
   const loadPeople = () => sb.from('people').select('*').eq('active', true).order('name').then((r: any) => setPeople(r.data || []))
   useEffect(() => {
-    sb.from('profiles').select('*').eq('user_id', session.user.id).single().then((r: any) => { setProfile(r.data); setUnit(r.data?.unit_id ?? null) })
+    sb.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle().then((r: any) => { if (!r.data) { setNoProfile(true); return } setProfile(r.data); setUnit(r.data.unit_id ?? null) })
     sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || []))
     sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
     sb.from('positions').select('*').then((r: any) => setPositions(r.data || []))
     loadPeople()
   }, [])
+  if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'
   const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน'], ['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้']] : [])]
@@ -157,7 +164,7 @@ function Main({ sb, session }: any) {
     {tabs.length === 0 && <p>บัญชีนี้ยังไม่มีสิทธิ์ใช้งาน</p>}
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
-      : <LogPage sb={sb} people={scope} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} />)}
+      : <LogPage sb={sb} people={scope} allPeople={people} unitOptions={role === 'admin' ? units : units.filter(u => u.id === profile.unit_id)} defaultUnit={role === 'admin' ? unit : profile.unit_id} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} />)}
     {cur === 'review' && <ReviewPage sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
     {cur === 'people' && <PeoplePage sb={sb} people={scope} unit={unit} positions={positions} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
@@ -177,16 +184,20 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
   return [rows, () => setN(x => x + 1)] as const
 }
 
-function LogPage({ sb, people, acts, positions, month, canApprove }: any) {
+function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, canApprove }: any) {
+  const picker = !!canApprove // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
+  const [uSel, setUSel] = useState<number | null>(defaultUnit ?? unitOptions?.[0]?.id ?? null)
+  const people = useMemo(() => (picker ? (allPeople || []).filter((p: any) => p.unit_id === uSel) : peopleProp), [picker, allPeople, uSel, peopleProp])
   const ids = useMemo(() => people.map((p: any) => p.id), [people])
   const [rows, reload] = useLogs(sb, month, ids)
-  const [pid, setPid] = useState(people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
+  const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
   const [q, setQ] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [err, setErr] = useState('')
-  useEffect(() => { if (!pid && people[0]) setPid(people[0].id) }, [people])
+  useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
   const person = people.find((p: any) => p.id === pid); const pos = positions.find((x: any) => x.name === person?.position)
   const list = acts.filter((a: any) => (!pos || a.eligible.includes(pos.grp)) && (a.code + a.title).toLowerCase().includes(q.toLowerCase()))
   const act = acts.find((a: any) => a.code === code)
   const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate * (act.use_role_mult ? (role === ROLES[0] ? 2 : role === ROLES[1] ? 1.5 : 1) : 1) : 0
+  const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
   const save = async () => {
     setErr('')
     const { error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: act?.use_role_mult ? role : null, qty: +qty, evidence: ev || null })
@@ -195,7 +206,14 @@ function LogPage({ sb, people, acts, positions, month, canApprove }: any) {
   return <div className="grid lg:grid-cols-[22rem_1fr] gap-4">
     <div className="card space-y-2 self-start">
       <h2 className="font-bold">เพิ่มรายการ</h2>
-      {people.length > 1 && <select className="inp" value={pid} onChange={e => setPid(e.target.value)}>{people.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}</select>}
+      {picker && <>
+        <label className="text-xs text-stone-600">หน่วยงานที่ต้องการบันทึก</label>
+        <select className="inp" value={uSel ?? ''} onChange={e => { setUSel(+e.target.value); setPid('') }}>{(unitOptions || []).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+        <label className="text-xs text-stone-600">บันทึกคะแนนให้ใคร</label>
+        <select className="inp" value={pid} onChange={e => setPid(e.target.value)}><option value="">— เลือกบุคลากรในหน่วยงานนี้ —</option>{people.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}</select>
+        {!people.length && <p className="text-xs text-red-700">หน่วยงานนี้ยังไม่มีบุคลากร เพิ่มได้ที่แท็บ "บุคลากร"</p>}
+      </>}
+      {!picker && people.length > 1 && <select className="inp" value={pid} onChange={e => setPid(e.target.value)}>{people.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}</select>}
       <input type="date" className="inp" value={date} onChange={e => setDate(e.target.value)} />
       <input className="inp" placeholder="ค้นหากิจกรรม (รหัส/คำ)" value={q} onChange={e => setQ(e.target.value)} />
       <select className="inp" size={6} value={code} onChange={e => setCode(e.target.value)}>
@@ -210,8 +228,8 @@ function LogPage({ sb, people, acts, positions, month, canApprove }: any) {
       {err && <p className="text-sm text-red-700">{err}</p>}
     </div>
     <div className="space-y-3">
-      <Totals rows={rows} people={people} positions={positions} />
-      <LogTable sb={sb} rows={rows} reload={reload} canApprove={canApprove} showName={people.length > 1} />
+      <Totals rows={shown} people={person ? [person] : []} positions={positions} />
+      <LogTable sb={sb} rows={shown} reload={reload} canApprove={canApprove} showName={!pid && people.length > 1} />
     </div>
   </div>
 }
