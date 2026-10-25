@@ -58,3 +58,27 @@ tr:last-child td { border-bottom:0; }
 
 .hospital-name { margin:0 0 .7rem; color:#07816f; font-size:1rem; font-weight:700; line-height:1.55; }
 .app-footer { padding:.9rem 1rem; text-align:center; font-size:.78rem; color:#708194; background:#fff; border-top:1px solid #dde5ea; }
+
+/* dropdown */
+select.inp { -webkit-appearance:none; appearance:none; padding-right:2.4rem; cursor:pointer; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%230d8976' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>"); background-repeat:no-repeat; background-position:right .85rem center; background-size:1rem; }
+select.inp:hover { border-color:#0d8976; }
+select.inp optgroup { color:#0b7a6a; font-weight:700; font-style:normal; background:#eef7f5; }
+select.inp option { color:#182b3d; font-weight:400; background:#fff; }
+/* รายการกิจกรรม */
+.act-list { max-height:23rem; overflow-y:auto; border:1px solid #d7e0e9; border-radius:.7rem; background:#fff; }
+.act-head { position:sticky; top:0; z-index:1; padding:.35rem .8rem; background:#e4f3ef; color:#0b7a6a; font-size:.8rem; font-weight:700; letter-spacing:.05em; border-bottom:1px solid #cfe5df; }
+.act-item { display:grid; grid-template-columns:4.2rem 1fr; column-gap:.6rem; width:100%; padding:.5rem .8rem; text-align:left; font-size:.9rem; border-bottom:1px solid #eef2f6; border-left:3px solid transparent; }
+.act-item:hover { background:#f2f9f7; }
+.act-item.on { background:#e2f4f0; border-left-color:#0d8976; }
+.act-code { grid-row:1 / span 2; color:#0b7a6a; font-weight:700; font-size:.8rem; padding-top:.1rem; }
+.act-title { color:#243a4d; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.act-uom { color:#7a8b9b; font-size:.75rem; }
+/* จำนวน + หน่วยนับ */
+.qty-wrap { position:relative; }
+.qty-wrap .inp { padding-right:7.5rem; }
+.qty-unit { position:absolute; right:.9rem; top:50%; transform:translateY(-50%); max-width:6.4rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#0b7a6a; font-weight:700; font-size:.85rem; pointer-events:none; }
+.uom-chip { margin-left:.4rem; padding:.1rem .5rem; border-radius:999px; background:#e2f4f0; color:#0b7a6a; font-size:.75rem; font-weight:700; }
+/* เลือกหน่วยงานเพิ่มตอนสมัคร */
+.unit-check-list { max-height:13rem; overflow-y:auto; border:1px solid #d7e0e9; border-radius:.7rem; background:#fff; }
+.unit-check-head { padding:.3rem .7rem; background:#eef7f5; color:#0b7a6a; font-size:.75rem; font-weight:700; }
+.unit-check { display:flex; gap:.5rem; align-items:flex-start; padding:.35rem .7rem; font-size:.85rem; color:#243a4d; cursor:pointer; }
