@@ -82,3 +82,35 @@ select.inp option { color:#182b3d; font-weight:400; background:#fff; }
 .unit-check-list { max-height:13rem; overflow-y:auto; border:1px solid #d7e0e9; border-radius:.7rem; background:#fff; }
 .unit-check-head { padding:.3rem .7rem; background:#eef7f5; color:#0b7a6a; font-size:.75rem; font-weight:700; }
 .unit-check { display:flex; gap:.5rem; align-items:flex-start; padding:.35rem .7rem; font-size:.85rem; color:#243a4d; cursor:pointer; }
+
+/* ===== ใบสรุปผลงาน P4P (A4) ===== */
+@page { size: A4 portrait; margin: 12mm; }
+.print-overlay { position:fixed; inset:0; z-index:100; background:#e8edf2; overflow:auto; padding:1rem; }
+.print-toolbar { max-width:210mm; margin:0 auto .75rem; display:flex; gap:.5rem; flex-wrap:wrap; }
+.print-sheet { width:210mm; min-height:297mm; margin:0 auto; background:#fff; padding:14mm; color:#111; font-size:11pt; line-height:1.4; box-shadow:0 4px 24px rgba(0,0,0,.15); }
+.ps-hospital { text-align:center; font-size:11pt; }
+.ps-title { text-align:center; font-size:17pt; font-weight:700; margin:.15rem 0 .8rem; color:#111; }
+.ps-top { display:flex; justify-content:space-between; align-items:flex-start; gap:10mm; margin-bottom:5mm; }
+.ps-info { flex:1; display:grid; gap:2px; font-size:11pt; }
+.ps-info b { display:inline-block; min-width:7.5em; }
+.pt { width:100%; border-collapse:collapse; }
+.pt th, .pt td { border:1px solid #333; padding:2px 6px; font-size:10pt; color:#111; background:none; text-transform:none; letter-spacing:0; vertical-align:middle; }
+.pt th { background:#eee; text-align:center; font-weight:700; white-space:normal; }
+.pt td.r { text-align:right; } .pt td.c { text-align:center; } .pt td.nw { white-space:nowrap; } .pt td.sm { font-size:9pt; }
+.pt tr.b td { font-weight:700; background:#f5f5f5; }
+.ps-sum { width:62mm; flex:none; }
+.ps-acts { margin-bottom:10mm; }
+.sign-row { display:flex; gap:6mm; margin-top:14mm; }
+.sign-box { flex:1; font-size:10pt; text-align:center; }
+.sign-name { margin-top:7mm; } .sign-pos { margin-top:3mm; }
+.sign-blank { display:inline-block; width:38mm; height:1em; } .sign-blank.wide { width:30mm; }
+.ps-foot { margin-top:10mm; text-align:right; font-size:8.5pt; color:#666; }
+@media print {
+  html, body { background:#fff !important; }
+  #root { display:none !important; }
+  .no-print { display:none !important; }
+  .print-overlay { position:static !important; overflow:visible !important; background:#fff !important; padding:0 !important; }
+  .print-sheet { width:auto !important; min-height:0 !important; margin:0 !important; padding:0 !important; box-shadow:none !important; }
+  .pt thead { display:table-header-group; } .pt tr, .sign-row { break-inside:avoid; }
+}
+@media (max-width: 820px) { .print-sheet { width:100%; min-height:0; padding:6mm; } .ps-top { flex-direction:column; } .ps-sum { width:100%; } .sign-row { flex-direction:column; } }

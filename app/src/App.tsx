@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Eye, EyeOff, Printer, ShieldCheck } from 'lucide-react'
 
 const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_publishable_8qxOgD-AHGnv9RWWAZTUQQ_I0MPIMv3' }
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ว่าที่ร้อยตรี', 'ว่าที่ร้อยตรีหญิง']
@@ -223,13 +224,13 @@ function Main({ sb, session }: any) {
     {tabs.length === 0 && <p>บัญชีนี้ยังไม่มีสิทธิ์ใช้งาน</p>}
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
-      : <LogPage sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} />)}
+      : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} />)}
     {cur === 'review' && role === 'admin' && !unit && <div className="card text-center space-y-2"><h2 className="font-bold">เลือกหน่วยงานเพื่อเริ่มตรวจ/รับรอง</h2><p className="text-sm text-stone-600">กรุณาเลือกหน่วยงานจากรายการด้านบน ระบบจะแสดงรายการทั้งหมดของหน่วยงานที่เลือก</p></div>}
-    {cur === 'review' && !(role === 'admin' && !unit) && <ReviewPage sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
+    {cur === 'review' && !(role === 'admin' && !unit) && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
     {cur === 'people' && <PeoplePage sb={sb} people={scope} unit={unit} positions={positions} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
     {cur === 'activities' && <ActivityLibrary sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
-    {cur === 'audit' && <ReviewPage sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} audit />}
+    {cur === 'audit' && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} audit />}
     </div>
     <footer className="app-footer">{FOOTER_TEXT}</footer>
   </div>
@@ -247,8 +248,9 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
   return [rows, () => setN(x => x + 1)] as const
 }
 
-function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, canApprove }: any) {
-  const picker = !!canApprove // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
+function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, canApprove }: any) {
+  const picker = !!canApprove
+  const [printing, setPrinting] = useState(false) // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
   const [uSel, setUSel] = useState<number | null>(defaultUnit ?? unitOptions?.[0]?.id ?? null)
   const people = useMemo(() => (picker ? (allPeople || []).filter((p: any) => p.unit_id === uSel) : peopleProp), [picker, allPeople, uSel, peopleProp])
   const ids = useMemo(() => people.map((p: any) => p.id), [people])
@@ -364,10 +366,76 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" className="btn" onClick={() => { setModalOpen(false); setErr('') }}>ยกเลิก</button><button type="button" className="btn" disabled={!pid || !code || !+qty} onClick={save}>บันทึกกิจกรรม</button></div></div></div>}
     </div>
     <div className="space-y-3">
+      {person && <div className="flex justify-end"><button type="button" className="btn sec" onClick={() => setPrinting(true)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปประจำเดือน (A4)</button></div>}
+      {printing && person && <PrintSheet sb={sb} person={person} rows={shown} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
       <Totals rows={shown} people={person ? [person] : []} positions={positions} />
       <LogTable sb={sb} rows={shown} reload={reload} canApprove={canApprove} showName={!pid && people.length > 1} acts={acts} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} />
     </div>
   </div>
+}
+
+const DOMAINS = ['บริหาร', 'บริการ', 'วิชาการ']
+const n2 = (v: any) => Number(v || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })
+const statusLabel = (st: any) => {
+  const parts = [['approved', 'รับรองแล้ว'], ['pending', 'รอรับรอง'], ['rejected', 'ไม่รับรอง']].filter(([k]) => st[k] > 0)
+  const total = st.approved + st.pending + st.rejected
+  return parts.length === 1 ? parts[0][1] : parts.map(([k, l]) => `${l} ${st[k]}/${total}`).join(' · ')
+}
+// ใบสรุปผลงาน P4P รายบุคคล (A4) แสดงเป็นหน้าตัวอย่างก่อนพิมพ์ ผ่าน portal เพื่อให้สั่งพิมพ์เฉพาะใบนี้
+function PrintSheet({ sb, person, rows, month, units, positions, onClose }: any) {
+  const [head, setHead] = useState<any>(null)
+  useEffect(() => { sb.rpc('unit_head', { p_unit: person.unit_id }).then((r: any) => setHead(r.data?.[0] || null)) }, [person.unit_id])
+  const unit = units.find((u: any) => u.id === person.unit_id)
+  const guarantee = Number(positions.find((x: any) => x.name === person.position)?.guarantee || 0)
+  const monthText = new Date(month + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
+  const byDomain = (d: string) => rows.filter((r: any) => r.domain === d).reduce((a: number, r: any) => a + Number(r.counted_points), 0)
+  const total = DOMAINS.reduce((a, d) => a + byDomain(d), 0)
+  const groups = useMemo(() => {
+    const m = new Map<string, any>()
+    rows.forEach((r: any) => {
+      const g = m.get(r.activity_code) || { code: r.activity_code, title: r.title, uom: r.uom, domain: r.domain, qty: 0, min: 0, pts: 0, st: { approved: 0, pending: 0, rejected: 0 } }
+      g.qty += Number(r.qty); g.min += Number(r.total_min); g.pts += Number(r.counted_points); g.st[r.status] += 1
+      m.set(r.activity_code, g)
+    })
+    return [...m.values()].sort((a, b) => a.code.localeCompare(b.code))
+  }, [rows])
+  const sign = (title: string, name?: string, pos?: string) => <div className="sign-box">
+    <div>ลงชื่อ ........................................ {title}</div>
+    <div className="sign-name">( {name || <span className="sign-blank" />} )</div>
+    <div className="sign-pos">ตำแหน่ง {pos || <span className="sign-blank wide" />}</div>
+  </div>
+  return createPortal(<div className="print-overlay">
+    <div className="print-toolbar no-print">
+      <span className="text-sm text-stone-600 mr-auto self-center">ตัวอย่างก่อนพิมพ์ (ขนาด A4) · เลือก "บันทึกเป็น PDF" ในหน้าต่างพิมพ์ได้</span>
+      <button className="btn" onClick={() => window.print()}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button>
+      <button className="btn sec" onClick={onClose}>ปิด</button>
+    </div>
+    <div className="print-sheet">
+      <div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div>
+      <h1 className="ps-title">ใบสรุปผลงาน P4P รายบุคคล</h1>
+      <div className="ps-top">
+        <div className="ps-info">
+          <div><b>ชื่อ-สกุล</b> {person.name}</div>
+          <div><b>ตำแหน่ง</b> {person.position}</div>
+          <div><b>หน่วยงาน/งาน</b> {unit?.name || '-'}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div>
+          <div><b>เดือน</b> {monthText}</div>
+        </div>
+        <table className="pt ps-sum"><thead><tr><th>ด้าน</th><th>แต้ม</th></tr></thead><tbody>
+          {DOMAINS.map(d => <tr key={d}><td>{d}</td><td className="r">{nf(byDomain(d))}</td></tr>)}
+          <tr className="b"><td>รวม</td><td className="r">{nf(total)}</td></tr>
+          <tr><td>แต้มประกัน</td><td className="r">{nf(guarantee)}</td></tr>
+          <tr className="b"><td>ส่วนที่เกิน</td><td className="r">{nf(Math.max(0, total - guarantee))}</td></tr>
+        </tbody></table>
+      </div>
+      <table className="pt ps-acts"><thead><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>นาทีรวม</th><th>แต้มที่นับ</th><th>สถานะ</th><th>ด้าน</th></tr></thead>
+        <tbody>{groups.map(g => <tr key={g.code}><td className="nw">{g.code}</td><td>{g.title}</td><td className="c">{g.uom}</td><td className="r">{n2(g.qty)}</td><td className="r">{n2(g.min)}</td><td className="r">{nf(g.pts)}</td><td className="c sm">{statusLabel(g.st)}</td><td className="c">{g.domain}</td></tr>)}
+          {!groups.length && <tr><td colSpan={8} className="c">ไม่มีกิจกรรมที่บันทึกในเดือนนี้</td></tr>}
+          {groups.length > 0 && <tr className="b"><td colSpan={4} className="r">รวม</td><td className="r">{n2(groups.reduce((a, g) => a + g.min, 0))}</td><td className="r">{nf(groups.reduce((a, g) => a + g.pts, 0))}</td><td colSpan={2}></td></tr>}
+        </tbody></table>
+      <div className="sign-row">{sign('ผู้บันทึก')}{sign('หัวหน้างาน (รับรอง)', head?.head_name, head?.head_position)}{sign('ผู้ตรวจสอบ (คกก. P4P)')}</div>
+      <div className="ps-foot">พิมพ์เมื่อ {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} · ระบบ P4P กลุ่มการพยาบาล</div>
+    </div>
+  </div>, document.body)
 }
 
 function Totals({ rows, people, positions }: any) {
@@ -562,7 +630,8 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
   </div>
 }
 
-function ReviewPage({ sb, people, unit, month, acts, positions, audit }: any) {
+function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, canPrint }: any) {
+  const [printFor, setPrintFor] = useState<any>(null)
   const [rows, reload] = useLogs(sb, month, null, unit)
   const [sel, setSel] = useState<string>('')
   const [cfg, setCfg] = useState<any>({ budget: 0, baht_per_point: 0, deduct_guarantee: true })
@@ -602,13 +671,14 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit }: any) {
       <label className="text-sm flex gap-1 items-center"><input type="checkbox" checked={cfg.deduct_guarantee} onChange={e => setCfg({ ...cfg, deduct_guarantee: e.target.checked })} />หักแต้มประกัน</label>
       <button className="btn" onClick={saveCfg}>บันทึกการตั้งค่า</button></div>}
     <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button></div>
-    <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ชื่อ</th><th>ตำแหน่ง</th><th>บริหาร</th><th>บริการ</th><th>วิชาการ</th><th>รวม</th><th>ประกัน</th><th>จัดสรร</th><th>เงิน (บาท)</th><th>ข้อสังเกต</th></tr></thead>
+    <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ชื่อ</th><th>ตำแหน่ง</th><th>บริหาร</th><th>บริการ</th><th>วิชาการ</th><th>รวม</th><th>ประกัน</th><th>จัดสรร</th><th>เงิน (บาท)</th><th>ข้อสังเกต</th>{canPrint && <th></th>}</tr></thead>
       <tbody>{sum.map((x: any) => { const a = avg(x.p.position), ratio = a ? x.tot / a : 0
         return <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
           <td><b>{x.p.name}</b></td><td className="text-xs">{x.p.position}</td><td>{nf(x.adm)}</td><td>{nf(x.svc)}</td><td>{nf(x.acd)}</td><td><b>{nf(x.tot)}</b></td><td>{nf(x.g, 0)}</td><td>{nf(x.pay)}</td><td><b>{nf(x.pay * rate)}</b></td>
-          <td className="text-xs text-red-700">{x.err > 0 && `✗${x.err} `}{x.warn > 0 && `!${x.warn} `}{x.pend > 0 && `รอรับรอง${x.pend} `}{ratio > 1.5 && 'สูงกว่าเฉลี่ยมาก '}{x.tot > 0 && ratio < .5 && 'ต่ำกว่าเฉลี่ยมาก'}{!x.n && 'ไม่มีบันทึก'}</td></tr> })}
-        <tr className="font-bold"><td colSpan={5}>รวมทั้งหน่วย</td><td>{nf(sum.reduce((s: number, x: any) => s + x.tot, 0))}</td><td></td><td>{nf(pool)}</td><td>{nf(pool * rate)}</td><td></td></tr></tbody></table></div>
+          <td className="text-xs text-red-700">{x.err > 0 && `✗${x.err} `}{x.warn > 0 && `!${x.warn} `}{x.pend > 0 && `รอรับรอง${x.pend} `}{ratio > 1.5 && 'สูงกว่าเฉลี่ยมาก '}{x.tot > 0 && ratio < .5 && 'ต่ำกว่าเฉลี่ยมาก'}{!x.n && 'ไม่มีบันทึก'}</td>{canPrint && <td><button type="button" className="btn sec !py-0.5 whitespace-nowrap" onClick={e => { e.stopPropagation(); setPrintFor(x.p) }}>พิมพ์ใบสรุป</button></td>}</tr> })}
+        <tr className="font-bold"><td colSpan={5}>รวมทั้งหน่วย</td><td>{nf(sum.reduce((s: number, x: any) => s + x.tot, 0))}</td><td></td><td>{nf(pool)}</td><td>{nf(pool * rate)}</td><td></td>{canPrint && <td></td>}</tr></tbody></table></div>
     <h2 className="font-bold">{sel ? 'รายการของ ' + people.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
+    {printFor && <PrintSheet sb={sb} person={printFor} rows={rows.filter((r: any) => r.person_id === printFor.id)} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
     <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
   </div>
 }
