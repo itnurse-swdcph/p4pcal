@@ -127,7 +127,7 @@ function Login({ sb }: any) {
         </div>
         <div className="space-y-1"><label className="field-label">ตำแหน่ง</label><select className="inp" value={f.position} onChange={set('position')}><option value="">เลือกตำแหน่ง</option>{positions.map(x => <option key={x.name} value={x.name}>{x.name}</option>)}</select></div>
         {grp && <p className="field-hint">กลุ่มตำแหน่ง: <b>{grp}</b> · {positions.find(x => x.name === f.position)?.rate} แต้ม/นาที</p>}
-        <div className="space-y-1"><label className="field-label">หน่วยงาน</label><select className="inp" value={f.unit} onChange={e => { const next = e.target.value; setF((old: any) => ({ ...old, unit: next })); setExtra(old => old.filter(id => id !== Number(next))) }}><option value="">เลือกหน่วยงาน</option>{groups.map((g: any) => <optgroup key={g} label={g}>{units.filter(u => u.parent_group === g).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}</select></div>
+        {!isGroupHead && <div className="space-y-1"><label className="field-label">หน่วยงาน</label><select className="inp" value={f.unit} onChange={e => { const next = e.target.value; setF((old: any) => ({ ...old, unit: next })); setExtra(old => old.filter(id => id !== Number(next))) }}><option value="">เลือกหน่วยงาน</option>{groups.map((g: any) => <optgroup key={g} label={g}>{units.filter((u: any) => u.parent_group === g).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}</select></div>}
         {isGroupHead ? <>
           <div className="space-y-1">
             <label className="field-label">กลุ่มงานที่รับผิดชอบ</label>
