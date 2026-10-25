@@ -277,7 +277,7 @@ function Totals({ rows, people, positions }: any) {
 }
 
 const ST: any = { pending: ['รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
-async function openEvidence(sb: any, path: string) { const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { alert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } window.open(data.signedUrl, '_blank', 'noopener,noreferrer') }
+async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); alert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
 function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = false }: any) {
   const set = async (id: number, status: string) => { await sb.from('logs').update({ status }).eq('id', id); reload() }
