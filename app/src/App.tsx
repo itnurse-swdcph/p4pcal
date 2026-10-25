@@ -49,7 +49,7 @@ function Login({ sb }: any) {
   const [showPw, setShowPw] = useState(false)
   const [showConfirmPw, setShowConfirmPw] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [f, setF] = useState<any>({ prefix: 'นางสาว', first: '', last: '', position: '', unit: '' })
+  const [f, setF] = useState<any>({ prefix: 'นางสาว', first: '', last: '', position: '', unit: '', group: '' })
   const [msg, setMsg] = useState('')
   const [extra, setExtra] = useState<number[]>([])
   const [success, setSuccess] = useState(false)
@@ -60,10 +60,12 @@ function Login({ sb }: any) {
     sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
   }, [sb])
   const grp = positions.find(x => x.name === f.position)?.grp
-  const groups = [...new Set(units.map((u: any) => u.parent_group))]
-  const isHead = f.position === 'หัวหน้ากลุ่มงานการพยาบาล' || f.position === 'หัวหน้าหอผู้ป่วย/หัวหน้างาน'
+  const groups = [...new Set(units.map((u: any) => u.parent_group).filter(Boolean))]
+  const isGroupHead = f.position === 'หัวหน้ากลุ่มงานการพยาบาล'
+  const isHead = isGroupHead || f.position === 'หัวหน้าหอผู้ป่วย/หัวหน้างาน'
+  const selectedGroupUnits = isGroupHead ? units.filter((u: any) => u.parent_group === f.group) : []
   const primaryUnit = units.find((u: any) => String(u.id) === String(f.unit))
-  const extraUnitOptions = units.filter((u: any) => String(u.id) !== String(f.unit) && !(f.position === 'หัวหน้ากลุ่มงานการพยาบาล' && primaryUnit && u.parent_group === primaryUnit.parent_group))
+  const extraUnitOptions = units.filter((u: any) => String(u.id) !== String(f.unit) && !(isGroupHead && f.group && u.parent_group === f.group))
   const usernameValid = /^[a-z0-9][a-z0-9._-]{2,29}$/.test(username.trim().toLowerCase())
   const profileValid = f.first.trim() && f.last.trim() && f.position && f.unit
   const passwordsMatch = pw === confirmPw
@@ -89,10 +91,11 @@ function Login({ sb }: any) {
           setMsg(data.error)
         } else {
           const { data: sd, error: signInError } = await sb.auth.signInWithPassword({ email: cleanUsername + '@p4p.invalid', password: pw })
-          const wanted = isHead ? extra.filter(id => id !== Number(f.unit)) : []
+          const groupUnitIds = isGroupHead ? selectedGroupUnits.map((u: any) => Number(u.id)) : []
+          const wanted = isHead ? [...new Set([...groupUnitIds, ...extra.map(Number)])].filter(id => id !== Number(f.unit)) : []
           let extraUnitsError: any = null
           if (!signInError && sd?.user && wanted.length) {
-            const result = await sb.from('profile_units').insert(wanted.map(id => ({ user_id: sd.user.id, unit_id: id, approved: true })))
+            const result = await sb.from('profile_units').upsert(wanted.map(id => ({ user_id: sd.user.id, unit_id: id, approved: true })), { onConflict: 'user_id,unit_id' })
             extraUnitsError = result.error
           }
           if (signInError) setMsg('ลงทะเบียนสำเร็จแล้ว แต่เข้าสู่ระบบอัตโนมัติไม่สำเร็จ กรุณาเข้าสู่ระบบอีกครั้ง')
@@ -125,14 +128,39 @@ function Login({ sb }: any) {
         <div className="space-y-1"><label className="field-label">ตำแหน่ง</label><select className="inp" value={f.position} onChange={set('position')}><option value="">เลือกตำแหน่ง</option>{positions.map(x => <option key={x.name} value={x.name}>{x.name}</option>)}</select></div>
         {grp && <p className="field-hint">กลุ่มตำแหน่ง: <b>{grp}</b> · {positions.find(x => x.name === f.position)?.rate} แต้ม/นาที</p>}
         <div className="space-y-1"><label className="field-label">หน่วยงาน</label><select className="inp" value={f.unit} onChange={e => { const next = e.target.value; setF((old: any) => ({ ...old, unit: next })); setExtra(old => old.filter(id => id !== Number(next))) }}><option value="">เลือกหน่วยงาน</option>{groups.map((g: any) => <optgroup key={g} label={g}>{units.filter(u => u.parent_group === g).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}</select></div>
+        {isGroupHead ? <>
+          <div className="space-y-1">
+            <label className="field-label">กลุ่มงานที่รับผิดชอบ</label>
+            <select className="inp" value={f.group} onChange={e => {
+              const nextGroup = e.target.value
+              const firstUnit = units.find((u: any) => u.parent_group === nextGroup)
+              setF((old: any) => ({ ...old, group: nextGroup, unit: firstUnit ? String(firstUnit.id) : '' }))
+              setExtra([])
+            }}>
+              <option value="">เลือกกลุ่มงาน</option>
+              {groups.map((g: any) => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <p className="field-hint">ระบบจะกำหนดหน่วยงานหลักจากกลุ่มงานที่เลือก และให้สิทธิ์ดูแลทุกหน่วยงานภายในกลุ่มงานนั้นโดยอัตโนมัติ</p>
+          </div>
+          {f.group && <div className="space-y-1">
+            <label className="field-label">หน่วยงานในกลุ่มงานที่ดูแลอัตโนมัติ</label>
+            <div className="unit-check-list">{selectedGroupUnits.length ? selectedGroupUnits.map((u: any) => <div key={u.id} className="unit-check"><span aria-hidden="true">✓</span><span>{u.name}</span></div>) : <p className="p-3 text-sm text-stone-500">ไม่พบหน่วยงานในกลุ่มงานนี้</p>}</div>
+          </div>}
+        </> : <div className="space-y-1">
+          <label className="field-label">หน่วยงาน</label>
+          <select className="inp" value={f.unit} onChange={e => { const next = e.target.value; setF((old: any) => ({ ...old, unit: next })); setExtra(old => old.filter(id => id !== Number(next))) }}>
+            <option value="">เลือกหน่วยงาน</option>
+            {groups.map((g: any) => <optgroup key={g} label={g}>{units.filter((u: any) => u.parent_group === g).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}
+          </select>
+        </div>}
         {isHead && <div className="space-y-1">
-          <label className="field-label">หน่วยงานที่ดูแลเพิ่มเติม (ถ้ามี)</label>
-          {f.position === 'หัวหน้ากลุ่มงานการพยาบาล' && <p className="field-hint">หัวหน้ากลุ่มงานดูแลทุกหน่วยในกลุ่มงานเดียวกับหน่วยหลักโดยอัตโนมัติ เลือกเพิ่มได้เฉพาะหน่วยนอกกลุ่มงาน</p>}
-          {!f.unit ? <p className="field-hint">กรุณาเลือกหน่วยงานหลักก่อน จึงจะเลือกหน่วยงานเพิ่มเติมได้</p> : <>
+          <label className="field-label">เลือกหน่วยงานที่ดูแลเพิ่มเติม (ถ้ามี)</label>
+          {isGroupHead && <p className="field-hint">เลือกเพิ่มได้เฉพาะหน่วยงานนอกกลุ่มงานที่รับผิดชอบโดยอัตโนมัติ</p>}
+          {(!f.unit || (isGroupHead && !f.group)) ? <p className="field-hint">กรุณาเลือก{isGroupHead ? 'กลุ่มงาน' : 'หน่วยงานหลัก'}ก่อน จึงจะเลือกหน่วยงานเพิ่มเติมได้</p> : <>
             <div className="unit-check-list">{groups.map((g: any) => {
               const options = extraUnitOptions.filter((u: any) => u.parent_group === g)
               return options.length ? <div key={g}><div className="unit-check-head">{g}</div>
-                {options.map((u: any) => <label key={u.id} className="unit-check"><input type="checkbox" checked={extra.includes(u.id)} onChange={e => setExtra(x => e.target.checked ? [...x.filter(i => i !== Number(f.unit)), u.id] : x.filter(i => i !== u.id))} />{u.name}</label>)}</div> : null
+                {options.map((u: any) => <label key={u.id} className="unit-check"><input type="checkbox" checked={extra.includes(u.id)} onChange={e => setExtra(x => e.target.checked ? [...x.filter(i => i !== Number(f.unit) && !selectedGroupUnits.some((su: any) => su.id === i)), u.id] : x.filter(i => i !== u.id))} />{u.name}</label>)}</div> : null
             })}</div>
             <p className="field-hint">หน่วยงานเพิ่มเติมที่เลือกจะมีผลทันทีหลังลงทะเบียน ไม่ต้องรออนุมัติจากผู้ดูแลระบบ</p>
           </>}
