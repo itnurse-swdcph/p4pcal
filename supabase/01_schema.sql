@@ -144,3 +144,13 @@ with b as (
 select d.*, case when cardinality(errors) > 0 or status = 'rejected' then 0 else points end counted_points,
        date_trunc('month', work_date)::date as month from d;
 grant select on v_logs to authenticated;
+
+-- ความปลอดภัย: ไม่ให้เรียกฟังก์ชัน security definer ผ่าน API โดยตรง
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.logs_guard() from public, anon, authenticated;
+revoke execute on function public.my_role() from public, anon;
+revoke execute on function public.my_unit() from public, anon;
+revoke execute on function public.can_write_person(uuid) from public, anon;
+grant execute on function public.my_role() to authenticated;
+grant execute on function public.my_unit() to authenticated;
+grant execute on function public.can_write_person(uuid) to authenticated;
