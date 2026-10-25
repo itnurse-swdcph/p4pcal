@@ -5,12 +5,18 @@ returns trigger
 language plpgsql
 set search_path = public, pg_temp
 as $$
+declare
+  excluded_log_id bigint := null;
 begin
   if tg_op = 'UPDATE'
      and new.person_id is not distinct from old.person_id
      and new.work_date is not distinct from old.work_date
      and new.activity_code is not distinct from old.activity_code then
     return new;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    excluded_log_id := old.id;
   end if;
 
   perform pg_advisory_xact_lock(
@@ -23,7 +29,7 @@ begin
     where l.person_id = new.person_id
       and l.work_date = new.work_date
       and l.activity_code = new.activity_code
-      and (tg_op <> 'UPDATE' or l.id <> old.id)
+      and (excluded_log_id is null or l.id <> excluded_log_id)
   ) then
     raise exception using
       errcode = '23505',
