@@ -91,7 +91,7 @@ function Login({ sb }: any) {
           const wanted = isHead ? extra.filter(id => id !== Number(f.unit)) : []
           let extraUnitsError: any = null
           if (!signInError && sd?.user && wanted.length) {
-            const result = await sb.from('profile_units').upsert(wanted.map(id => ({ user_id: sd.user.id, unit_id: id, approved: true })), { onConflict: 'user_id,unit_id' })
+            const result = await sb.from('profile_units').insert(wanted.map(id => ({ user_id: sd.user.id, unit_id: id, approved: true })))
             extraUnitsError = result.error
           }
           if (signInError) setMsg('ลงทะเบียนสำเร็จแล้ว แต่เข้าสู่ระบบอัตโนมัติไม่สำเร็จ กรุณาเข้าสู่ระบบอีกครั้ง')
