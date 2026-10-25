@@ -30,7 +30,7 @@ tr:last-child td { border-bottom:0; }
 .auth-orb-two { width:25rem; height:25rem; bottom:-18rem; left:-13rem; box-shadow:0 0 0 3rem rgba(36,111,168,.025),0 0 0 6rem rgba(36,111,168,.02); }
 .auth-card { width:100%; max-width:30rem; padding:clamp(1.35rem,4vw,2.4rem); background:rgba(255,255,255,.94); border:1px solid rgba(213,225,234,.9); border-radius:1.35rem; box-shadow:0 24px 80px rgba(30,58,80,.1),0 2px 8px rgba(30,58,80,.04); backdrop-filter:blur(14px); }
 .brand-mark { display:flex; flex-direction:column; align-items:center; gap:.6rem; margin-bottom:1.8rem; }
-.brand-mark-icon { width:3.6rem; height:3.6rem; display:grid; place-items:center; border-radius:1.1rem; background:linear-gradient(145deg,#0b9c88,#07665d); color:white; box-shadow:0 9px 22px rgba(8,127,112,.22); font-size:1.1rem; font-weight:800; letter-spacing:-.04em; }
+.brand-mark-icon { width:3.6rem; height:3.6rem; display:block; object-fit:contain; border-radius:1.1rem; background:#fff; }
 .brand-caption { color:#6b7e90; font-size:.66rem; font-weight:700; letter-spacing:.19em; }
 .auth-heading { text-align:center; margin-bottom:1.65rem; }
 .auth-heading .eyebrow { margin:0 0 .45rem; color:#07816f; font-size:.7rem; font-weight:800; letter-spacing:.15em; }
