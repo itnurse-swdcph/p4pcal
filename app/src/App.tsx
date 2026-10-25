@@ -134,14 +134,15 @@ function Login({ sb }: any) {
             <div className="unit-check-list">
               {groups.map((g: any) => <label key={g} className="unit-check"><input type="checkbox" checked={(f.groups || []).includes(g)} onChange={e => {
                 const nextGroups = e.target.checked ? [...new Set([...(f.groups || []), g])] : (f.groups || []).filter((x: string) => x !== g)
-                const firstUnit = units.find((u: any) => nextGroups.includes(u.parent_group))
+                const firstSelectedGroup = nextGroups[0]
+                const firstUnit = units.find((u: any) => u.parent_group === firstSelectedGroup)
                 setF((old: any) => ({ ...old, groups: nextGroups, unit: firstUnit ? String(firstUnit.id) : '' }))
                 setExtra([])
               }} />{g}</label>)}
             </div>
             <p className="field-hint">เลือกได้หลายกลุ่มงาน ระบบจะให้สิทธิ์ดูแลทุกหน่วยงานในกลุ่มงานที่เลือกโดยอัตโนมัติ</p>
           </div>
-          {f.group && <div className="space-y-1">
+          {(f.groups || []).length > 0 && <div className="space-y-1">
             <label className="field-label">หน่วยงานในกลุ่มงานที่ดูแลอัตโนมัติ</label>
             <div className="unit-check-list">{selectedGroupUnits.length ? selectedGroupUnits.map((u: any) => <div key={u.id} className="unit-check"><span aria-hidden="true">✓</span><span>{u.name}</span></div>) : <p className="p-3 text-sm text-stone-500">ไม่พบหน่วยงานในกลุ่มงานนี้</p>}</div>
           </div>}
