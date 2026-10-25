@@ -239,8 +239,33 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
     if (!code || !act) { setErr('กรุณาค้นหาและเลือกกิจกรรม'); return }
     if (!qty || Number(qty) <= 0) { setErr('กรุณาระบุจำนวนให้มากกว่า 0'); return }
     if (act.need_evidence && !ev.trim() && !evidenceFile) { setErr(`กิจกรรมนี้ต้องมีหลักฐาน: ${act.definition || 'กรุณาระบุเอกสารหรือแนบรูปถ่ายประกอบ'}`); return }
+    // Check the total for this person, date and activity across all previously saved rows.
+    // The database trigger performs the same validation as a final safeguard against concurrent requests.
+    if (act.max_day !== null && act.max_day !== undefined && act.max_day !== '') {
+      const { data: sameDayRows, error: limitQueryError } = await sb.from('logs')
+        .select('qty')
+        .eq('person_id', pid)
+        .eq('work_date', date)
+        .eq('activity_code', code)
+      if (limitQueryError) { setErr('ตรวจสอบจำนวนสะสมต่อวันไม่สำเร็จ จึงยังบันทึกรายการไม่ได้ กรุณาลองใหม่: ' + limitQueryError.message); return }
+      const alreadyLogged = (sameDayRows || []).reduce((sum: number, row: any) => sum + Number(row.qty || 0), 0)
+      const requestedQty = Number(qty)
+      const dailyLimit = Number(act.max_day)
+      if (alreadyLogged + requestedQty > dailyLimit) {
+        const remaining = Math.max(0, dailyLimit - alreadyLogged)
+        setErr(`บันทึกไม่ได้: กิจกรรมนี้กำหนดไม่เกิน ${dailyLimit} ${act.uom || 'หน่วย'} ต่อวัน วันที่ ${formatThaiShortDate(date)} บันทึกสะสมไปแล้ว ${alreadyLogged} ${act.uom || 'หน่วย'} และกำลังเพิ่ม ${requestedQty} ${act.uom || 'หน่วย'} รวมเป็น ${alreadyLogged + requestedQty} เกินกำหนด เหลือบันทึกได้อีก ${remaining} ${act.uom || 'หน่วย'}`)
+        return
+      }
+    }
     const { data: inserted, error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: act?.use_role_mult ? role : null, qty: +qty, evidence: ev.trim() || (evidenceFile ? 'แนบรูปถ่าย' : null), sub_activity: subActivity.trim() || null }).select('id').single()
-    if (error) { setErr(error.message); return }
+    if (error) {
+      if (error.code === '23514' && /เกินจำนวนสูงสุดต่อวัน/.test(error.message || '')) {
+        setErr('บันทึกไม่ได้: ' + error.message)
+      } else {
+        setErr(error.message)
+      }
+      return
+    }
     if (evidenceFile && inserted?.id) {
       const safeName = evidenceFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
       const path = `${pid}/${inserted.id}/${crypto.randomUUID()}-${safeName}`
