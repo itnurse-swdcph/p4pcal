@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
 
 const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_publishable_8qxOgD-AHGnv9RWWAZTUQQ_I0MPIMv3' }
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ว่าที่ร้อยตรี', 'ว่าที่ร้อยตรีหญิง']
@@ -25,55 +26,115 @@ export default function App() {
 }
 
 function Shell({ children }: any) {
-  return <div className="min-h-screen grid place-items-center p-4"><div className="card w-full max-w-md space-y-3">{children}</div></div>
+  return <main className="auth-page">
+    <span className="auth-orb auth-orb-one" aria-hidden="true" />
+    <span className="auth-orb auth-orb-two" aria-hidden="true" />
+    <section className="auth-card">{children}</section>
+    <p className="auth-footnote">P4P · NURSING DEPARTMENT · SAWANG DAEN DIN CROWN PRINCE HOSPITAL</p>
+  </main>
 }
 function Setup({ onSave }: any) {
   const [url, setUrl] = useState(''); const [key, setKey] = useState('')
   return <Shell>
-    <h1 className="text-xl font-bold">เชื่อมต่อ Supabase</h1>
-    <p className="text-sm text-stone-600">ใส่ Project URL และ anon (publishable) key จาก Project Settings → API</p>
-    <input className="inp" placeholder="https://xxxx.supabase.co" value={url} onChange={e => setUrl(e.target.value)} />
-    <input className="inp" placeholder="anon / publishable key" value={key} onChange={e => setKey(e.target.value)} />
-    <button className="btn" disabled={!url || !key} onClick={() => onSave({ url: url.trim(), key: key.trim() })}>บันทึก</button>
+    <div className="brand-mark"><div className="brand-mark-icon">P4P</div><div className="brand-caption">NURSING DEPARTMENT</div></div>
+    <div className="auth-heading"><p className="eyebrow">SYSTEM CONFIGURATION</p><h1>เชื่อมต่อ Supabase</h1><p>ใส่ Project URL และ publishable key จาก Project Settings → API</p></div>
+    <div className="auth-form">
+      <label className="field-label">Project URL</label><input className="inp" placeholder="https://xxxx.supabase.co" value={url} onChange={e => setUrl(e.target.value)} />
+      <label className="field-label">Publishable key</label><input className="inp" placeholder="sb_publishable_..." value={key} onChange={e => setKey(e.target.value)} />
+      <button className="btn auth-submit" disabled={!url || !key} onClick={() => onSave({ url: url.trim(), key: key.trim() })}>บันทึกการตั้งค่า</button>
+    </div>
   </Shell>
 }
-function Login({ sb, reset }: any) {
-  const [mode, setMode] = useState('in'); const [email, setEmail] = useState(''); const [pw, setPw] = useState('')
-  const [f, setF] = useState<any>({ prefix: 'นางสาว', first: '', last: '', position: '', unit: '' }); const [msg, setMsg] = useState('')
-  const [positions, setPositions] = useState<any[]>([]); const [units, setUnits] = useState<any[]>([])
+function Login({ sb }: any) {
+  const [mode, setMode] = useState<'in' | 'up'>('in')
+  const [username, setUsername] = useState('')
+  const [pw, setPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [showConfirmPw, setShowConfirmPw] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [f, setF] = useState<any>({ prefix: 'นางสาว', first: '', last: '', position: '', unit: '' })
+  const [msg, setMsg] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [positions, setPositions] = useState<any[]>([])
+  const [units, setUnits] = useState<any[]>([])
   useEffect(() => {
     sb.from('positions').select('*').then((r: any) => setPositions(r.data || []))
     sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
-  }, [])
+  }, [sb])
   const grp = positions.find(x => x.name === f.position)?.grp
   const groups = [...new Set(units.map(u => u.parent_group))]
-  const ok = email && pw.length >= 6 && (mode === 'in' || (f.first.trim() && f.last.trim() && f.position && f.unit))
+  const usernameValid = /^[a-z0-9][a-z0-9._-]{2,29}$/.test(username.trim().toLowerCase())
+  const profileValid = f.first.trim() && f.last.trim() && f.position && f.unit
+  const passwordsMatch = pw === confirmPw
+  const ok = !busy && usernameValid && pw.length >= 6 && (mode === 'in' || (passwordsMatch && profileValid))
+  const set = (k: string) => (e: any) => setF((old: any) => ({ ...old, [k]: e.target.value }))
   const go = async () => {
-    setMsg('')
-    const r: any = mode === 'in' ? await sb.auth.signInWithPassword({ email, password: pw })
-      : await sb.auth.signUp({ email, password: pw, options: { data: { prefix: f.prefix, first_name: f.first.trim(), last_name: f.last.trim(), position: f.position, unit_id: f.unit } } })
-    if (r.error) setMsg(r.error.message); else if (mode === 'up' && !r.data.session) setMsg('สมัครแล้ว โปรดยืนยันอีเมลก่อนเข้าสู่ระบบ')
+    if (!ok) return
+    setMsg(''); setSuccess(false); setBusy(true)
+    const cleanUsername = username.trim().toLowerCase()
+    try {
+      if (mode === 'in') {
+        const { error } = await sb.auth.signInWithPassword({ email: cleanUsername + '@p4p.invalid', password: pw })
+        if (error) setMsg('เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน')
+      } else {
+        const { data, error } = await sb.functions.invoke('p4p-register', {
+          body: { username: cleanUsername, password: pw, prefix: f.prefix, first_name: f.first.trim(), last_name: f.last.trim(), position: f.position, unit_id: Number(f.unit) }
+        })
+        if (error) {
+          let detail = ''
+          try { detail = (await error.context?.json?.())?.error || '' } catch { /* use fallback below */ }
+          setMsg(detail || 'ลงทะเบียนไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+        } else if (data?.error) {
+          setMsg(data.error)
+        } else {
+          const { error: signInError } = await sb.auth.signInWithPassword({ email: cleanUsername + '@p4p.invalid', password: pw })
+          if (signInError) setMsg('ลงทะเบียนสำเร็จแล้ว แต่เข้าสู่ระบบอัตโนมัติไม่สำเร็จ กรุณาเข้าสู่ระบบอีกครั้ง')
+          else setSuccess(true)
+        }
+      }
+    } catch {
+      setMsg('เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่')
+    } finally { setBusy(false) }
   }
-  const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value })
-  return <Shell>
-    <h1 className="text-xl font-bold">P4P กลุ่มการพยาบาล</h1>
-    <p className="text-sm text-stone-600">{mode === 'in' ? 'เข้าสู่ระบบบันทึกกิจกรรมและคำนวณแต้ม' : 'ลงทะเบียนผู้ใช้งานใหม่'}</p>
-    {mode === 'up' && <>
-      <div className="grid grid-cols-[7rem_1fr_1fr] gap-2">
-        <select className="inp" value={f.prefix} onChange={set('prefix')}>{PREFIXES.map(x => <option key={x}>{x}</option>)}</select>
-        <input className="inp" placeholder="ชื่อ" value={f.first} onChange={set('first')} />
-        <input className="inp" placeholder="สกุล" value={f.last} onChange={set('last')} />
+  const passwordField = (label: string, value: string, setter: (v: string) => void, visible: boolean, toggle: () => void, placeholder: string, enter = false) =>
+    <div className="space-y-1">
+      <label className="field-label">{label}</label>
+      <div className="password-wrap">
+        <input className="inp" type={visible ? 'text' : 'password'} autoComplete={label === 'รหัสผ่าน' ? (mode === 'in' ? 'current-password' : 'new-password') : 'new-password'} placeholder={placeholder} value={value} onChange={e => setter(e.target.value)} onKeyDown={e => e.key === 'Enter' && enter && ok && go()} />
+        <button type="button" className="password-toggle" aria-label={visible ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} title={visible ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} onClick={toggle}>{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button>
       </div>
-      <select className="inp" value={f.position} onChange={set('position')}><option value="">เลือกตำแหน่ง</option>{positions.map(x => <option key={x.name}>{x.name}</option>)}</select>
-      {grp && <p className="text-xs text-stone-600 -mt-1">กลุ่มตำแหน่ง (จัดอัตโนมัติ): <b>{grp}</b> · {positions.find(x => x.name === f.position)?.rate} แต้ม/นาที</p>}
-      <select className="inp" value={f.unit} onChange={set('unit')}><option value="">เลือกหน่วยงาน</option>
-        {groups.map((g: any) => <optgroup key={g} label={g}>{units.filter(u => u.parent_group === g).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}</select>
-    </>}
-    <input className="inp" type="email" placeholder="อีเมล" value={email} onChange={e => setEmail(e.target.value)} />
-    <input className="inp" type="password" placeholder="รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === 'Enter' && ok && go()} />
-    <button className="btn w-full" disabled={!ok} onClick={go}>{mode === 'in' ? 'เข้าสู่ระบบ' : 'ลงทะเบียน'}</button>
-    {msg && <p className="text-sm text-red-700">{msg}</p>}
-    <button className="underline text-sm" onClick={() => setMode(mode === 'in' ? 'up' : 'in')}>{mode === 'in' ? 'ลงทะเบียนผู้ใช้ใหม่' : 'มีบัญชีแล้ว เข้าสู่ระบบ'}</button>
+    </div>
+  return <Shell>
+    <div className="brand-mark"><div className="brand-mark-icon">P4P</div><div className="brand-caption">NURSING DEPARTMENT</div></div>
+    <div className="auth-heading"><p className="eyebrow">SMART NURSING WORKFLOW</p><h1>{mode === 'in' ? 'ยินดีต้อนรับ' : 'สร้างบัญชีผู้ใช้งาน'}</h1><p>{mode === 'in' ? 'เข้าสู่ระบบบันทึกกิจกรรมและคำนวณแต้ม P4P' : 'กรอกข้อมูลเพื่อเริ่มใช้งานระบบ P4P'}</p></div>
+    <div className="auth-form">
+      {mode === 'up' && <>
+        <div className="name-grid">
+          <div className="space-y-1"><label className="field-label">คำนำหน้า</label><select className="inp" value={f.prefix} onChange={set('prefix')}>{PREFIXES.map(x => <option key={x}>{x}</option>)}</select></div>
+          <div className="space-y-1"><label className="field-label">ชื่อ</label><input className="inp" placeholder="ชื่อ" value={f.first} onChange={set('first')} /></div>
+          <div className="space-y-1"><label className="field-label">นามสกุล</label><input className="inp" placeholder="นามสกุล" value={f.last} onChange={set('last')} /></div>
+        </div>
+        <div className="space-y-1"><label className="field-label">ตำแหน่ง</label><select className="inp" value={f.position} onChange={set('position')}><option value="">เลือกตำแหน่ง</option>{positions.map(x => <option key={x.name} value={x.name}>{x.name}</option>)}</select></div>
+        {grp && <p className="field-hint">กลุ่มตำแหน่ง: <b>{grp}</b> · {positions.find(x => x.name === f.position)?.rate} แต้ม/นาที</p>}
+        <div className="space-y-1"><label className="field-label">หน่วยงาน</label><select className="inp" value={f.unit} onChange={set('unit')}><option value="">เลือกหน่วยงาน</option>{groups.map((g: any) => <optgroup key={g} label={g}>{units.filter(u => u.parent_group === g).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}</select></div>
+      </>}
+      <div className="space-y-1">
+        <label className="field-label">ชื่อผู้ใช้ (Username)</label>
+        <input className="inp" type="text" autoComplete="username" placeholder="เช่น nurse.somchai" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && mode === 'in' && ok && go()} />
+        <p className="field-hint">ใช้ตัวอักษรภาษาอังกฤษ a–z ตัวเลข จุด ขีดกลาง หรือขีดล่าง 3–30 ตัว</p>
+      </div>
+      {passwordField('รหัสผ่าน', pw, setPw, showPw, () => setShowPw(v => !v), 'อย่างน้อย 6 ตัวอักษร', true)}
+      {mode === 'up' && <>
+        {passwordField('ยืนยันรหัสผ่าน', confirmPw, setConfirmPw, showConfirmPw, () => setShowConfirmPw(v => !v), 'กรอกรหัสผ่านอีกครั้ง', true)}
+        {confirmPw && !passwordsMatch && <p className="field-error">รหัสผ่านทั้งสองช่องไม่ตรงกัน</p>}
+      </>}
+      <button className="btn auth-submit" disabled={!ok} onClick={go}>{busy ? 'กำลังดำเนินการ…' : mode === 'in' ? 'เข้าสู่ระบบ' : 'ลงทะเบียนและเข้าใช้งาน'}</button>
+      {msg && <p role="alert" className="form-message">{msg}</p>}
+      {success && <p role="status" className="form-message success">ลงทะเบียนสำเร็จ กำลังเข้าสู่ระบบ</p>}
+    </div>
+    <div className="auth-switch"><span>{mode === 'in' ? 'ยังไม่มีบัญชีใช่ไหม?' : 'มีบัญชีอยู่แล้ว?'}</span><button type="button" onClick={() => { setMode(mode === 'in' ? 'up' : 'in'); setMsg(''); setSuccess(false); setConfirmPw(''); setPw('') }}>{mode === 'in' ? 'ลงทะเบียนผู้ใช้ใหม่' : 'กลับไปเข้าสู่ระบบ'}</button></div>
+    <div className="auth-security"><ShieldCheck size={15} /><span>ระบบภายในสำหรับบุคลากรทางการพยาบาล</span><span className="security-dot" /></div>
   </Shell>
 }
 
