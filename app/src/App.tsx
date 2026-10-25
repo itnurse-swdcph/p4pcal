@@ -421,14 +421,25 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
       <div className="grid sm:grid-cols-[1fr_auto] gap-2"><input className="inp" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหารหัส ชื่อกิจกรรม เกณฑ์ หรือหลักฐาน…" /><select className="inp sm:!w-40" value={domain} onChange={e => setDomain(e.target.value)}>{['ทั้งหมด','บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></div>
       <p className="text-xs text-stone-500">แสดง {filtered.length} จาก {acts.length} กิจกรรมที่เปิดใช้งาน</p>
     </div>
-    {filtered.length === 0 && <div className="card text-center text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหา</div>}
-    <div className="grid xl:grid-cols-2 gap-3">{filtered.map((a: any) => <article key={a.code} className="card space-y-3">
-      <div className="flex items-start gap-3"><div className="rounded-lg bg-teal-50 px-3 py-2 text-sm font-bold text-teal-900">{a.code}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap gap-2 items-center"><h3 className="font-bold">{a.title}</h3><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{a.domain}</span>{a.need_evidence && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">ต้องมีหลักฐาน</span>}</div><p className="mt-1 text-sm text-stone-600">{a.minutes} นาที / {a.uom || 'ไม่ระบุหน่วย'}{a.max_day ? ` · สูงสุด ${a.max_day}/วัน` : ''}{a.max_month ? ` · สูงสุด ${a.max_month}/เดือน` : ''}</p></div></div>
-      <div className="space-y-1"><p className="text-xs font-bold text-stone-500">รายละเอียด / เกณฑ์ / หลักฐาน</p><p className="whitespace-pre-wrap text-sm leading-relaxed">{a.definition?.trim() || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ โปรดสอบถามผู้ดูแลระบบก่อนบันทึกกิจกรรมนี้'}</p></div>
-      {a.note && <div className="rounded-lg bg-slate-50 p-3 text-sm"><b>หมายเหตุ:</b> {a.note}</div>}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2"><p className="text-xs text-stone-500">กลุ่มตำแหน่งที่มีสิทธิ์: {(a.eligible || []).join(', ') || 'ไม่ได้ระบุ'}{a.use_role_mult ? ' · มีตัวคูณตามบทบาท' : ''}</p>
-      {isAdmin && <button className="btn sec !text-red-700" onClick={() => deactivate(a)}>เพิกถอนกิจกรรม</button>}</div>
-    </article>)}</div>
+    {filtered.length === 0 ? <div className="card text-center text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหา</div> :
+      <div className="card overflow-x-auto p-0">
+        <table className="w-full min-w-[1100px] border-collapse text-sm">
+          <thead><tr>
+            <th className="whitespace-nowrap">รหัส</th><th>ชื่อกิจกรรม</th><th>หมวด</th><th className="whitespace-nowrap">นาที / หน่วย</th><th>ข้อจำกัด</th><th>หลักฐานและเกณฑ์</th><th>กลุ่มตำแหน่งที่มีสิทธิ์</th><th>หมายเหตุ</th>{isAdmin && <th>จัดการ</th>}
+          </tr></thead>
+          <tbody>{filtered.map((a: any) => <tr key={a.code} className="align-top">
+            <td className="whitespace-nowrap font-semibold text-teal-900">{a.code}</td>
+            <td className="min-w-[190px]"><div className="font-semibold">{a.title}</div>{a.need_evidence && <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">ต้องมีหลักฐาน</span>}</td>
+            <td className="whitespace-nowrap">{a.domain || '—'}</td>
+            <td className="whitespace-nowrap">{a.minutes} / {a.uom || 'ไม่ระบุ'}</td>
+            <td className="min-w-[130px]">{a.max_day ? <div>ต่อวัน: {a.max_day}</div> : null}{a.max_month ? <div>ต่อเดือน: {a.max_month}</div> : null}{!a.max_day && !a.max_month ? 'ไม่กำหนด' : null}</td>
+            <td className="min-w-[260px]"><div className="whitespace-pre-wrap leading-relaxed">{a.definition?.trim() || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ โปรดสอบถามผู้ดูแลระบบก่อนบันทึกกิจกรรมนี้'}</div>{a.use_role_mult && <div className="mt-1 text-xs text-teal-800">คำนวณตัวคูณตามบทบาท</div>}</td>
+            <td className="min-w-[180px]">{(a.eligible || []).join(', ') || 'ไม่ได้ระบุ'}</td>
+            <td className="min-w-[160px] whitespace-pre-wrap">{a.note || '—'}</td>
+            {isAdmin && <td className="whitespace-nowrap"><button className="btn sec !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></td>}
+          </tr>)}</tbody>
+        </table>
+      </div>}
   </div>
 }
 
