@@ -368,7 +368,7 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
 
 function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
   const [query, setQuery] = useState('')
-  const [domain, setDomain] = useState('ทั้งหมด')
+  const [domain, setDomain] = useState('บริหาร')
   const [showAdd, setShowAdd] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
@@ -376,7 +376,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
   const emptyForm = () => ({ code: '', title: '', domain: 'บริการ', uom: '', minutes: '1', max_day: '', max_month: '', eligible: groups, need_evidence: false, definition: '', use_role_mult: false, note: '' })
   const [form, setForm] = useState<any>(emptyForm)
   const filtered = (acts || []).filter((a: any) =>
-    (domain === 'ทั้งหมด' || a.domain === domain) &&
+    a.domain === domain &&
     [a.code, a.title, a.definition, a.note].some((v: any) => String(v || '').toLowerCase().includes(query.trim().toLowerCase()))
   )
   const add = async () => {
@@ -431,8 +431,17 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.use_role_mult} onChange={e => setForm({...form, use_role_mult:e.target.checked})} />คำนวณตัวคูณตามบทบาท (ประธาน / เลขานุการ-กรรมการ / ผู้เข้าร่วม)</label>
         <div className="flex flex-wrap gap-2"><button className="btn" disabled={busy} onClick={add}>{busy ? 'กำลังบันทึก…' : 'บันทึกกิจกรรมใหม่'}</button><button className="btn sec" onClick={() => {setShowAdd(false);setForm(emptyForm());setMsg('')}}>ยกเลิก</button></div>
       </div>}
-      <div className="grid sm:grid-cols-[1fr_auto] gap-2"><input className="inp" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหารหัส ชื่อกิจกรรม เกณฑ์ หรือหลักฐาน…" /><select className="inp sm:!w-40" value={domain} onChange={e => setDomain(e.target.value)}>{['ทั้งหมด','บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></div>
-      <p className="text-xs text-stone-500">แสดง {filtered.length} จาก {acts.length} กิจกรรมที่เปิดใช้งาน</p>
+      <div className="grid gap-3">
+        <input className="inp" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหารหัส ชื่อกิจกรรม เกณฑ์ หรือหลักฐาน…" />
+        <div className="flex flex-wrap gap-2 border-b border-stone-200" role="tablist" aria-label="หมวดกิจกรรม P4P">
+          {['บริหาร','บริการ','วิชาการ'].map(x => {
+            const count = (acts || []).filter((a: any) => a.domain === x).length
+            const active = domain === x
+            return <button key={x} type="button" role="tab" aria-selected={active} onClick={() => setDomain(x)} className={'rounded-t-lg border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ' + (active ? 'border-teal-700 bg-teal-50 text-teal-900' : 'border-transparent text-stone-600 hover:bg-stone-50 hover:text-stone-900')}>{x}<span className={'ml-2 rounded-full px-2 py-0.5 text-xs ' + (active ? 'bg-teal-100 text-teal-900' : 'bg-stone-100 text-stone-600')}>{count}</span></button>
+          })}
+        </div>
+      </div>
+      <p className="text-xs text-stone-500">หมวด{domain} · แสดง {filtered.length} จาก {(acts || []).filter((a: any) => a.domain === domain).length} กิจกรรม</p>
     </div>
     {filtered.length === 0 ? <div className="card text-center text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหา</div> :
       <div className="card overflow-x-auto p-0">
