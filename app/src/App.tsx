@@ -60,7 +60,7 @@ function Login({ sb }: any) {
     sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
   }, [sb])
   const grp = positions.find(x => x.name === f.position)?.grp
-  const groups = [...new Set(units.map((u: any) => u.parent_group).filter(Boolean))]
+  const groups = [...new Set(units.map((u: any) => u.parent_group).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th'))
   const isGroupHead = f.position === 'หัวหน้ากลุ่มงานการพยาบาล'
   const isHead = isGroupHead || f.position === 'หัวหน้าหอผู้ป่วย/หัวหน้างาน'
   const selectedGroupUnits = isGroupHead ? units.filter((u: any) => (f.groups || []).includes(u.parent_group)) : []
