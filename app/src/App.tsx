@@ -148,6 +148,8 @@ function Main({ sb, session }: any) {
   const [profile, setProfile] = useState<any>(null); const [noProfile, setNoProfile] = useState(false)
   const [people, setPeople] = useState<any[]>([]); const [acts, setActs] = useState<any[]>([]); const [units, setUnits] = useState<any[]>([])
   const [positions, setPositions] = useState<any[]>([])
+  const [actsVersion, setActsVersion] = useState(0)
+  const reloadActs = () => setActsVersion(v => v + 1)
   const [month, setMonth] = useState(today().slice(0, 7)); const [tab, setTab] = useState('')
   const [unit, setUnit] = useState<number | null>(null)
   const [myUnits, setMyUnits] = useState<number[]>([])
@@ -160,10 +162,11 @@ function Main({ sb, session }: any) {
     sb.rpc('my_units').then((r: any) => setMyUnits((r.data || []).map((x: any) => (typeof x === 'object' && x ? Object.values(x)[0] : x) as number)))
     loadPeople()
   }, [])
+  useEffect(() => { sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || [])) }, [actsVersion])
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'
-  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน'], ['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้']] : [])]
+  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน'], ['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้']] : [])]
   const cur = tab || tabs[0]?.[0]
   const unitOptions = role === 'head' ? units.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? units : units.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
@@ -183,6 +186,7 @@ function Main({ sb, session }: any) {
     {cur === 'review' && <ReviewPage sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
     {cur === 'people' && <PeoplePage sb={sb} people={scope} unit={unit} positions={positions} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
+    {cur === 'activities' && <ActivityLibrary sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
     {cur === 'audit' && <ReviewPage sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} audit />}
     </div>
     <footer className="app-footer">{FOOTER_TEXT}</footer>
@@ -299,6 +303,86 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
         <td className="whitespace-nowrap space-x-1">{!readOnly && canApprove && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => set(r.id, 'rejected')}>ไม่รับรอง</button></>}
           {!readOnly && (canApprove || r.status === 'pending') && <button className="text-xs underline" onClick={() => del(r.id)}>ลบ</button>}</td>
       </tr>)}{!rows.length && <tr><td colSpan={8} className="text-center text-stone-500 py-6">ยังไม่มีรายการในเดือนนี้</td></tr>}</tbody></table></div>
+}
+
+
+function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
+  const [query, setQuery] = useState('')
+  const [domain, setDomain] = useState('ทั้งหมด')
+  const [showAdd, setShowAdd] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const groups = [...new Set((positions || []).map((p: any) => p.grp).filter(Boolean))] as string[]
+  const emptyForm = () => ({ code: '', title: '', domain: 'บริการ', uom: '', minutes: '1', max_day: '', max_month: '', eligible: groups, need_evidence: false, definition: '', use_role_mult: false, note: '' })
+  const [form, setForm] = useState<any>(emptyForm)
+  const filtered = (acts || []).filter((a: any) =>
+    (domain === 'ทั้งหมด' || a.domain === domain) &&
+    [a.code, a.title, a.definition, a.note].some((v: any) => String(v || '').toLowerCase().includes(query.trim().toLowerCase()))
+  )
+  const add = async () => {
+    setMsg('')
+    if (!form.code.trim() || !form.title.trim() || !form.uom.trim() || !form.minutes || Number(form.minutes) <= 0 || !form.eligible.length) {
+      setMsg('กรุณากรอกรหัส ชื่อกิจกรรม หน่วยนับ นาที/หน่วย และเลือกกลุ่มตำแหน่งที่มีสิทธิ์ให้ครบ')
+      return
+    }
+    if (form.need_evidence && !form.definition.trim()) {
+      setMsg('กิจกรรมที่บังคับใช้หลักฐาน ต้องระบุรายละเอียดหลักฐานให้ชัดเจนก่อนบันทึก')
+      return
+    }
+    setBusy(true)
+    const payload = {
+      code: form.code.trim(), title: form.title.trim(), domain: form.domain, uom: form.uom.trim(),
+      minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
+      max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
+      need_evidence: form.need_evidence, definition: form.definition.trim() || null,
+      use_role_mult: form.use_role_mult, note: form.note.trim() || null, active: true
+    }
+    const { error } = await sb.from('activities').insert(payload)
+    setBusy(false)
+    if (error) { setMsg(error.code === '23505' ? 'รหัสกิจกรรมนี้มีอยู่แล้ว กรุณาใช้รหัสอื่น' : 'เพิ่มกิจกรรมไม่สำเร็จ: ' + error.message); return }
+    setForm(emptyForm()); setShowAdd(false); setMsg('เพิ่มกิจกรรมสำเร็จ'); reloadActs()
+  }
+  const deactivate = async (a: any) => {
+    if (!confirm(`ยืนยันเพิกถอนกิจกรรม ${a.code} — ${a.title} หรือไม่? กิจกรรมจะไม่ปรากฏในรายการบันทึกใหม่ แต่ประวัติที่บันทึกไว้จะยังคงอยู่`)) return
+    const { error } = await sb.from('activities').update({ active: false }).eq('code', a.code)
+    if (error) { setMsg('เพิกถอนกิจกรรมไม่สำเร็จ: ' + error.message); return }
+    setMsg(`เพิกถอนกิจกรรม ${a.code} แล้ว`); reloadActs()
+  }
+  return <div className="space-y-4">
+    <div className="card space-y-3">
+      <div className="flex flex-wrap items-center gap-3"><div className="mr-auto"><h2 className="text-lg font-bold">คลังกิจกรรม P4P</h2><p className="text-sm text-stone-600">ค้นหาและศึกษารายละเอียด เกณฑ์การนับแต้ม และหลักฐานประกอบของกิจกรรมทั้งหมดที่เปิดใช้งาน</p></div>
+      {isAdmin && <button className="btn" onClick={() => { setShowAdd(v => !v); setMsg('') }}>{showAdd ? 'ปิดแบบฟอร์ม' : '+ เพิ่มกิจกรรม'}</button>}</div>
+      {msg && <p role="status" className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">{msg}</p>}
+      {showAdd && isAdmin && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
+        <h3 className="font-bold">เพิ่มกิจกรรมเข้าคลัง</h3>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label className="field-label">รหัสกิจกรรม<input className="inp mt-1" value={form.code} onChange={e => setForm({...form, code:e.target.value})} placeholder="เช่น SVC-001" /></label>
+          <label className="field-label">หมวดกิจกรรม<select className="inp mt-1" value={form.domain} onChange={e => setForm({...form, domain:e.target.value})}>{['บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></label>
+          <label className="field-label sm:col-span-2">ชื่อกิจกรรม<input className="inp mt-1" value={form.title} onChange={e => setForm({...form, title:e.target.value})} /></label>
+          <label className="field-label">หน่วยนับ<input className="inp mt-1" value={form.uom} onChange={e => setForm({...form, uom:e.target.value})} placeholder="เช่น ครั้ง, ราย, ชั่วโมง" /></label>
+          <label className="field-label">นาทีต่อหน่วย<input type="number" min="0.01" step="0.01" className="inp mt-1" value={form.minutes} onChange={e => setForm({...form, minutes:e.target.value})} /></label>
+          <label className="field-label">จำกัดจำนวนต่อวัน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_day} onChange={e => setForm({...form, max_day:e.target.value})} /></label>
+          <label className="field-label">จำกัดจำนวนต่อเดือน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_month} onChange={e => setForm({...form, max_month:e.target.value})} /></label>
+        </div>
+        <div><p className="field-label mb-2">กลุ่มตำแหน่งที่มีสิทธิ์ทำกิจกรรม</p><div className="flex flex-wrap gap-3">{groups.map(g => <label key={g} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.eligible.includes(g)} onChange={e => setForm({...form, eligible:e.target.checked ? [...form.eligible,g] : form.eligible.filter((x: string) => x !== g)})} />{g}</label>)}</div></div>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.need_evidence} onChange={e => setForm({...form, need_evidence:e.target.checked})} />บังคับแนบหลักฐานประกอบ</label>
+        <label className="field-label">รายละเอียดกิจกรรม / หลักฐานที่ต้องใช้<textarea className="inp mt-1 min-h-24" value={form.definition} onChange={e => setForm({...form, definition:e.target.value})} placeholder="อธิบายขอบเขต เกณฑ์การนับ และเอกสาร/หลักฐานที่ต้องแนบให้ตรวจสอบได้" /></label>
+        <label className="field-label">หมายเหตุ / เงื่อนไขเพิ่มเติม<textarea className="inp mt-1 min-h-16" value={form.note} onChange={e => setForm({...form, note:e.target.value})} /></label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.use_role_mult} onChange={e => setForm({...form, use_role_mult:e.target.checked})} />คำนวณตัวคูณตามบทบาท (ประธาน / เลขานุการ-กรรมการ / ผู้เข้าร่วม)</label>
+        <div className="flex flex-wrap gap-2"><button className="btn" disabled={busy} onClick={add}>{busy ? 'กำลังบันทึก…' : 'บันทึกกิจกรรมใหม่'}</button><button className="btn sec" onClick={() => {setShowAdd(false);setForm(emptyForm());setMsg('')}}>ยกเลิก</button></div>
+      </div>}
+      <div className="grid sm:grid-cols-[1fr_auto] gap-2"><input className="inp" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหารหัส ชื่อกิจกรรม เกณฑ์ หรือหลักฐาน…" /><select className="inp sm:!w-40" value={domain} onChange={e => setDomain(e.target.value)}>{['ทั้งหมด','บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></div>
+      <p className="text-xs text-stone-500">แสดง {filtered.length} จาก {acts.length} กิจกรรมที่เปิดใช้งาน</p>
+    </div>
+    {filtered.length === 0 && <div className="card text-center text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหา</div>}
+    <div className="grid xl:grid-cols-2 gap-3">{filtered.map((a: any) => <article key={a.code} className="card space-y-3">
+      <div className="flex items-start gap-3"><div className="rounded-lg bg-teal-50 px-3 py-2 text-sm font-bold text-teal-900">{a.code}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap gap-2 items-center"><h3 className="font-bold">{a.title}</h3><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{a.domain}</span>{a.need_evidence && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">ต้องมีหลักฐาน</span>}</div><p className="mt-1 text-sm text-stone-600">{a.minutes} นาที / {a.uom || 'ไม่ระบุหน่วย'}{a.max_day ? ` · สูงสุด ${a.max_day}/วัน` : ''}{a.max_month ? ` · สูงสุด ${a.max_month}/เดือน` : ''}</p></div></div>
+      <div className="space-y-1"><p className="text-xs font-bold text-stone-500">รายละเอียด / เกณฑ์ / หลักฐาน</p><p className="whitespace-pre-wrap text-sm leading-relaxed">{a.definition?.trim() || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ โปรดสอบถามผู้ดูแลระบบก่อนบันทึกกิจกรรมนี้'}</p></div>
+      {a.note && <div className="rounded-lg bg-slate-50 p-3 text-sm"><b>หมายเหตุ:</b> {a.note}</div>}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2"><p className="text-xs text-stone-500">กลุ่มตำแหน่งที่มีสิทธิ์: {(a.eligible || []).join(', ') || 'ไม่ได้ระบุ'}{a.use_role_mult ? ' · มีตัวคูณตามบทบาท' : ''}</p>
+      {isAdmin && <button className="btn sec !text-red-700" onClick={() => deactivate(a)}>เพิกถอนกิจกรรม</button>}</div>
+    </article>)}</div>
+  </div>
 }
 
 function ReviewPage({ sb, people, unit, month, positions, audit }: any) {
