@@ -196,7 +196,7 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
     let q = sb.from('v_logs').select('*').gte('work_date', a).lte('work_date', b).order('work_date', { ascending: true }).order('id', { ascending: true })
     if (unit) q = q.eq('unit_id', unit)
     if (personIds) q = q.in('person_id', personIds)
-    q.then((r: any) => setRows(r.data || []))
+    q.then(async (r: any) => { const baseRows = r.data || []; if (!baseRows.length) { setRows([]); return } const { data: extras } = await sb.from('logs').select('id, sub_activity, evidence_image_path').in('id', baseRows.map((x: any) => x.id)); const extraMap = new Map((extras || []).map((x: any) => [x.id, x])); setRows(baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) }))) })
   }, [month, n, unit, personIds?.join(',')])
   return [rows, () => setN(x => x + 1)] as const
 }
@@ -217,7 +217,7 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
   const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
   const save = async () => {
     setErr('')
-    const { data: inserted, error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: act?.use_role_mult ? role : null, qty: +qty, evidence: ev.trim() || null, sub_activity: subActivity.trim() || null }).select('id').single()
+    const { data: inserted, error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: act?.use_role_mult ? role : null, qty: +qty, evidence: ev.trim() || (evidenceFile ? 'แนบรูปถ่าย' : null), sub_activity: subActivity.trim() || null }).select('id').single()
     if (error) { setErr(error.message); return }
     if (evidenceFile && inserted?.id) {
       const safeName = evidenceFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
