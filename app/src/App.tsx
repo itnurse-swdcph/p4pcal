@@ -226,13 +226,31 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
   const ids = useMemo(() => people.map((p: any) => p.id), [people])
   const [rows, reload] = useLogs(sb, month, ids)
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
-  const [q, setQ] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false)
+  const [q, setQ] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetId, setEditTargetId] = useState<number | null>(null)
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
   const person = people.find((p: any) => p.id === pid); const pos = positions.find((x: any) => x.name === person?.position)
   const list = acts.filter((a: any) => (!pos || a.eligible.includes(pos.grp)) && (a.code + a.title).toLowerCase().includes(q.toLowerCase()))
   const act = acts.find((a: any) => a.code === code)
   const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate * (act.use_role_mult ? (role === ROLES[0] ? 2 : role === ROLES[1] ? 1.5 : 1) : 1) : 0
   const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
+  const chooseActivity = async (activity: any) => {
+    setCode(activity.code); setErr('')
+    if (!pid) { setErr('กรุณาเลือกบุคลากรก่อน'); return }
+    const { data, error } = await sb.from('logs')
+      .select('id, person_id, work_date, activity_code, qty, status, evidence, sub_activity, evidence_image_path')
+      .eq('person_id', pid).eq('work_date', date).eq('activity_code', activity.code)
+      .order('id', { ascending: true })
+    if (error) { setErr('ตรวจสอบรายการที่บันทึกไว้แล้วไม่สำเร็จ: ' + error.message); return }
+    if (data?.length) {
+      setDuplicateRows(data)
+      setDuplicateOpen(true)
+      setModalOpen(false)
+      return
+    }
+    setDuplicateRows([])
+    setQty('1'); setEv(''); setSubActivity(''); setEvidenceFile(null)
+    setModalOpen(true)
+  }
   const save = async () => {
     setErr('')
     if (!pid) { setErr('กรุณาเลือกบุคลากรก่อน'); return }
@@ -293,11 +311,19 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
       <div className="act-list" role="listbox" aria-label="รายการกิจกรรม">
         {['บริหาร', 'บริการ', 'วิชาการ'].map(d => { const items = list.filter((a: any) => a.domain === d); return items.length > 0 && <div key={d}>
           <div className="act-head">{d}</div>
-          {items.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={a.title} onClick={() => { setCode(a.code); setErr(''); setModalOpen(true) }} className={'act-item' + (code === a.code ? ' on' : '')}>
+          {items.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={a.title} onClick={() => { void chooseActivity(a) }} className={'act-item' + (code === a.code ? ' on' : '')}>
             <span className="act-code">{a.code}</span><span className="act-title">{a.title}</span><span className="act-uom">{a.minutes} นาที/{a.uom}</span></button>)}</div> })}
         {!list.length && <p className="p-3 text-sm text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหาหรือสิทธิ์ของตำแหน่งนี้</p>}
       </div>
       {act && <div className="rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm"><b className="text-teal-900">เลือกแล้ว: {act.code} {act.title}</b><p className="mt-1 text-xs text-teal-900">กดรายการกิจกรรมเพื่อเปิดแบบฟอร์มกรอกข้อมูล</p></div>}
+      {duplicateOpen && act && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="duplicate-activity-title"><div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3 border-b pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-amber-700">ตรวจพบรายการซ้ำ</p><h2 id="duplicate-activity-title" className="text-lg font-bold text-slate-900">กิจกรรมนี้บันทึกไปแล้ว</h2><p className="mt-1 text-sm text-slate-700">{act.code} {act.title}</p><p className="mt-1 text-sm font-semibold text-amber-800">รายการนี้บันทึกไปแล้วจำนวน {duplicateRows.reduce((sum: number, row: any) => sum + Number(row.qty || 0), 0)} {act.uom || 'หน่วย'} ในวันที่ {formatThaiShortDate(date)}</p></div><button type="button" className="rounded-lg border px-3 py-1.5 text-sm" onClick={() => setDuplicateOpen(false)}>ปิด</button></div>
+        <p className="text-sm text-slate-700">หากต้องการบันทึกเพิ่มกรุณาทำการแก้ไขจำนวนแทน ไม่สามารถสร้างรายการกิจกรรมซ้ำในวันเดียวกันได้</p>
+        <div className="overflow-x-auto rounded-xl border"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="text-left">วันที่</th><th className="text-left">กิจกรรม</th><th className="text-right">จำนวน</th><th className="text-left">สถานะ</th><th className="text-left">หลักฐาน</th><th>ดำเนินการ</th></tr></thead><tbody>
+          {duplicateRows.map((row: any) => <tr key={row.id} className="border-t"><td className="whitespace-nowrap">{formatThaiShortDate(row.work_date)}</td><td><b>{row.activity_code}</b> {act.title}{row.sub_activity && <div className="text-xs text-slate-500">{row.sub_activity}</div>}</td><td className="text-right whitespace-nowrap">{row.qty} {act.uom || 'หน่วย'}</td><td>{ST[row.status]?.[0] || row.status || 'ไม่ระบุ'}</td><td>{row.evidence || row.evidence_image_path ? <span className="text-teal-800">มีหลักฐาน{row.evidence_image_path ? ' / รูปภาพ' : ''}</span> : <span className="text-slate-500">ไม่มี</span>}</td><td className="text-center whitespace-nowrap">{row.status === 'pending' ? <button type="button" className="btn sec !py-1" onClick={() => { setDuplicateOpen(false); setEditTargetId(row.id) }}>เข้าแก้ไขรายการ</button> : <span className="text-xs text-slate-500">รายการรับรองแล้ว แก้ไขไม่ได้</span>}</td></tr>)}
+        </tbody></table></div>
+        <div className="flex justify-end"><button type="button" className="btn sec" onClick={() => setDuplicateOpen(false)}>กลับ</button></div>
+      </div></div>}
       {modalOpen && act && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title"><div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4"><div className="flex items-start justify-between gap-3 border-b pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-teal-700">บันทึกกิจกรรม P4P</p><h2 id="activity-modal-title" className="text-lg font-bold text-slate-900">{act.code} {act.title}</h2><p className="mt-1 text-xs text-slate-600">{act.minutes} นาที/{act.uom}{act.max_day ? ` · สูงสุด ${act.max_day}/วัน` : ''}{act.max_month ? ` · ${act.max_month}/เดือน` : ''}</p><p className="mt-2 inline-flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-1.5 text-sm font-semibold text-teal-900"><span aria-hidden="true">📅</span> วันที่บันทึก: {formatThaiShortDate(date)}</p></div><button type="button" className="rounded-lg border px-3 py-1.5 text-sm" onClick={() => { setModalOpen(false); setErr('') }}>ปิด</button></div>
       {act.need_evidence ? <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3"><p className="font-bold text-amber-900">หลักฐานที่ต้องใช้สำหรับกิจกรรมนี้ (จำเป็น)</p><p className="mt-1 whitespace-pre-wrap text-sm text-amber-950">{act.definition?.trim() || 'กรุณาตรวจสอบแนวทาง/เกณฑ์ P4P ของกิจกรรมนี้ และระบุหลักฐานอ้างอิงที่ตรวจสอบได้ก่อนบันทึก'}</p><p className="mt-2 text-xs text-amber-900">ต้องกรอกคำอธิบายหลักฐาน หรือแนบรูปถ่ายอย่างน้อย 1 อย่าง</p></div> : <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="font-semibold text-slate-800">หลักฐานประกอบ</p><p className="text-sm text-slate-700">{act.definition?.trim() || 'หากมีเอกสารอ้างอิงหรือรูปถ่ายประกอบ สามารถระบุเพิ่มเติมได้'}</p></div>}
       {act.use_role_mult && <div className="space-y-1"><label className="field-label">บทบาทในการดำเนินกิจกรรม</label><select className="inp" value={role} onChange={e => setRole(e.target.value)}>{ROLES.map(r => <option key={r}>{r}</option>)}</select></div>}
@@ -311,7 +337,7 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
     </div>
     <div className="space-y-3">
       <Totals rows={shown} people={person ? [person] : []} positions={positions} />
-      <LogTable sb={sb} rows={shown} reload={reload} canApprove={canApprove} showName={!pid && people.length > 1} acts={acts} />
+      <LogTable sb={sb} rows={shown} reload={reload} canApprove={canApprove} showName={!pid && people.length > 1} acts={acts} editTargetId={editTargetId} clearEditTarget={() => setEditTargetId(null)} />
     </div>
   </div>
 }
@@ -328,12 +354,13 @@ function Totals({ rows, people, positions }: any) {
 const ST: any = { pending: ['รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); alert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = false, acts = [] }: any) {
+function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = false, acts = [], editTargetId = null, clearEditTarget = () => {} }: any) {
   const [editing, setEditing] = useState<any>(null)
   const [form, setForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState('')
   const [editEvidenceFile, setEditEvidenceFile] = useState<File | null>(null)
+  useEffect(() => { if (editTargetId == null) return; const target = rows.find((r: any) => r.id === editTargetId); if (!target) return; if (target.status === 'pending') beginEdit(target); else alert('รายการนี้รับรองแล้ว จึงไม่สามารถแก้ไขได้'); clearEditTarget() }, [editTargetId, rows])
   const beginEdit = (r: any) => {
     setEditing(r)
     setForm({ work_date: r.work_date || '', activity_code: r.activity_code || '', qty: String(r.qty ?? 1), role: r.role || '', evidence: r.evidence || '', sub_activity: r.sub_activity || '' })
