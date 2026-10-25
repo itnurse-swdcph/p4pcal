@@ -208,7 +208,7 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
   const ids = useMemo(() => people.map((p: any) => p.id), [people])
   const [rows, reload] = useLogs(sb, month, ids)
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
-  const [q, setQ] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState('')
+  const [q, setQ] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false)
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
   const person = people.find((p: any) => p.id === pid); const pos = positions.find((x: any) => x.name === person?.position)
   const list = acts.filter((a: any) => (!pos || a.eligible.includes(pos.grp)) && (a.code + a.title).toLowerCase().includes(q.toLowerCase()))
@@ -217,6 +217,10 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
   const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
   const save = async () => {
     setErr('')
+    if (!pid) { setErr('กรุณาเลือกบุคลากรก่อน'); return }
+    if (!code || !act) { setErr('กรุณาค้นหาและเลือกกิจกรรม'); return }
+    if (!qty || Number(qty) <= 0) { setErr('กรุณาระบุจำนวนให้มากกว่า 0'); return }
+    if (act.need_evidence && !ev.trim() && !evidenceFile) { setErr(`กิจกรรมนี้ต้องมีหลักฐาน: ${act.definition || 'กรุณาระบุเอกสารหรือแนบรูปถ่ายประกอบ'}`); return }
     const { data: inserted, error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: act?.use_role_mult ? role : null, qty: +qty, evidence: ev.trim() || (evidenceFile ? 'แนบรูปถ่าย' : null), sub_activity: subActivity.trim() || null }).select('id').single()
     if (error) { setErr(error.message); return }
     if (evidenceFile && inserted?.id) {
@@ -227,7 +231,7 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
       const { error: pathError } = await sb.from('logs').update({ evidence_image_path: path }).eq('id', inserted.id)
       if (pathError) { setErr(`อัปโหลดรูปแล้ว แต่บันทึกการเชื่อมโยงรูปไม่สำเร็จ: ${pathError.message}`); reload(); return }
     }
-    setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); reload()
+    setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); setModalOpen(false); reload()
   }
   return <div className="grid lg:grid-cols-[minmax(26rem,34rem)_1fr] gap-4">
     <div className="card space-y-2 self-start">
@@ -246,19 +250,21 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
       <div className="act-list" role="listbox" aria-label="รายการกิจกรรม">
         {['บริหาร', 'บริการ', 'วิชาการ'].map(d => { const items = list.filter((a: any) => a.domain === d); return items.length > 0 && <div key={d}>
           <div className="act-head">{d}</div>
-          {items.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={a.title} onClick={() => setCode(a.code)} className={'act-item' + (code === a.code ? ' on' : '')}>
+          {items.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={a.title} onClick={() => { setCode(a.code); setErr(''); setModalOpen(true) }} className={'act-item' + (code === a.code ? ' on' : '')}>
             <span className="act-code">{a.code}</span><span className="act-title">{a.title}</span><span className="act-uom">{a.minutes} นาที/{a.uom}</span></button>)}</div> })}
         {!list.length && <p className="p-3 text-sm text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหาหรือสิทธิ์ของตำแหน่งนี้</p>}
       </div>
-      {act && <p className="text-xs text-stone-600"><b className="text-teal-800">{act.code} {act.title}</b><br />{act.minutes} นาที/{act.uom}{act.max_day ? ` · สูงสุด ${act.max_day}/วัน` : ''}{act.max_month ? ` · ${act.max_month}/เดือน` : ''}<br />หลักฐาน: {act.definition}{act.need_evidence && <b className="text-red-700"> (จำเป็น)</b>}</p>}
-      {act?.use_role_mult && <select className="inp" value={role} onChange={e => setRole(e.target.value)}>{ROLES.map(r => <option key={r}>{r}</option>)}</select>}
-      <label className="field-label">จำนวน <span className="uom-chip">หน่วยนับ: {act?.uom || 'เลือกกิจกรรมก่อน'}</span></label>
-      <div className="qty-wrap"><input type="number" min="0" step="0.5" className="inp" value={qty} onChange={e => setQty(e.target.value)} placeholder="ระบุจำนวน" /><span className="qty-unit">{act?.uom || 'หน่วย'}</span></div>
-      <div className="space-y-1"><label className="field-label">กิจกรรมย่อย / รายละเอียดเพิ่มเติม</label><textarea className="inp min-h-20" placeholder="ระบุชื่องานย่อยหรือรายละเอียดสิ่งที่ดำเนินการ" value={subActivity} onChange={e => setSubActivity(e.target.value)} /></div>
-      <div className="space-y-1"><label className="field-label">หลักฐาน (เลือกกรอกข้อความและ/หรือแนบรูปถ่าย)</label><textarea className="inp min-h-20" placeholder="เช่น เลขที่คำสั่ง เอกสารอ้างอิง หรือคำอธิบายหลักฐาน" value={ev} onChange={e => setEv(e.target.value)} /><input className="inp" type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0] || null; if (f && (!f.type.startsWith('image/') || f.size > 5 * 1024 * 1024)) { setErr('กรุณาเลือกไฟล์รูปภาพ ขนาดไม่เกิน 5 MB'); e.target.value = ''; setEvidenceFile(null); return } setErr(''); setEvidenceFile(f) }} /><p className="field-hint">แนบรูปถ่ายได้ 1 รูปต่อรายการ ขนาดไม่เกิน 5 MB</p>{evidenceFile && <p className="text-xs text-teal-800">ไฟล์ที่เลือก: {evidenceFile.name}</p>}</div>
-      {act && <p className="text-sm">แต้มโดยประมาณ: <b>{nf(prev)}</b></p>}
-      <button className="btn w-full" disabled={!pid || !code || !+qty} onClick={save}>บันทึก</button>
-      {err && <p className="text-sm text-red-700">{err}</p>}
+      {act && <div className="rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm"><b className="text-teal-900">เลือกแล้ว: {act.code} {act.title}</b><p className="mt-1 text-xs text-teal-900">กดรายการกิจกรรมเพื่อเปิดแบบฟอร์มกรอกข้อมูล</p></div>}
+      {modalOpen && act && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title"><div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4"><div className="flex items-start justify-between gap-3 border-b pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-teal-700">บันทึกกิจกรรม P4P</p><h2 id="activity-modal-title" className="text-lg font-bold text-slate-900">{act.code} {act.title}</h2><p className="mt-1 text-xs text-slate-600">{act.minutes} นาที/{act.uom}{act.max_day ? ` · สูงสุด ${act.max_day}/วัน` : ''}{act.max_month ? ` · ${act.max_month}/เดือน` : ''}</p></div><button type="button" className="rounded-lg border px-3 py-1.5 text-sm" onClick={() => { setModalOpen(false); setErr('') }}>ปิด</button></div>
+      {act.need_evidence ? <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3"><p className="font-bold text-amber-900">หลักฐานที่ต้องใช้สำหรับกิจกรรมนี้ (จำเป็น)</p><p className="mt-1 whitespace-pre-wrap text-sm text-amber-950">{act.definition?.trim() || 'กรุณาตรวจสอบแนวทาง/เกณฑ์ P4P ของกิจกรรมนี้ และระบุหลักฐานอ้างอิงที่ตรวจสอบได้ก่อนบันทึก'}</p><p className="mt-2 text-xs text-amber-900">ต้องกรอกคำอธิบายหลักฐาน หรือแนบรูปถ่ายอย่างน้อย 1 อย่าง</p></div> : <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="font-semibold text-slate-800">หลักฐานประกอบ</p><p className="text-sm text-slate-700">{act.definition?.trim() || 'หากมีเอกสารอ้างอิงหรือรูปถ่ายประกอบ สามารถระบุเพิ่มเติมได้'}</p></div>}
+      {act.use_role_mult && <div className="space-y-1"><label className="field-label">บทบาทในการดำเนินกิจกรรม</label><select className="inp" value={role} onChange={e => setRole(e.target.value)}>{ROLES.map(r => <option key={r}>{r}</option>)}</select></div>}
+      <div className="space-y-1"><label className="field-label">จำนวน <span className="uom-chip">หน่วยนับ: {act.uom}</span></label><div className="qty-wrap"><input type="number" min="0" step="0.5" className="inp" value={qty} onChange={e => setQty(e.target.value)} placeholder="ระบุจำนวน" /><span className="qty-unit">{act.uom}</span></div></div>
+      <div className="space-y-1"><label className="field-label">กิจกรรมย่อย / รายละเอียดการดำเนินงาน</label><textarea className="inp min-h-24" placeholder="ระบุชื่องานย่อย รายละเอียดสิ่งที่ทำ ผลลัพธ์ หรือขอบเขตงาน" value={subActivity} onChange={e => setSubActivity(e.target.value)} /></div>
+      <div className="space-y-1"><label className="field-label">รายละเอียดหลักฐาน {act.need_evidence && <span className="text-red-700">* จำเป็น</span>}</label><textarea className="inp min-h-24" placeholder={act.need_evidence ? 'ระบุหลักฐานตามรายการที่แสดงด้านบน เช่น เลขที่เอกสาร วันที่ ผู้รับรอง หรือชื่อเอกสาร' : 'ระบุเอกสารอ้างอิงหรือคำอธิบายหลักฐาน (ถ้ามี)'} value={ev} onChange={e => setEv(e.target.value)} /></div>
+      <div className="space-y-1"><label className="field-label">แนบรูปถ่ายหลักฐาน {act.need_evidence && <span className="text-slate-600">(หรือกรอกรายละเอียดหลักฐานด้านบน)</span>}</label><input className="inp" type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0] || null; if (f && (!f.type.startsWith('image/') || f.size > 5 * 1024 * 1024)) { setErr('กรุณาเลือกไฟล์รูปภาพ ขนาดไม่เกิน 5 MB'); e.target.value = ''; setEvidenceFile(null); return } setErr(''); setEvidenceFile(f) }} /><p className="field-hint">แนบรูปถ่ายได้ 1 รูปต่อรายการ ขนาดไม่เกิน 5 MB</p>{evidenceFile && <p className="text-xs text-teal-800">ไฟล์ที่เลือก: {evidenceFile.name}</p>}</div>
+      <div className="rounded-lg bg-slate-50 p-3 text-sm">แต้มโดยประมาณ: <b>{nf(prev)}</b></div>
+      {err && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{err}</p>}
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" className="btn" onClick={() => { setModalOpen(false); setErr('') }}>ยกเลิก</button><button type="button" className="btn" disabled={!pid || !code || !+qty} onClick={save}>บันทึกกิจกรรม</button></div></div></div>}
     </div>
     <div className="space-y-3">
       <Totals rows={shown} people={person ? [person] : []} positions={positions} />
