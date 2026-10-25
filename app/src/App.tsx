@@ -193,10 +193,10 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
   const [rows, setRows] = useState<any[]>([]); const [n, setN] = useState(0)
   useEffect(() => {
     const [a, b] = mRange(month)
-    let q = sb.from('v_logs').select('*').gte('work_date', a).lte('work_date', b).order('work_date', { ascending: false }).order('id', { ascending: false })
+    let q = sb.from('v_logs').select('*').gte('work_date', a).lte('work_date', b).order('work_date', { ascending: true }).order('id', { ascending: true })
     if (unit) q = q.eq('unit_id', unit)
     if (personIds) q = q.in('person_id', personIds)
-    q.then((r: any) => setRows(r.data || []))
+    q.then(async (r: any) => { const baseRows = r.data || []; if (!baseRows.length) { setRows([]); return } const { data: extras } = await sb.from('logs').select('id, sub_activity, evidence_image_path').in('id', baseRows.map((x: any) => x.id)); const extraMap = new Map((extras || []).map((x: any) => [x.id, x])); setRows(baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) }))) })
   }, [month, n, unit, personIds?.join(',')])
   return [rows, () => setN(x => x + 1)] as const
 }
@@ -208,7 +208,7 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
   const ids = useMemo(() => people.map((p: any) => p.id), [people])
   const [rows, reload] = useLogs(sb, month, ids)
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
-  const [q, setQ] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [err, setErr] = useState('')
+  const [q, setQ] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState('')
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
   const person = people.find((p: any) => p.id === pid); const pos = positions.find((x: any) => x.name === person?.position)
   const list = acts.filter((a: any) => (!pos || a.eligible.includes(pos.grp)) && (a.code + a.title).toLowerCase().includes(q.toLowerCase()))
@@ -217,8 +217,17 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
   const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
   const save = async () => {
     setErr('')
-    const { error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: act?.use_role_mult ? role : null, qty: +qty, evidence: ev || null })
-    if (error) setErr(error.message); else { setEv(''); setQty('1'); reload() }
+    const { data: inserted, error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: act?.use_role_mult ? role : null, qty: +qty, evidence: ev.trim() || (evidenceFile ? 'แนบรูปถ่าย' : null), sub_activity: subActivity.trim() || null }).select('id').single()
+    if (error) { setErr(error.message); return }
+    if (evidenceFile && inserted?.id) {
+      const safeName = evidenceFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `${pid}/${inserted.id}/${crypto.randomUUID()}-${safeName}`
+      const { error: uploadError } = await sb.storage.from('p4p-evidence').upload(path, evidenceFile, { contentType: evidenceFile.type, upsert: false })
+      if (uploadError) { setErr(`บันทึกรายการแล้ว แต่แนบรูปไม่สำเร็จ: ${uploadError.message}`); reload(); return }
+      const { error: pathError } = await sb.from('logs').update({ evidence_image_path: path }).eq('id', inserted.id)
+      if (pathError) { setErr(`อัปโหลดรูปแล้ว แต่บันทึกการเชื่อมโยงรูปไม่สำเร็จ: ${pathError.message}`); reload(); return }
+    }
+    setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); reload()
   }
   return <div className="grid lg:grid-cols-[minmax(26rem,34rem)_1fr] gap-4">
     <div className="card space-y-2 self-start">
@@ -245,7 +254,8 @@ function LogPage({ sb, people: peopleProp, allPeople, unitOptions, defaultUnit, 
       {act?.use_role_mult && <select className="inp" value={role} onChange={e => setRole(e.target.value)}>{ROLES.map(r => <option key={r}>{r}</option>)}</select>}
       <label className="field-label">จำนวน <span className="uom-chip">หน่วยนับ: {act?.uom || 'เลือกกิจกรรมก่อน'}</span></label>
       <div className="qty-wrap"><input type="number" min="0" step="0.5" className="inp" value={qty} onChange={e => setQty(e.target.value)} placeholder="ระบุจำนวน" /><span className="qty-unit">{act?.uom || 'หน่วย'}</span></div>
-      <input className="inp" placeholder="หลักฐาน/อ้างอิง (HN, เลขคำสั่ง)" value={ev} onChange={e => setEv(e.target.value)} />
+      <div className="space-y-1"><label className="field-label">กิจกรรมย่อย / รายละเอียดเพิ่มเติม</label><textarea className="inp min-h-20" placeholder="ระบุชื่องานย่อยหรือรายละเอียดสิ่งที่ดำเนินการ" value={subActivity} onChange={e => setSubActivity(e.target.value)} /></div>
+      <div className="space-y-1"><label className="field-label">หลักฐาน (เลือกกรอกข้อความและ/หรือแนบรูปถ่าย)</label><textarea className="inp min-h-20" placeholder="เช่น เลขที่คำสั่ง เอกสารอ้างอิง หรือคำอธิบายหลักฐาน" value={ev} onChange={e => setEv(e.target.value)} /><input className="inp" type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0] || null; if (f && (!f.type.startsWith('image/') || f.size > 5 * 1024 * 1024)) { setErr('กรุณาเลือกไฟล์รูปภาพ ขนาดไม่เกิน 5 MB'); e.target.value = ''; setEvidenceFile(null); return } setErr(''); setEvidenceFile(f) }} /><p className="field-hint">แนบรูปถ่ายได้ 1 รูปต่อรายการ ขนาดไม่เกิน 5 MB</p>{evidenceFile && <p className="text-xs text-teal-800">ไฟล์ที่เลือก: {evidenceFile.name}</p>}</div>
       {act && <p className="text-sm">แต้มโดยประมาณ: <b>{nf(prev)}</b></p>}
       <button className="btn w-full" disabled={!pid || !code || !+qty} onClick={save}>บันทึก</button>
       {err && <p className="text-sm text-red-700">{err}</p>}
@@ -267,6 +277,8 @@ function Totals({ rows, people, positions }: any) {
 }
 
 const ST: any = { pending: ['รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
+async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); alert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
+
 function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = false }: any) {
   const set = async (id: number, status: string) => { await sb.from('logs').update({ status }).eq('id', id); reload() }
   const del = async (id: number) => { if (confirm('ลบรายการนี้?')) { await sb.from('logs').delete().eq('id', id); reload() } }
@@ -274,7 +286,7 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
     <table className="w-full"><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th></th></tr></thead>
       <tbody>{rows.map((r: any) => <tr key={r.id}>
         <td className="whitespace-nowrap">{r.work_date}</td>{showName && <td>{r.person_name}</td>}
-        <td><b>{r.activity_code}</b> {r.title}{r.role && <span className="text-xs text-stone-500"> · {r.role} ×{r.mult}</span>}{r.evidence && <div className="text-xs text-stone-500">อ้างอิง: {r.evidence}</div>}</td>
+        <td><b>{r.activity_code}</b> {r.title}{r.role && <span className="text-xs text-stone-500"> · {r.role} ×{r.mult}</span>}{r.sub_activity && <div className="text-sm mt-1">กิจกรรมย่อย: {r.sub_activity}</div>}{r.evidence && <div className="text-xs text-stone-500 mt-1">หลักฐาน: {r.evidence}</div>}{r.evidence_image_path && <div className="mt-1"><button className="text-xs underline text-teal-800" onClick={() => openEvidence(sb, r.evidence_image_path)}>ดูรูปหลักฐาน</button></div>}</td>
         <td>{r.qty} {r.uom}</td><td className="whitespace-nowrap">{nf(r.counted_points)}{Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
         <td className="text-xs">{r.errors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{r.warnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!r.errors.length && !r.warnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
         <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span></td>
