@@ -634,7 +634,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
   return <div className="space-y-4">
     <div className="card space-y-3">
       <div className="flex flex-wrap items-center gap-3"><div className="mr-auto"><h2 className="text-lg font-bold">คลังกิจกรรม P4P</h2><p className="text-sm text-stone-600">ค้นหาและศึกษารายละเอียด เกณฑ์การนับแต้ม และหลักฐานประกอบของกิจกรรมทั้งหมดที่เปิดใช้งาน</p></div>
-      {isAdmin && <button className="btn" onClick={() => { setShowAdd(v => !v); setMsg('') }}>{showAdd ? 'ปิดแบบฟอร์ม' : '+ เพิ่มกิจกรรม'}</button>}</div>
+      {isAdmin && <button className="btn" onClick={() => { if (showAdd) cancelForm(); else { setShowAdd(true); setMsg('') } }}>{showAdd ? 'ปิดแบบฟอร์ม' : '+ เพิ่มกิจกรรม'}</button>}</div>
       {msg && <p role="status" className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">{msg}</p>}
       {showAdd && isAdmin && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
         <h3 className="font-bold">{editingCode ? `แก้ไขกิจกรรม ${editingCode}` : 'เพิ่มกิจกรรมเข้าคลัง'}</h3>
