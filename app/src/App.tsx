@@ -663,7 +663,6 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [cfg, setCfg] = useState<any>({ budget: 0, baht_per_point: 0, deduct_guarantee: true })
   const m1 = month + '-01'
   useEffect(() => { sb.from('unit_settings').select('*').eq('unit_id', unit).eq('month', m1).maybeSingle().then((r: any) => setCfg(r.data || { budget: 0, baht_per_point: 0, deduct_guarantee: true })) }, [unit, month])
-  const saveCfg = async () => { await sb.from('unit_settings').upsert({ unit_id: unit, month: m1, budget: +cfg.budget, baht_per_point: +cfg.baht_per_point, deduct_guarantee: cfg.deduct_guarantee }); alert('บันทึกแล้ว') }
   const sum = useMemo(() => people.map((p: any) => {
     const rs = rows.filter((r: any) => r.person_id === p.id); const g = positions.find((x: any) => x.name === p.position)?.guarantee || 0
     const d = (x: string) => rs.filter((r: any) => r.domain === x).reduce((s: number, r: any) => s + Number(r.counted_points), 0)
@@ -691,11 +690,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
       {stat('แถวทั้งหมด', rows.length)}{stat('✗ ไม่นับแต้ม', rows.filter((r: any) => r.errors.length).length)}{stat('! ต้องตรวจทาน', rows.filter((r: any) => r.warnings.length).length)}
       {stat('รอรับรอง', rows.filter((r: any) => r.status === 'pending').length)}{stat('บาท/แต้ม', nf(rate, 4))}</div>
-    {audit && <div className="card flex flex-wrap gap-3 items-end">
-      <label className="text-sm">งบ P4P หน่วยงาน (บาท)<input type="number" className="inp" value={cfg.budget} onChange={e => setCfg({ ...cfg, budget: e.target.value })} /></label>
-      <label className="text-sm">บาท/แต้ม (ตายตัว ถ้ามี)<input type="number" className="inp" value={cfg.baht_per_point} onChange={e => setCfg({ ...cfg, baht_per_point: e.target.value })} /></label>
-      <label className="text-sm flex gap-1 items-center"><input type="checkbox" checked={cfg.deduct_guarantee} onChange={e => setCfg({ ...cfg, deduct_guarantee: e.target.checked })} />หักแต้มประกัน</label>
-      <button className="btn" onClick={saveCfg}>บันทึกการตั้งค่า</button></div>}
+    <p className="text-xs text-stone-600">เกณฑ์จัดสรรเดือนนี้: งบ {nf(+cfg.budget)} บาท · {+cfg.baht_per_point > 0 ? `อัตราตายตัว ${nf(+cfg.baht_per_point, 4)} บาท/แต้ม` : 'ไม่กำหนดอัตราตายตัว'} · {cfg.deduct_guarantee ? 'หักแต้มประกัน' : 'ไม่หักแต้มประกัน'} (ตั้งค่าโดยผู้ดูแลระบบที่เมนู "ตั้งค่า")</p>
     <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button></div>
     <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ชื่อ</th><th>ตำแหน่ง</th><th>บริหาร</th><th>บริการ</th><th>วิชาการ</th><th>รวม</th><th>ประกัน</th><th>จัดสรร</th><th>เงิน (บาท)</th><th>ข้อสังเกต</th>{canPrint && <th></th>}</tr></thead>
       <tbody>{sum.map((x: any) => { const a = avg(x.p.position), ratio = a ? x.tot / a : 0
