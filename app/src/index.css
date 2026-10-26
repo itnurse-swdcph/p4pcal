@@ -122,5 +122,14 @@ select.inp option { color:#182b3d; font-weight:400; background:#fff; }
   .print-sheet .ps-sum { width:62mm !important; flex:0 0 62mm !important; }
   .print-sheet .sign-row { display:flex !important; flex-direction:row !important; gap:6mm !important; }
   .print-sheet .sign-box { flex:1 1 0 !important; }
-  .print-sheet .pt { width:100% !important; table-layout:auto; }
+  .print-sheet .pt { width:100% !important; table-layout:auto; border-collapse:collapse !important; border-spacing:0 !important; }
+  /* บังคับวาดเส้นขอบล่างของแถวสุดท้ายและตารางให้ครบในงานพิมพ์ */
+  .print-sheet .pt,
+  .print-sheet .pt th,
+  .print-sheet .pt td { border-color:#222 !important; border-style:solid !important; border-width:1px !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .print-sheet .pt tr:last-child > th,
+  .print-sheet .pt tr:last-child > td { border-bottom:1px solid #222 !important; }
+  .print-sheet .pt tfoot,
+  .print-sheet .pt tbody { break-inside:auto; }
+  .print-sheet .pt tr { break-inside:avoid !important; page-break-inside:avoid !important; }
 }
