@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { createPortal } from 'react-dom'
+import { allocate } from './lib/allocate'
 import { Eye, EyeOff, Printer, ShieldCheck } from 'lucide-react'
 
 const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_publishable_8qxOgD-AHGnv9RWWAZTUQQ_I0MPIMv3' }
@@ -208,7 +209,7 @@ function Main({ sb, session }: any) {
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'
-  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน'], ['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้']] : [])]
+  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน'], ['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [])]
   const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
   const unitOptions = role === 'head' ? units.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? units : units.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
@@ -229,6 +230,7 @@ function Main({ sb, session }: any) {
     {cur === 'review' && !(role === 'admin' && !unit) && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
     {cur === 'people' && <PeoplePage sb={sb} people={scope} unit={unit} positions={positions} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
+    {cur === 'settings' && <SettingsPage sb={sb} units={units} month={month} unit={unit} />}
     {cur === 'activities' && <ActivityLibrary sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
     {cur === 'audit' && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} audit />}
     </div>
@@ -236,14 +238,38 @@ function Main({ sb, session }: any) {
   </div>
 }
 
+// PostgREST จำกัดผลลัพธ์ต่อคำขอ (ปกติ 1,000 แถว) จึงดึงเป็นช่วงจนครบ
+async function fetchPages(mk: (from: number, to: number) => any) {
+  const out: any[] = []
+  for (let i = 0; ; i += 1000) {
+    const { data, error } = await mk(i, i + 999)
+    if (error || !data) break
+    out.push(...data); if (data.length < 1000) break
+  }
+  return out
+}
 function useLogs(sb: any, month: string, personIds: string[] | null, unit?: number | null) {
   const [rows, setRows] = useState<any[]>([]); const [n, setN] = useState(0)
   useEffect(() => {
+    let alive = true
     const [a, b] = mRange(month)
-    let q = sb.from('v_logs').select('*').gte('work_date', a).lte('work_date', b).order('work_date', { ascending: true }).order('id', { ascending: true })
-    if (unit) q = q.eq('unit_id', unit)
-    if (personIds) q = q.in('person_id', personIds)
-    q.then(async (r: any) => { const baseRows = r.data || []; if (!baseRows.length) { setRows([]); return } const { data: extras } = await sb.from('logs').select('id, sub_activity, evidence_image_path').in('id', baseRows.map((x: any) => x.id)); const extraMap = new Map((extras || []).map((x: any) => [x.id, x])); setRows(baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) }))) })
+    ;(async () => {
+      const baseRows = await fetchPages((x, y) => {
+        let q = sb.from('v_logs').select('*').gte('work_date', a).lte('work_date', b).order('work_date', { ascending: true }).order('id', { ascending: true })
+        if (unit) q = q.eq('unit_id', unit)
+        if (personIds) q = q.in('person_id', personIds)
+        return q.range(x, y)
+      })
+      if (!alive) return
+      if (!baseRows.length) { setRows([]); return }
+      const extraMap = new Map<any, any>()
+      for (let i = 0; i < baseRows.length; i += 200) {
+        const { data } = await sb.from('logs').select('id, sub_activity, evidence_image_path').in('id', baseRows.slice(i, i + 200).map((x: any) => x.id))
+        ;(data || []).forEach((x: any) => extraMap.set(x.id, x))
+      }
+      if (alive) setRows(baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) })))
+    })()
+    return () => { alive = false }
   }, [month, n, unit, personIds?.join(',')])
   return [rows, () => setN(x => x + 1)] as const
 }
@@ -655,7 +681,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   }
   const csv = () => {
     const h = ['ชื่อ', 'ตำแหน่ง', 'บริหาร', 'บริการ', 'วิชาการ', 'รวม', 'แต้มประกัน', 'แต้มที่ใช้จัดสรร', 'เงิน(บาท)']
-    const b = sum.map((x: any) => [x.p.name, x.p.position, x.adm, x.svc, x.acd, x.tot, x.g, x.pay, (x.pay * rate).toFixed(2)])
+    const b = sum.map((x: any) => [x.p.name, x.p.position, x.adm, x.svc, x.acd, x.tot, x.g, x.pay, (Math.round(x.pay * rate * 100) / 100).toFixed(2)])
     const blob = new Blob(['\ufeff' + [h, ...b].map(r => r.join(',')).join('\n')], { type: 'text/csv' }); const a = document.createElement('a')
     a.href = URL.createObjectURL(blob); a.download = `p4p_${month}.csv`; a.click()
   }
@@ -674,9 +700,9 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ชื่อ</th><th>ตำแหน่ง</th><th>บริหาร</th><th>บริการ</th><th>วิชาการ</th><th>รวม</th><th>ประกัน</th><th>จัดสรร</th><th>เงิน (บาท)</th><th>ข้อสังเกต</th>{canPrint && <th></th>}</tr></thead>
       <tbody>{sum.map((x: any) => { const a = avg(x.p.position), ratio = a ? x.tot / a : 0
         return <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
-          <td><b>{x.p.name}</b></td><td className="text-xs">{x.p.position}</td><td>{nf(x.adm)}</td><td>{nf(x.svc)}</td><td>{nf(x.acd)}</td><td><b>{nf(x.tot)}</b></td><td>{nf(x.g, 0)}</td><td>{nf(x.pay)}</td><td><b>{nf(x.pay * rate)}</b></td>
+          <td><b>{x.p.name}</b></td><td className="text-xs">{x.p.position}</td><td>{nf(x.adm)}</td><td>{nf(x.svc)}</td><td>{nf(x.acd)}</td><td><b>{nf(x.tot)}</b></td><td>{nf(x.g, 0)}</td><td>{nf(x.pay)}</td><td><b>{nf(Math.round(x.pay * rate * 100) / 100)}</b></td>
           <td className="text-xs text-red-700">{x.err > 0 && `✗${x.err} `}{x.warn > 0 && `!${x.warn} `}{x.pend > 0 && `รอรับรอง${x.pend} `}{ratio > 1.5 && 'สูงกว่าเฉลี่ยมาก '}{x.tot > 0 && ratio < .5 && 'ต่ำกว่าเฉลี่ยมาก'}{!x.n && 'ไม่มีบันทึก'}</td>{canPrint && <td><button type="button" className="btn sec !py-0.5 whitespace-nowrap" onClick={e => { e.stopPropagation(); setPrintFor(x.p) }}>พิมพ์ใบสรุป</button></td>}</tr> })}
-        <tr className="font-bold"><td colSpan={5}>รวมทั้งหน่วย</td><td>{nf(sum.reduce((s: number, x: any) => s + x.tot, 0))}</td><td></td><td>{nf(pool)}</td><td>{nf(pool * rate)}</td><td></td>{canPrint && <td></td>}</tr></tbody></table></div>
+        <tr className="font-bold"><td colSpan={5}>รวมทั้งหน่วย</td><td>{nf(sum.reduce((s: number, x: any) => s + x.tot, 0))}</td><td></td><td>{nf(pool)}</td><td>{nf(sum.reduce((t: number, x: any) => t + Math.round(x.pay * rate * 100) / 100, 0))}</td><td></td>{canPrint && <td></td>}</tr></tbody></table></div>
     <h2 className="font-bold">{sel ? 'รายการของ ' + people.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
     {printFor && <PrintSheet sb={sb} person={printFor} rows={rows.filter((r: any) => r.person_id === printFor.id)} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
     <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
@@ -700,6 +726,99 @@ function PeoplePage({ sb, people, unit, positions, reload }: any) {
       <p className="text-xs text-stone-600">เมื่อเจ้าหน้าที่ลงทะเบียนด้วยชื่อ-สกุลและหน่วยงานที่ตรงกัน ระบบจะผูกบัญชีให้อัตโนมัติ</p></div>
     <div className="card p-0 overflow-x-auto"><table className="w-full"><thead><tr><th>ชื่อ</th><th>ตำแหน่ง</th><th>งานย่อย</th><th>บัญชี</th><th></th></tr></thead>
       <tbody>{people.map((p: any) => <tr key={p.id}><td>{p.name}</td><td>{p.position}</td><td>{p.sub_unit}</td><td>{p.user_id ? '✓ ผูกแล้ว' : '—'}</td><td><button className="text-xs underline" onClick={() => off(p.id)}>ปิดใช้งาน</button></td></tr>)}</tbody></table></div>
+  </div>
+}
+
+const GLOBAL_SETTINGS: [string, string, string][] = [
+  ['max_day_minutes', 'เวลารวมสูงสุดที่บันทึกได้ต่อคนต่อวัน (นาที)', 'เกินค่านี้ระบบจะแจ้งเตือน ! "เวลารวมในวันนี้เกินกำหนด" ให้หัวหน้าตรวจทาน (ยังนับแต้ม) · ช่วงที่ใช้ได้ 1–1,440'],
+  ['mult_chair', 'ตัวคูณบทบาท – ประธาน', 'ใช้กับกิจกรรมประเภทประชุม/คณะกรรมการที่เลือกบทบาท "ประธาน"'],
+  ['mult_sec', 'ตัวคูณบทบาท – เลขานุการ/กรรมการ', ''],
+  ['mult_member', 'ตัวคูณบทบาท – สมาชิก/ผู้เข้าร่วม', 'ใช้เมื่อไม่ได้ระบุบทบาทด้วย']
+]
+
+// ตั้งค่าระบบ (แอดมิน): ส่วนที่ 1 ใช้ทั้งระบบ  ส่วนที่ 2 ใช้ตามหน่วยงานและเดือน (เหมือนแผ่น "ตั้งค่า" ใน Excel)
+function SettingsPage({ sb, units, month: month0, unit: unit0 }: any) {
+  const [g, setG] = useState<any>({}); const [gMsg, setGMsg] = useState('')
+  useEffect(() => { sb.from('app_settings').select('key,value').then((r: any) => setG(Object.fromEntries((r.data || []).map((x: any) => [x.key, String(x.value)])))) }, [])
+  const saveG = async () => {
+    setGMsg('')
+    for (const [k, l] of GLOBAL_SETTINGS) {
+      const v = Number(g[k]); const ok = k === 'max_day_minutes' ? Number.isInteger(v) && v >= 1 && v <= 1440 : v > 0 && v <= 10
+      if (!(String(g[k] ?? '').trim() !== '' && ok)) { setGMsg(`ค่า "${l}" ไม่ถูกต้อง`); return }
+    }
+    if (!confirm('การเปลี่ยนค่าเหล่านี้มีผลกับการคำนวณแต้มของทุกหน่วยงานและทุกเดือน รวมรายการที่รับรองแล้วด้วย ยืนยันบันทึก?')) return
+    const res = await Promise.all(GLOBAL_SETTINGS.map(([k]) => sb.from('app_settings').update({ value: Number(g[k]) }).eq('key', k)))
+    const bad = res.find((r: any) => r.error)
+    setGMsg(bad ? 'บันทึกไม่สำเร็จ: ' + bad.error.message : 'บันทึกแล้ว')
+  }
+
+  const [u, setU] = useState<number | null>(unit0 ?? units[0]?.id ?? null); const [m, setM] = useState(month0)
+  const [cfg, setCfg] = useState<any>({ budget: '0', rate: '0', deduct: 'หัก' }); const [uMsg, setUMsg] = useState('')
+  const [rows, setRows] = useState<any[]>([]); const [loading, setLoading] = useState(false)
+  useEffect(() => {
+    if (!u || !m) return
+    let alive = true; setLoading(true); setUMsg('')
+    const [a, b] = mRange(m)
+    Promise.all([
+      sb.from('unit_settings').select('*').eq('unit_id', u).eq('month', m + '-01').maybeSingle(),
+      fetchPages((x, y) => sb.from('v_logs').select('person_id,counted_points,guarantee').eq('unit_id', u).gte('work_date', a).lte('work_date', b).order('id').range(x, y))
+    ]).then(([c, r]: any) => {
+      if (!alive) return
+      setCfg(c.data ? { budget: String(c.data.budget ?? 0), rate: String(c.data.baht_per_point ?? 0), deduct: c.data.deduct_guarantee === false ? 'ไม่หัก' : 'หัก' } : { budget: '0', rate: '0', deduct: 'หัก' })
+      setRows(r); setLoading(false)
+    })
+    return () => { alive = false }
+  }, [u, m])
+  const num = (v: any) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : 0)
+  const res = useMemo(() => allocate(rows, { budget: num(cfg.budget), fixedRate: num(cfg.rate), deduct: cfg.deduct === 'หัก' }), [rows, cfg])
+  const saveU = async () => {
+    setUMsg('')
+    if (!(Number(cfg.budget) >= 0) || !(Number(cfg.rate) >= 0) || cfg.budget === '' || cfg.rate === '') { setUMsg('งบและอัตราบาทต่อแต้มต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป'); return }
+    const { error } = await sb.from('unit_settings').upsert({ unit_id: u, month: m + '-01', budget: Number(cfg.budget), baht_per_point: Number(cfg.rate), deduct_guarantee: cfg.deduct === 'หัก' })
+    setUMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : 'บันทึกแล้ว')
+  }
+  const why = res.mode === 'fixed' ? `ใช้อัตราตายตัว ${nf(res.rate, 4)} บาท/แต้ม (ไม่นำงบมาเฉลี่ย)`
+    : res.mode === 'budget' ? `งบ ${nf(num(cfg.budget))} ÷ แต้มที่ใช้จัดสรร ${nf(res.pool)} = ${nf(res.rate, 4)} บาท/แต้ม`
+    : res.mode === 'nopool' ? 'ยังคำนวณไม่ได้: เดือนนี้ยังไม่มีแต้มที่ใช้จัดสรร (ยังไม่มีบันทึก หรือทุกคนยังไม่เกินแต้มประกัน)'
+    : 'ยังไม่ได้ใส่งบหรืออัตราตายตัว อัตราที่ใช้จริงจึงเป็น 0'
+  const gField = ([k, l, h]: [string, string, string]) => <label key={k} className="field-label block">{l}
+    <input className="inp mt-1" inputMode="decimal" value={g[k] ?? ''} onChange={e => setG({ ...g, [k]: e.target.value })} />{h && <span className="field-hint block">{h}</span>}</label>
+  return <div className="grid xl:grid-cols-2 gap-4 items-start">
+    <div className="card space-y-3">
+      <div><h2 className="text-lg font-bold">ตั้งค่าทั้งระบบ</h2><p className="text-sm text-stone-600">ใช้กับทุกหน่วยงานและทุกเดือน</p></div>
+      <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">แต้มคำนวณสดจากค่าเหล่านี้ การแก้ตัวคูณมีผลกับแต้มของเดือนที่ผ่านมาและรายการที่รับรองแล้วด้วย ควรแก้เมื่อไม่มีการจ่ายเงินค้างอยู่</p>
+      {GLOBAL_SETTINGS.map(gField)}
+      <div className="flex items-center gap-3"><button className="btn" onClick={saveG}>บันทึกการตั้งค่า</button>{gMsg && <span role="status" className="text-sm text-teal-900">{gMsg}</span>}</div>
+    </div>
+    <div className="card space-y-3">
+      <div><h2 className="text-lg font-bold">การจัดสรรเงินตามหน่วยงานและเดือน</h2><p className="text-sm text-stone-600">เลือกหน่วยงานและเดือนที่ต้องการตั้งค่า</p></div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <label className="field-label">หน่วยงาน<select className="inp mt-1" value={u ?? ''} onChange={e => setU(+e.target.value)}>{units.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+        <label className="field-label">เดือน<input type="month" className="inp mt-1" value={m} onChange={e => setM(e.target.value)} /></label>
+      </div>
+      <label className="field-label block">งบ P4P ของหน่วยงานเดือนนี้ (บาท)
+        <input className="inp mt-1" inputMode="decimal" value={cfg.budget} onChange={e => setCfg({ ...cfg, budget: e.target.value })} />
+        <span className="field-hint block">ถ้าจัดสรรแบบเฉลี่ยตามแต้ม ใส่เมื่อมีงบก้อน ระบบจะคำนวณบาท/แต้มให้</span></label>
+      <label className="field-label block">อัตราบาทต่อแต้ม (ถ้ากำหนดตายตัว)
+        <input className="inp mt-1" inputMode="decimal" value={cfg.rate} onChange={e => setCfg({ ...cfg, rate: e.target.value })} />
+        <span className="field-hint block">ถ้าใส่ค่ามากกว่า 0 จะใช้ค่านี้แทนการเฉลี่ยงบ</span></label>
+      <label className="field-label block">หักแต้มประกันก่อนจัดสรรหรือไม่
+        <select className="inp mt-1" value={cfg.deduct} onChange={e => setCfg({ ...cfg, deduct: e.target.value })}><option>หัก</option><option>ไม่หัก</option></select>
+        <span className="field-hint block">ถ้าหัก = จ่ายเฉพาะแต้มส่วนที่เกินแต้มประกัน (โปรดยืนยันหลักเกณฑ์ รพ.)</span></label>
+      <div className="rounded-xl border border-teal-300 bg-teal-50 p-3 space-y-1">
+        <div className="text-sm text-stone-700">อัตราบาทต่อแต้มที่ใช้จริง (คำนวณอัตโนมัติ)</div>
+        <div className="text-3xl font-bold text-teal-900">{loading ? '…' : nf(res.rate, 4)} <span className="text-base font-normal">บาท/แต้ม</span></div>
+        <div className="text-sm text-teal-900">{loading ? 'กำลังคำนวณ…' : why}</div>
+        {!loading && <div className="text-xs text-stone-600">แต้มที่ใช้จัดสรรรวม {nf(res.pool)} แต้ม · ผู้มีแต้ม {res.people} คน · เงินรวมที่จะจ่าย {nf(res.total)} บาท</div>}
+      </div>
+      <details className="text-xs text-stone-600"><summary className="cursor-pointer">วิธีคำนวณ</summary>
+        <ol className="list-decimal pl-5 mt-1 space-y-0.5">
+          <li>แต้มที่ใช้จัดสรรรายคน = ถ้าหัก: มากกว่าระหว่าง 0 กับ (แต้มรวมที่นับ − แต้มประกัน) · ถ้าไม่หัก: แต้มรวมที่นับ</li>
+          <li>รวมแต้มที่ใช้จัดสรร = ผลรวมของข้อ 1 ทุกคนในหน่วยงานเดือนนั้น</li>
+          <li>อัตราที่ใช้จริง = ถ้าอัตราตายตัว &gt; 0 ใช้ค่านั้น · ไม่เช่นนั้นถ้ารวมแต้มที่ใช้จัดสรร &gt; 0 ใช้ งบ ÷ รวมแต้มที่ใช้จัดสรร · ไม่เช่นนั้น 0</li>
+          <li>เงินรายคน = แต้มที่ใช้จัดสรร × อัตราที่ใช้จริง ปัดเป็น 2 ตำแหน่ง</li></ol></details>
+      <div className="flex items-center gap-3"><button className="btn" onClick={saveU}>บันทึกการตั้งค่าหน่วยงาน</button>{uMsg && <span role="status" className="text-sm text-teal-900">{uMsg}</span>}</div>
+    </div>
   </div>
 }
 
