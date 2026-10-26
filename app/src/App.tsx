@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { createPortal } from 'react-dom'
-import { allocate } from './lib/allocate'
 import { Eye, EyeOff, Printer, ShieldCheck } from 'lucide-react'
 
 const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_publishable_8qxOgD-AHGnv9RWWAZTUQQ_I0MPIMv3' }
@@ -209,7 +208,7 @@ function Main({ sb, session }: any) {
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'
-  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน'], ['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [])]
+  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน'], ['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ'], ['payout', 'จ่ายเงิน P4P']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [])]
   const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
   const unitOptions = role === 'head' ? units.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? units : units.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
@@ -230,7 +229,8 @@ function Main({ sb, session }: any) {
     {cur === 'review' && !(role === 'admin' && !unit) && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
     {cur === 'people' && <PeoplePage sb={sb} people={scope} unit={unit} positions={positions} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
-    {cur === 'settings' && <SettingsPage sb={sb} units={units} month={month} unit={unit} />}
+    {cur === 'payout' && <PayoutPage sb={sb} month={month} isAdmin={role === 'admin'} />}
+    {cur === 'settings' && <SettingsPage sb={sb} />}
     {cur === 'activities' && <ActivityLibrary sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
     {cur === 'audit' && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} audit />}
     </div>
@@ -719,18 +719,13 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [printFor, setPrintFor] = useState<any>(null)
   const [rows, reload] = useLogs(sb, month, null, unit)
   const [sel, setSel] = useState<string>('')
-  const [cfg, setCfg] = useState<any>({ budget: 0, baht_per_point: 0, deduct_guarantee: true })
-  const m1 = month + '-01'
-  useEffect(() => { sb.from('unit_settings').select('*').eq('unit_id', unit).eq('month', m1).maybeSingle().then((r: any) => setCfg(r.data || { budget: 0, baht_per_point: 0, deduct_guarantee: true })) }, [unit, month])
   const sum = useMemo(() => people.map((p: any) => {
     const rs = rows.filter((r: any) => r.person_id === p.id); const g = positions.find((x: any) => x.name === p.position)?.guarantee || 0
     const d = (x: string) => rs.filter((r: any) => r.domain === x).reduce((s: number, r: any) => s + Number(r.counted_points), 0)
     const tot = d('บริหาร') + d('บริการ') + d('วิชาการ')
-    return { p, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, g, pay: cfg.deduct_guarantee ? Math.max(0, tot - g) : tot, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
+    return { p, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, g, appr: rs.filter((r: any) => r.status === 'approved').reduce((t: number, r: any) => t + Number(r.counted_points), 0), n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
-  }), [rows, people, positions, cfg.deduct_guarantee])
-  const pool = sum.reduce((s: number, x: any) => s + x.pay, 0)
-  const rate = +cfg.baht_per_point > 0 ? +cfg.baht_per_point : +cfg.budget > 0 && pool > 0 ? +cfg.budget / pool : 0
+  }), [rows, people, positions])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const bulk = async () => {
     const ids = rows.filter((r: any) => r.status === 'pending' && !r.errors.length && !r.warnings.length).map((r: any) => r.id)
@@ -738,8 +733,8 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     if (confirm(`รับรอง ${ids.length} รายการที่ผ่านการตรวจอัตโนมัติ (✓) ทั้งหมด?`)) { await sb.from('logs').update({ status: 'approved' }).in('id', ids); reload() }
   }
   const csv = () => {
-    const h = ['ชื่อ', 'ตำแหน่ง', 'บริหาร', 'บริการ', 'วิชาการ', 'รวม', 'แต้มประกัน', 'แต้มที่ใช้จัดสรร', 'เงิน(บาท)']
-    const b = sum.map((x: any) => [x.p.name, x.p.position, x.adm, x.svc, x.acd, x.tot, x.g, x.pay, (Math.round(x.pay * rate * 100) / 100).toFixed(2)])
+    const h = ['ชื่อ', 'ตำแหน่ง', 'บริหาร', 'บริการ', 'วิชาการ', 'รวม', 'คะแนนที่รับรองแล้ว', 'แต้มประกัน']
+    const b = sum.map((x: any) => [x.p.name, x.p.position, x.adm, x.svc, x.acd, x.tot, x.appr, x.g])
     const blob = new Blob(['\ufeff' + [h, ...b].map(r => r.join(',')).join('\n')], { type: 'text/csv' }); const a = document.createElement('a')
     a.href = URL.createObjectURL(blob); a.download = `p4p_${month}.csv`; a.click()
   }
@@ -748,15 +743,15 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   return <div className="space-y-4">
     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
       {stat('แถวทั้งหมด', rows.length)}{stat('✗ ไม่นับแต้ม', rows.filter((r: any) => r.errors.length).length)}{stat('! ต้องตรวจทาน', rows.filter((r: any) => r.warnings.length).length)}
-      {stat('รอรับรอง', rows.filter((r: any) => r.status === 'pending').length)}{stat('บาท/แต้ม', nf(rate, 4))}</div>
-    <p className="text-xs text-stone-600">เกณฑ์จัดสรรเดือนนี้: งบ {nf(+cfg.budget)} บาท · {+cfg.baht_per_point > 0 ? `อัตราตายตัว ${nf(+cfg.baht_per_point, 4)} บาท/แต้ม` : 'ไม่กำหนดอัตราตายตัว'} · {cfg.deduct_guarantee ? 'หักแต้มประกัน' : 'ไม่หักแต้มประกัน'} (ตั้งค่าโดยผู้ดูแลระบบที่เมนู "ตั้งค่า")</p>
+      {stat('รอรับรอง', rows.filter((r: any) => r.status === 'pending').length)}{stat('คะแนนที่รับรองแล้ว', nf(sum.reduce((t: number, x: any) => t + x.appr, 0)))}</div>
+    <p className="text-xs text-stone-600">เงินคำนวณรายกลุ่มวิชาชีพทั้งโรงพยาบาลที่เมนู "จ่ายเงิน P4P" โดยนับเฉพาะคะแนนที่หัวหน้ารับรองแล้ว (ไม่เกิน 1.5 เท่าของแต้มประกัน)</p>
     <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button></div>
-    <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ชื่อ</th><th>ตำแหน่ง</th><th>บริหาร</th><th>บริการ</th><th>วิชาการ</th><th>รวม</th><th>ประกัน</th><th>จัดสรร</th><th>เงิน (บาท)</th><th>ข้อสังเกต</th>{canPrint && <th></th>}</tr></thead>
+    <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ชื่อ</th><th>ตำแหน่ง</th><th>บริหาร</th><th>บริการ</th><th>วิชาการ</th><th>รวม</th><th>รับรองแล้ว</th><th>ประกัน</th><th>ข้อสังเกต</th>{canPrint && <th></th>}</tr></thead>
       <tbody>{sum.map((x: any) => { const a = avg(x.p.position), ratio = a ? x.tot / a : 0
         return <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
-          <td><b>{x.p.name}</b></td><td className="text-xs">{x.p.position}</td><td>{nf(x.adm)}</td><td>{nf(x.svc)}</td><td>{nf(x.acd)}</td><td><b>{nf(x.tot)}</b></td><td>{nf(x.g, 0)}</td><td>{nf(x.pay)}</td><td><b>{nf(Math.round(x.pay * rate * 100) / 100)}</b></td>
+          <td><b>{x.p.name}</b></td><td className="text-xs">{x.p.position}</td><td>{nf(x.adm)}</td><td>{nf(x.svc)}</td><td>{nf(x.acd)}</td><td><b>{nf(x.tot)}</b></td><td><b>{nf(x.appr)}</b></td><td>{nf(x.g, 0)}</td>
           <td className="text-xs text-red-700">{x.err > 0 && `✗${x.err} `}{x.warn > 0 && `!${x.warn} `}{x.pend > 0 && `รอรับรอง${x.pend} `}{ratio > 1.5 && 'สูงกว่าเฉลี่ยมาก '}{x.tot > 0 && ratio < .5 && 'ต่ำกว่าเฉลี่ยมาก'}{!x.n && 'ไม่มีบันทึก'}</td>{canPrint && <td><button type="button" className="btn sec !py-0.5 whitespace-nowrap" onClick={e => { e.stopPropagation(); setPrintFor(x.p) }}>พิมพ์ใบสรุป</button></td>}</tr> })}
-        <tr className="font-bold"><td colSpan={5}>รวมทั้งหน่วย</td><td>{nf(sum.reduce((s: number, x: any) => s + x.tot, 0))}</td><td></td><td>{nf(pool)}</td><td>{nf(sum.reduce((t: number, x: any) => t + Math.round(x.pay * rate * 100) / 100, 0))}</td><td></td>{canPrint && <td></td>}</tr></tbody></table></div>
+        <tr className="font-bold"><td colSpan={5}>รวมทั้งหน่วย</td><td>{nf(sum.reduce((s: number, x: any) => s + x.tot, 0))}</td><td>{nf(sum.reduce((t: number, x: any) => t + x.appr, 0))}</td><td></td><td></td>{canPrint && <td></td>}</tr></tbody></table></div>
     <h2 className="font-bold">{sel ? 'รายการของ ' + people.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
     {printFor && <PrintSheet sb={sb} person={printFor} rows={rows.filter((r: any) => r.person_id === printFor.id)} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
     <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
@@ -791,7 +786,7 @@ const GLOBAL_SETTINGS: [string, string, string][] = [
 ]
 
 // ตั้งค่าระบบ (แอดมิน): ส่วนที่ 1 ใช้ทั้งระบบ  ส่วนที่ 2 ใช้ตามหน่วยงานและเดือน (เหมือนแผ่น "ตั้งค่า" ใน Excel)
-function SettingsPage({ sb, units, month: month0, unit: unit0 }: any) {
+function SettingsPage({ sb }: any) {
   const [g, setG] = useState<any>({}); const [gMsg, setGMsg] = useState('')
   useEffect(() => { sb.from('app_settings').select('key,value').then((r: any) => setG(Object.fromEntries((r.data || []).map((x: any) => [x.key, String(x.value)])))) }, [])
   const saveG = async () => {
@@ -806,35 +801,6 @@ function SettingsPage({ sb, units, month: month0, unit: unit0 }: any) {
     setGMsg(bad ? 'บันทึกไม่สำเร็จ: ' + bad.error.message : 'บันทึกแล้ว')
   }
 
-  const [u, setU] = useState<number | null>(unit0 ?? units[0]?.id ?? null); const [m, setM] = useState(month0)
-  const [cfg, setCfg] = useState<any>({ budget: '0', rate: '0', deduct: 'หัก' }); const [uMsg, setUMsg] = useState('')
-  const [rows, setRows] = useState<any[]>([]); const [loading, setLoading] = useState(false)
-  useEffect(() => {
-    if (!u || !m) return
-    let alive = true; setLoading(true); setUMsg('')
-    const [a, b] = mRange(m)
-    Promise.all([
-      sb.from('unit_settings').select('*').eq('unit_id', u).eq('month', m + '-01').maybeSingle(),
-      fetchPages((x, y) => sb.from('v_logs').select('person_id,counted_points,guarantee').eq('unit_id', u).gte('work_date', a).lte('work_date', b).order('id').range(x, y))
-    ]).then(([c, r]: any) => {
-      if (!alive) return
-      setCfg(c.data ? { budget: String(c.data.budget ?? 0), rate: String(c.data.baht_per_point ?? 0), deduct: c.data.deduct_guarantee === false ? 'ไม่หัก' : 'หัก' } : { budget: '0', rate: '0', deduct: 'หัก' })
-      setRows(r); setLoading(false)
-    })
-    return () => { alive = false }
-  }, [u, m])
-  const num = (v: any) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : 0)
-  const res = useMemo(() => allocate(rows, { budget: num(cfg.budget), fixedRate: num(cfg.rate), deduct: cfg.deduct === 'หัก' }), [rows, cfg])
-  const saveU = async () => {
-    setUMsg('')
-    if (!(Number(cfg.budget) >= 0) || !(Number(cfg.rate) >= 0) || cfg.budget === '' || cfg.rate === '') { setUMsg('งบและอัตราบาทต่อแต้มต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป'); return }
-    const { error } = await sb.from('unit_settings').upsert({ unit_id: u, month: m + '-01', budget: Number(cfg.budget), baht_per_point: Number(cfg.rate), deduct_guarantee: cfg.deduct === 'หัก' })
-    setUMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : 'บันทึกแล้ว')
-  }
-  const why = res.mode === 'fixed' ? `ใช้อัตราตายตัว ${nf(res.rate, 4)} บาท/แต้ม (ไม่นำงบมาเฉลี่ย)`
-    : res.mode === 'budget' ? `งบ ${nf(num(cfg.budget))} ÷ แต้มที่ใช้จัดสรร ${nf(res.pool)} = ${nf(res.rate, 4)} บาท/แต้ม`
-    : res.mode === 'nopool' ? 'ยังคำนวณไม่ได้: เดือนนี้ยังไม่มีแต้มที่ใช้จัดสรร (ยังไม่มีบันทึก หรือทุกคนยังไม่เกินแต้มประกัน)'
-    : 'ยังไม่ได้ใส่งบหรืออัตราตายตัว อัตราที่ใช้จริงจึงเป็น 0'
   const gField = ([k, l, h]: [string, string, string]) => <label key={k} className="field-label block">{l}
     <input className="inp mt-1" inputMode="decimal" value={g[k] ?? ''} onChange={e => setG({ ...g, [k]: e.target.value })} />{h && <span className="field-hint block">{h}</span>}</label>
   return <div className="grid xl:grid-cols-2 gap-4 items-start">
@@ -844,35 +810,101 @@ function SettingsPage({ sb, units, month: month0, unit: unit0 }: any) {
       {GLOBAL_SETTINGS.map(gField)}
       <div className="flex items-center gap-3"><button className="btn" onClick={saveG}>บันทึกการตั้งค่า</button>{gMsg && <span role="status" className="text-sm text-teal-900">{gMsg}</span>}</div>
     </div>
-    <div className="card space-y-3">
-      <div><h2 className="text-lg font-bold">การจัดสรรเงินตามหน่วยงานและเดือน</h2><p className="text-sm text-stone-600">เลือกหน่วยงานและเดือนที่ต้องการตั้งค่า</p></div>
-      <div className="grid sm:grid-cols-2 gap-3">
-        <label className="field-label">หน่วยงาน<select className="inp mt-1" value={u ?? ''} onChange={e => setU(+e.target.value)}>{units.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-        <label className="field-label">เดือน<input type="month" className="inp mt-1" value={m} onChange={e => setM(e.target.value)} /></label>
-      </div>
-      <label className="field-label block">งบ P4P ของหน่วยงานเดือนนี้ (บาท)
-        <input className="inp mt-1" inputMode="decimal" value={cfg.budget} onChange={e => setCfg({ ...cfg, budget: e.target.value })} />
-        <span className="field-hint block">ถ้าจัดสรรแบบเฉลี่ยตามแต้ม ใส่เมื่อมีงบก้อน ระบบจะคำนวณบาท/แต้มให้</span></label>
-      <label className="field-label block">อัตราบาทต่อแต้ม (ถ้ากำหนดตายตัว)
-        <input className="inp mt-1" inputMode="decimal" value={cfg.rate} onChange={e => setCfg({ ...cfg, rate: e.target.value })} />
-        <span className="field-hint block">ถ้าใส่ค่ามากกว่า 0 จะใช้ค่านี้แทนการเฉลี่ยงบ</span></label>
-      <label className="field-label block">หักแต้มประกันก่อนจัดสรรหรือไม่
-        <select className="inp mt-1" value={cfg.deduct} onChange={e => setCfg({ ...cfg, deduct: e.target.value })}><option>หัก</option><option>ไม่หัก</option></select>
-        <span className="field-hint block">ถ้าหัก = จ่ายเฉพาะแต้มส่วนที่เกินแต้มประกัน (โปรดยืนยันหลักเกณฑ์ รพ.)</span></label>
-      <div className="rounded-xl border border-teal-300 bg-teal-50 p-3 space-y-1">
-        <div className="text-sm text-stone-700">อัตราบาทต่อแต้มที่ใช้จริง (คำนวณอัตโนมัติ)</div>
-        <div className="text-3xl font-bold text-teal-900">{loading ? '…' : nf(res.rate, 4)} <span className="text-base font-normal">บาท/แต้ม</span></div>
-        <div className="text-sm text-teal-900">{loading ? 'กำลังคำนวณ…' : why}</div>
-        {!loading && <div className="text-xs text-stone-600">แต้มที่ใช้จัดสรรรวม {nf(res.pool)} แต้ม · ผู้มีแต้ม {res.people} คน · เงินรวมที่จะจ่าย {nf(res.total)} บาท</div>}
-      </div>
-      <details className="text-xs text-stone-600"><summary className="cursor-pointer">วิธีคำนวณ</summary>
-        <ol className="list-decimal pl-5 mt-1 space-y-0.5">
-          <li>แต้มที่ใช้จัดสรรรายคน = ถ้าหัก: มากกว่าระหว่าง 0 กับ (แต้มรวมที่นับ − แต้มประกัน) · ถ้าไม่หัก: แต้มรวมที่นับ</li>
-          <li>รวมแต้มที่ใช้จัดสรร = ผลรวมของข้อ 1 ทุกคนในหน่วยงานเดือนนั้น</li>
-          <li>อัตราที่ใช้จริง = ถ้าอัตราตายตัว &gt; 0 ใช้ค่านั้น · ไม่เช่นนั้นถ้ารวมแต้มที่ใช้จัดสรร &gt; 0 ใช้ งบ ÷ รวมแต้มที่ใช้จัดสรร · ไม่เช่นนั้น 0</li>
-          <li>เงินรายคน = แต้มที่ใช้จัดสรร × อัตราที่ใช้จริง ปัดเป็น 2 ตำแหน่ง</li></ol></details>
-      <div className="flex items-center gap-3"><button className="btn" onClick={saveU}>บันทึกการตั้งค่าหน่วยงาน</button>{uMsg && <span role="status" className="text-sm text-teal-900">{uMsg}</span>}</div>
+    <PayGroupsCard sb={sb} />
+  </div>
+}
+
+// กลุ่มวิชาชีพและยอดค่าตอบแทน (ตารางที่ 1 / 1ก / 1ข ของหลักเกณฑ์) + จับคู่ตำแหน่งกับกลุ่ม
+function PayGroupsCard({ sb }: any) {
+  const [gs, setGs] = useState<any[]>([]); const [pos, setPos] = useState<any[]>([]); const [msg, setMsg] = useState('')
+  const load = () => { sb.from('pay_groups').select('*').order('id').then((r: any) => setGs(r.data || [])); sb.from('positions').select('name,pay_group,rate,guarantee').order('pay_group').then((r: any) => setPos(r.data || [])) }
+  useEffect(load, [])
+  const fields: [string, string][] = [['rate', 'แต้ม/นาที'], ['guarantee', 'แต้มประกัน'], ['cap_mult', 'เพดาน (เท่า)'], ['full_amount', 'ยอดต่อคน'], ['quality_pct', 'คุณภาพ %'], ['reserve_pct', 'เงินกัน %'], ['fixed_pay', 'จ่ายคงที่'], ['quality_fail_pct', 'ไม่ผ่าน ได้ %']]
+  const set = (id: number, k: string, v: string) => setGs(x => x.map(g => g.id === id ? { ...g, [k]: v } : g))
+  const save = async (g: any) => {
+    const body: any = {}; for (const [k] of fields) { const v = Number(g[k]); if (!(v > 0)) { setMsg(`กลุ่ม ${g.id}: ค่า "${fields.find(f => f[0] === k)![1]}" ต้องมากกว่า 0`); return } body[k] = v }
+    const { error } = await sb.from('pay_groups').update(body).eq('id', g.id)
+    setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `บันทึกกลุ่ม ${g.id} แล้ว`); load()
+  }
+  const setPosGroup = async (name: string, id: number) => { const { error } = await sb.from('positions').update({ pay_group: id }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `ย้าย "${name}" ไปกลุ่ม ${id} แล้ว`); load() }
+  const derived = (g: any) => { const F = Number(g.full_amount), q = Math.round(F * Number(g.quality_pct)) / 100, a = F - Math.round(q * 100) / 100, r = Math.round(a * Number(g.reserve_pct)) / 100; return { q: Math.round(q * 100) / 100, a, r: Math.round(r * 100) / 100, s: a - Math.round(r * 100) / 100 } }
+  return <div className="card xl:col-span-2 space-y-3">
+    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ตามตารางที่ 1 ของหลักเกณฑ์ (ใช้ค่าในวงเล็บ [ ] ไปก่อน) เงินคำนวณรายกลุ่มทั้งโรงพยาบาลที่เมนู "จ่ายเงิน P4P" การแก้ค่านี้มีผลกับแต้มและเงินของเดือนที่ยังไม่ปิดงวด</p></div>
+    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่ม</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>คุณภาพ / ส่วนกิจกรรม / เงินกัน / ส่วนตามคะแนน</th><th></th></tr></thead>
+      <tbody>{gs.map(g => { const d = derived(g); return <tr key={g.id}><td className="min-w-[14rem]"><b>{g.name}</b></td>
+        {fields.map(([k]) => <td key={k}><input className="inp !w-24" inputMode="decimal" value={g[k]} onChange={e => set(g.id, k, e.target.value)} /></td>)}
+        <td className="text-xs whitespace-nowrap">{nf(d.q)} / {nf(d.a)} / {nf(d.r)} / {nf(d.s)}</td><td><button className="btn" onClick={() => save(g)}>บันทึก</button></td></tr> })}</tbody></table></div>
+    {msg && <p role="status" className="text-sm text-teal-900">{msg}</p>}
+    <details><summary className="cursor-pointer text-sm font-bold">ตำแหน่งในแต่ละกลุ่ม</summary>
+      <div className="grid sm:grid-cols-2 gap-2 mt-2">{pos.map(x => <label key={x.name} className="flex items-center gap-2 text-sm"><span className="flex-1">{x.name}</span>
+        <select className="inp !w-24" value={x.pay_group} onChange={e => setPosGroup(x.name, +e.target.value)}>{gs.map(g => <option key={g.id} value={g.id}>กลุ่ม {g.id}</option>)}</select></label>)}</div></details>
+  </div>
+}
+
+// จ่ายเงิน P4P (กรรมการ/แอดมิน): คำนวณรายกลุ่มวิชาชีพทั้งโรงพยาบาล ตามข้อ 3–5 ของหลักเกณฑ์
+function PayoutPage({ sb, month, isAdmin }: any) {
+  const [data, setData] = useState<any>(null); const [err, setErr] = useState(''); const [n, setN] = useState(0); const [grp, setGrp] = useState(0); const [busy, setBusy] = useState(false)
+  const [qual, setQual] = useState<any>({})
+  const m1 = month + '-01'
+  useEffect(() => {
+    let alive = true; setErr('')
+    Promise.all([sb.rpc('p4p_calc', { p_month: m1 }), sb.from('unit_quality').select('unit_id,passed').eq('month', m1)]).then(([r, q]: any) => {
+      if (!alive) return
+      if (r.error) { setErr(r.error.message); setData(null) } else setData(r.data)
+      setQual(Object.fromEntries((q.data || []).map((x: any) => [x.unit_id, x.passed])))
+    })
+    return () => { alive = false }
+  }, [month, n])
+  const refresh = () => setN(x => x + 1)
+  const closed = !!data?.closed; const lines: any[] = data?.lines || []
+  const unitsIn = useMemo(() => [...new Map(lines.map(l => [l.unit_id, l.unit_name])).entries()], [data])
+  const setQuality = async (unit_id: number, v: string) => {
+    const { error } = v === '' ? await sb.from('unit_quality').delete().eq('unit_id', unit_id).eq('month', m1) : await sb.from('unit_quality').upsert({ unit_id, month: m1, passed: v === 'pass' })
+    if (error) setErr(error.message); else refresh()
+  }
+  const setElig = async (person_id: string, eligible: boolean) => {
+    const { error } = await sb.from('person_eligibility').upsert({ person_id, month: m1, eligible })
+    if (error) setErr(error.message); else refresh()
+  }
+  const act = async (fn: 'p4p_close' | 'p4p_reopen') => {
+    if (!confirm(fn === 'p4p_close' ? `ปิดงวด ${month}? ผลคำนวณจะถูกบันทึกถาวร ยกเศษไปเดือนถัดไป และล็อกบันทึกกิจกรรมของเดือนนี้` : `เปิดงวด ${month} เพื่อแก้ไข? ผลที่ปิดไว้จะถูกลบ`)) return
+    setBusy(true); const { error } = await sb.rpc(fn, { p_month: m1 }); setBusy(false)
+    if (error) setErr(error.message); else refresh()
+  }
+  const csv = () => {
+    const h = ['กลุ่ม', 'หน่วยงาน', 'ชื่อ', 'ตำแหน่ง', 'มีสิทธิ์', 'คะแนนที่รับรอง', 'คะแนนที่นับ', 'ส่วนคุณภาพ', 'ส่วนกิจกรรม', 'เงินเพิ่ม', 'รวม']
+    const b = lines.map(l => [l.pay_group, l.unit_name, l.name, l.position, l.eligible ? 'ใช่' : 'ไม่', l.points, l.counted, l.quality, l.activity, l.extra, l.total])
+    const blob = new Blob(['\ufeff' + [h, ...b].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')], { type: 'text/csv' }); const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob); a.download = `p4p_payout_${month}.csv`; a.click()
+  }
+  const w = data?.warnings; const shown = lines.filter(l => !grp || l.pay_group === grp)
+  return <div className="space-y-4">
+    <div className="card space-y-2">
+      <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold mr-auto">จ่ายเงิน P4P เดือน {month}</h2>
+        {closed ? <span className="px-2 py-1 text-sm bg-emerald-100 border border-emerald-300">ปิดงวดแล้ว</span> : <span className="px-2 py-1 text-sm bg-amber-100 border border-amber-300">ร่างคำนวณ ยังไม่ปิดงวด</span>}
+        <button className="btn sec" onClick={csv} disabled={!lines.length}>ส่งออก CSV</button>
+        {isAdmin && !closed && <button className="btn" disabled={busy || !data} onClick={() => act('p4p_close')}>ปิดงวดเดือนนี้</button>}
+        {isAdmin && closed && <button className="btn sec" disabled={busy} onClick={() => act('p4p_reopen')}>เปิดงวดเพื่อแก้ไข</button>}</div>
+      {err && <p role="alert" className="text-sm text-red-700">{err}</p>}
+      {!closed && w && <ul className="text-sm space-y-1">
+        {w.pending_rows > 0 && <li className="text-amber-800">! ยังมีรายการรอรับรอง {w.pending_rows} รายการ ซึ่งยังไม่นับคะแนน (นับเฉพาะที่รับรองแล้ว)</li>}
+        {w.quality_missing_units?.length > 0 && <li className="text-amber-800">! ยังไม่ได้บันทึกผลคุณภาพของ {w.quality_missing_units.length} หน่วยงาน (คิดเป็น "ผ่าน" ไปก่อน และปิดงวดไม่ได้จนกว่าจะบันทึกครบ)</li>}
+        {w.any_closed && !w.prev_closed && <li className="text-amber-800">! เดือนก่อนหน้ายังไม่ปิดงวด เศษเงินที่ยกมาจึงยังเป็น 0 และปิดงวดเดือนนี้ไม่ได้</li>}</ul>}
     </div>
+    {data && <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ</th><th>ผู้มีสิทธิ์ / ไม่มีสิทธิ์</th><th>กองเงินเพิ่ม</th><th>คะแนนส่วนเกินรวม</th><th>บาท/คะแนนส่วนเกิน</th><th>เศษยกไป เงินเพิ่ม</th><th>เศษยกไป เฉลี่ยคืน</th></tr></thead>
+      <tbody>{data.groups.map((g: any) => <tr key={g.pay_group}><td><b>{g.name}</b></td><td>{g.n_eligible} / {g.n_ineligible}</td><td>{nf(g.pool_extra)}</td><td>{nf(g.sum_excess)}</td><td>{nf(g.rate_per_point, 4)}</td><td>{nf(g.carry_extra_out)}</td><td>{nf(g.carry_quality_out)}</td></tr>)}</tbody></table></div>}
+    {data && !closed && <div className="card space-y-2"><h3 className="font-bold">ผลตัวชี้วัดด้านคุณภาพรายหน่วยงาน (ข้อ 3)</h3>
+      <p className="text-xs text-stone-600">ผ่านครบทุกตัวชี้วัด = ได้ส่วนคุณภาพ 100% ไม่ผ่าน = ได้ 70% ส่วนที่หักเฉลี่ยคืนให้หน่วยที่ผ่านในกลุ่มเดียวกัน</p>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">{unitsIn.map(([id, name]: any) => <label key={id} className="flex items-center gap-2 text-sm"><span className="flex-1">{name}</span>
+        <select className="inp !w-32" value={qual[id] === undefined ? '' : qual[id] ? 'pass' : 'fail'} onChange={e => setQuality(id, e.target.value)}><option value="">ยังไม่บันทึก</option><option value="pass">ผ่าน</option><option value="fail">ไม่ผ่าน</option></select></label>)}</div></div>}
+    {data && <div className="flex items-center gap-2"><label className="field-label">กรองกลุ่ม</label>
+      <select className="inp !w-72" value={grp} onChange={e => setGrp(+e.target.value)}><option value={0}>ทุกกลุ่ม</option>{data.groups.map((g: any) => <option key={g.pay_group} value={g.pay_group}>{g.name}</option>)}</select>
+      <span className="text-sm text-stone-600">รวมจ่าย {nf(shown.reduce((t, l) => t + Number(l.total), 0))} บาท · {shown.length} คน</span></div>}
+    {data && <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>กลุ่ม</th><th>ชื่อ</th><th>หน่วยงาน</th><th>มีสิทธิ์</th><th>คะแนนที่รับรอง</th><th>คะแนนที่นับ</th><th>ส่วนคุณภาพ</th><th>ส่วนกิจกรรม</th><th>เงินเพิ่ม</th><th>รวม (บาท)</th></tr></thead>
+      <tbody>{shown.map(l => <tr key={l.id} className={l.eligible ? '' : 'bg-stone-100 text-stone-500'}><td>{l.pay_group}</td><td><b>{l.name}</b><div className="text-xs">{l.position}</div></td><td className="text-xs">{l.unit_name}</td>
+        <td><input type="checkbox" aria-label="มีสิทธิ์" checked={l.eligible} disabled={closed} onChange={e => setElig(l.id, e.target.checked)} /></td>
+        <td>{nf(l.points)}</td><td>{nf(l.counted)}</td><td>{nf(l.quality)}</td><td>{nf(l.activity)}</td><td>{nf(l.extra)}</td><td><b>{nf(l.total)}</b></td></tr>)}
+        {!shown.length && <tr><td colSpan={10} className="text-center text-stone-500 py-6">ยังไม่มีบุคลากร</td></tr>}</tbody></table></div>}
   </div>
 }
 
