@@ -482,6 +482,16 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState('')
   const [editEvidenceFile, setEditEvidenceFile] = useState<File | null>(null)
+  const [filterFrom, setFilterFrom] = useState('')
+  const [filterTo, setFilterTo] = useState('')
+  const sortedRows = useMemo(() => [...(rows || [])].sort((a: any, b: any) => {
+    const at = a.created_at ? new Date(a.created_at).getTime() : 0
+    const bt = b.created_at ? new Date(b.created_at).getTime() : 0
+    if (at !== bt) return bt - at
+    const ai = Number(a.id) || 0; const bi = Number(b.id) || 0
+    return bi - ai
+  }), [rows])
+  const displayedRows = useMemo(() => sortedRows.filter((r: any) => (!filterFrom || String(r.work_date || '') >= filterFrom) && (!filterTo || String(r.work_date || '') <= filterTo)), [sortedRows, filterFrom, filterTo])
   useEffect(() => { if (!editTargetRow) return; if (editTargetRow.status === 'pending') beginEdit(editTargetRow); else alert('รายการนี้รับรองแล้ว จึงไม่สามารถแก้ไขได้'); clearEditTarget() }, [editTargetRow, clearEditTarget])
   const beginEdit = (r: any) => {
     setEditing(r)
@@ -524,8 +534,14 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
     setSaving(false); setEditing(null); setEditEvidenceFile(null); reload()
   }
   return <div className="card overflow-x-auto p-0">
+    <div className="flex flex-wrap items-end gap-3 border-b border-stone-200 p-3">
+      <div><label className="field-label" htmlFor="log-filter-from">วันที่ตั้งแต่</label><input id="log-filter-from" type="date" lang="th-TH" className="inp mt-1 !w-auto" value={filterFrom} max={filterTo || undefined} onChange={e => setFilterFrom(e.target.value)} /></div>
+      <div><label className="field-label" htmlFor="log-filter-to">ถึงวันที่</label><input id="log-filter-to" type="date" lang="th-TH" className="inp mt-1 !w-auto" value={filterTo} min={filterFrom || undefined} onChange={e => setFilterTo(e.target.value)} /></div>
+      <button type="button" className="btn sec" onClick={() => { setFilterFrom(''); setFilterTo('') }}>ล้างตัวกรองวันที่</button>
+      <p className="ml-auto text-xs text-stone-600">แสดง {displayedRows.length.toLocaleString('th-TH')} จาก {rows.length.toLocaleString('th-TH')} รายการ · เรียงรายการบันทึกล่าสุดก่อน</p>
+    </div>
     <table className="w-full"><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th></th></tr></thead>
-      <tbody>{rows.map((r: any) => {
+      <tbody>{displayedRows.map((r: any) => {
         // ตรวจซ้ำที่หน้าจอด้วย เพื่อไม่ให้แสดง "ผ่าน" หากข้อมูล validation จาก view ขาดหายหรือยังไม่อัปเดต
         const checkErrors = Array.isArray(r.errors) ? [...r.errors] : []
         const checkWarnings = Array.isArray(r.warnings) ? [...r.warnings] : []
@@ -545,7 +561,7 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
         <td className="whitespace-nowrap space-x-1">{!readOnly && r.status === 'pending' && <button className="btn sec !py-0.5" onClick={() => beginEdit(r)}>แก้ไข</button>}
           {!readOnly && canApprove && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => set(r.id, 'rejected')}>ไม่รับรอง</button></>}
           {!readOnly && (canApprove || r.status === 'pending') && <button className="text-xs underline" onClick={() => del(r.id)}>ลบ</button>}</td>
-      </tr>})}{!rows.length && <tr><td colSpan={8} className="text-center text-stone-500 py-6">ยังไม่มีรายการในเดือนนี้</td></tr>}</tbody></table>
+      </tr>})}{!displayedRows.length && <tr><td colSpan={8} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
     {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="edit-log-title"><div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4">
       <div className="flex items-start justify-between gap-3 border-b pb-3"><div><h2 id="edit-log-title" className="text-lg font-bold">แก้ไขรายการที่รอรับรอง</h2><p className="text-xs text-stone-500">แก้ไขข้อมูลได้ก่อนรับรองรายการ ระบบจะคำนวณแต้มและตรวจเงื่อนไขใหม่จากข้อมูลล่าสุด</p></div><button className="btn sec" onClick={() => setEditing(null)}>ปิด</button></div>
       {editError && <p role="alert" className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">{editError}</p>}
