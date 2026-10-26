@@ -377,7 +377,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         <p className="text-sm text-slate-700">หากต้องการบันทึกเพิ่มกรุณาทำการแก้ไขจำนวนแทน ไม่สามารถสร้างรายการกิจกรรมซ้ำในวันเดียวกันได้</p>
         <div className="overflow-x-auto rounded-xl border"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="text-left">วันที่</th><th className="text-left">กิจกรรม</th><th className="text-right">จำนวน</th><th className="text-left">สถานะ</th><th className="text-left">หลักฐาน</th><th>ดำเนินการ</th></tr></thead><tbody>
           {duplicateRows.map((row: any) => <tr key={row.id} className="border-t"><td className="whitespace-nowrap">{formatThaiShortDate(row.work_date)}</td><td><b>{row.activity_code}</b> {act.title}{row.sub_activity && <div className="text-xs text-slate-500">{row.sub_activity}</div>}</td><td className="text-right whitespace-nowrap">{row.qty} {act.uom || 'หน่วย'}</td><td>{ST[row.status]?.[0] || row.status || 'ไม่ระบุ'}</td><td>{row.evidence || row.evidence_image_path ? <span className="text-teal-800">มีหลักฐาน{row.evidence_image_path ? ' / รูปภาพ' : ''}</span> : <span className="text-slate-500">ไม่มี</span>}</td><td className="text-center whitespace-nowrap">{row.status === 'pending' ? <button type="button" className="btn sec !py-1" onClick={() => { setDuplicateOpen(false); setEditTargetRow(row) }}>เข้าแก้ไขรายการ</button> : <span className="text-xs text-slate-500">รายการรับรองแล้ว แก้ไขไม่ได้</span>}</td></tr>)}
-        </tbody></table></div>
+        })}</tbody></table></div>
         <div className="flex justify-end"><button type="button" className="btn sec" onClick={() => setDuplicateOpen(false)}>กลับ</button></div>
       </div></div>}
       {modalOpen && act && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title"><div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4"><div className="flex items-start justify-between gap-3 border-b pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-teal-700">บันทึกกิจกรรม P4P</p><h2 id="activity-modal-title" className="text-lg font-bold text-slate-900">{act.code} {act.title}</h2><p className="mt-1 text-xs text-slate-600">{act.minutes} นาที/{act.uom}{act.max_day ? ` · สูงสุด ${act.max_day}/วัน` : ''}{act.max_month ? ` · ${act.max_month}/เดือน` : ''}</p><p className="mt-2 inline-flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-1.5 text-sm font-semibold text-teal-900"><span aria-hidden="true">📅</span> วันที่บันทึก: {formatThaiShortDate(date)}</p></div><button type="button" className="rounded-lg border px-3 py-1.5 text-sm" onClick={() => { setModalOpen(false); setErr('') }}>ปิด</button></div>
@@ -525,11 +525,22 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
   }
   return <div className="card overflow-x-auto p-0">
     <table className="w-full"><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th></th></tr></thead>
-      <tbody>{rows.map((r: any) => <tr key={r.id}>
+      <tbody>{rows.map((r: any) => {
+        // ตรวจซ้ำที่หน้าจอด้วย เพื่อไม่ให้แสดง "ผ่าน" หากข้อมูล validation จาก view ขาดหายหรือยังไม่อัปเดต
+        const checkErrors = Array.isArray(r.errors) ? [...r.errors] : []
+        const checkWarnings = Array.isArray(r.warnings) ? [...r.warnings] : []
+        const addOnce = (arr: string[], message: string) => { if (!arr.includes(message)) arr.push(message) }
+        if (r.work_date && r.work_date > today()) addOnce(checkErrors, 'วันที่อยู่ในอนาคต')
+        if (Array.isArray(r.eligible) && !r.eligible.includes(r.grp)) addOnce(checkErrors, 'ตำแหน่งนี้บันทึกกิจกรรมนี้ไม่ได้')
+        if (r.need_evidence && !String(r.evidence || '').trim() && !r.evidence_image_path) addOnce(checkWarnings, 'ไม่ระบุหลักฐาน')
+        const sameActivityRows = rows.filter((x: any) => x.person_id === r.person_id && x.activity_code === r.activity_code)
+        if (Number(r.max_day) > 0 && sameActivityRows.filter((x: any) => x.work_date === r.work_date).reduce((sum: number, x: any) => sum + Number(x.qty || 0), 0) > Number(r.max_day)) addOnce(checkWarnings, `เกินเพดาน/วัน (${r.max_day})`)
+        if (Number(r.max_month) > 0 && sameActivityRows.filter((x: any) => String(x.work_date || '').slice(0, 7) === String(r.work_date || '').slice(0, 7)).reduce((sum: number, x: any) => sum + Number(x.qty || 0), 0) > Number(r.max_month)) addOnce(checkWarnings, `เกินเพดาน/เดือน (${r.max_month})`)
+        return <tr key={r.id}>
         <td className="whitespace-nowrap">{formatThaiShortDate(r.work_date)}</td>{showName && <td>{r.person_name}</td>}
         <td><b>{r.activity_code}</b> {r.title}{r.role && <span className="text-xs text-stone-500"> · {r.role} ×{r.mult}</span>}{r.sub_activity && <div className="text-sm mt-1">กิจกรรมย่อย: {r.sub_activity}</div>}{r.evidence && <div className="text-xs text-stone-500 mt-1">หลักฐาน: {r.evidence}</div>}{r.evidence_image_path && <div className="mt-1"><button className="text-xs underline text-teal-800" onClick={() => openEvidence(sb, r.evidence_image_path)}>ดูรูปหลักฐาน</button></div>}</td>
         <td>{r.qty} {r.uom}</td><td className="whitespace-nowrap">{nf(r.counted_points)}{Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
-        <td className="text-xs">{r.errors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{r.warnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!r.errors.length && !r.warnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
+        <td className="text-xs">{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
         <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span></td>
         <td className="whitespace-nowrap space-x-1">{!readOnly && r.status === 'pending' && <button className="btn sec !py-0.5" onClick={() => beginEdit(r)}>แก้ไข</button>}
           {!readOnly && canApprove && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => set(r.id, 'rejected')}>ไม่รับรอง</button></>}
