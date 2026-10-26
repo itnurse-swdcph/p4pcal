@@ -561,6 +561,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
   const [query, setQuery] = useState('')
   const [domain, setDomain] = useState('บริหาร')
   const [showAdd, setShowAdd] = useState(false)
+  const [editingCode, setEditingCode] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const groups = [...new Set((positions || []).map((p: any) => p.grp).filter(Boolean))] as string[]
@@ -593,6 +594,37 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
     if (error) { setMsg(error.code === '23505' ? 'รหัสกิจกรรมนี้มีอยู่แล้ว กรุณาใช้รหัสอื่น' : 'เพิ่มกิจกรรมไม่สำเร็จ: ' + error.message); return }
     setForm(emptyForm()); setShowAdd(false); setMsg('เพิ่มกิจกรรมสำเร็จ'); reloadActs()
   }
+  const beginEditActivity = (a: any) => {
+    setEditingCode(a.code)
+    setForm({ code: a.code, title: a.title || '', domain: a.domain || 'บริการ', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), eligible: Array.isArray(a.eligible) ? a.eligible : [], need_evidence: Boolean(a.need_evidence), definition: a.definition || '', use_role_mult: Boolean(a.use_role_mult), note: a.note || '' })
+    setShowAdd(true)
+    setMsg('')
+  }
+  const saveActivityEdit = async () => {
+    setMsg('')
+    if (!editingCode) return
+    if (!form.title.trim() || !form.uom.trim() || !form.minutes || Number(form.minutes) <= 0 || !form.eligible.length) {
+      setMsg('กรุณากรอกชื่อกิจกรรม หน่วยนับ นาที/หน่วย และเลือกกลุ่มตำแหน่งที่มีสิทธิ์ให้ครบ')
+      return
+    }
+    if (form.need_evidence && !form.definition.trim()) {
+      setMsg('กิจกรรมที่บังคับใช้หลักฐาน ต้องระบุรายละเอียดหลักฐานให้ชัดเจนก่อนบันทึก')
+      return
+    }
+    setBusy(true)
+    const payload = {
+      title: form.title.trim(), domain: form.domain, uom: form.uom.trim(),
+      minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
+      max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
+      need_evidence: form.need_evidence, definition: form.definition.trim() || null,
+      use_role_mult: form.use_role_mult, note: form.note.trim() || null
+    }
+    const { error } = await sb.from('activities').update(payload).eq('code', editingCode)
+    setBusy(false)
+    if (error) { setMsg('แก้ไขกิจกรรมไม่สำเร็จ: ' + error.message); return }
+    setForm(emptyForm()); setShowAdd(false); setEditingCode(null); setMsg(`บันทึกการแก้ไขกิจกรรม ${editingCode} สำเร็จ`); reloadActs()
+  }
+  const cancelForm = () => { setShowAdd(false); setEditingCode(null); setForm(emptyForm()); setMsg('') }
   const deactivate = async (a: any) => {
     if (!confirm(`ยืนยันเพิกถอนกิจกรรม ${a.code} — ${a.title} หรือไม่? กิจกรรมจะไม่ปรากฏในรายการบันทึกใหม่ แต่ประวัติที่บันทึกไว้จะยังคงอยู่`)) return
     const { error } = await sb.from('activities').update({ active: false }).eq('code', a.code)
@@ -605,9 +637,9 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
       {isAdmin && <button className="btn" onClick={() => { setShowAdd(v => !v); setMsg('') }}>{showAdd ? 'ปิดแบบฟอร์ม' : '+ เพิ่มกิจกรรม'}</button>}</div>
       {msg && <p role="status" className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">{msg}</p>}
       {showAdd && isAdmin && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
-        <h3 className="font-bold">เพิ่มกิจกรรมเข้าคลัง</h3>
+        <h3 className="font-bold">{editingCode ? `แก้ไขกิจกรรม ${editingCode}` : 'เพิ่มกิจกรรมเข้าคลัง'}</h3>
         <div className="grid sm:grid-cols-2 gap-3">
-          <label className="field-label">รหัสกิจกรรม<input className="inp mt-1" value={form.code} onChange={e => setForm({...form, code:e.target.value})} placeholder="เช่น SVC-001" /></label>
+          <label className="field-label">รหัสกิจกรรม<input className="inp mt-1" value={form.code} onChange={e => setForm({...form, code:e.target.value})} placeholder="เช่น SVC-001" disabled={Boolean(editingCode)} />{editingCode && <span className="mt-1 block text-xs text-stone-500">ไม่อนุญาตให้เปลี่ยนรหัส เพื่อคงความเชื่อมโยงกับประวัติการบันทึกเดิม</span>}</label>
           <label className="field-label">หมวดกิจกรรม<select className="inp mt-1" value={form.domain} onChange={e => setForm({...form, domain:e.target.value})}>{['บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></label>
           <label className="field-label sm:col-span-2">ชื่อกิจกรรม<input className="inp mt-1" value={form.title} onChange={e => setForm({...form, title:e.target.value})} /></label>
           <label className="field-label">หน่วยนับ<input className="inp mt-1" value={form.uom} onChange={e => setForm({...form, uom:e.target.value})} placeholder="เช่น ครั้ง, ราย, ชั่วโมง" /></label>
@@ -620,7 +652,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
         <label className="field-label">รายละเอียดกิจกรรม / หลักฐานที่ต้องใช้<textarea className="inp mt-1 min-h-24" value={form.definition} onChange={e => setForm({...form, definition:e.target.value})} placeholder="อธิบายขอบเขต เกณฑ์การนับ และเอกสาร/หลักฐานที่ต้องแนบให้ตรวจสอบได้" /></label>
         <label className="field-label">หมายเหตุ / เงื่อนไขเพิ่มเติม<textarea className="inp mt-1 min-h-16" value={form.note} onChange={e => setForm({...form, note:e.target.value})} /></label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.use_role_mult} onChange={e => setForm({...form, use_role_mult:e.target.checked})} />คำนวณตัวคูณตามบทบาท (ประธาน / เลขานุการ-กรรมการ / ผู้เข้าร่วม)</label>
-        <div className="flex flex-wrap gap-2"><button className="btn" disabled={busy} onClick={add}>{busy ? 'กำลังบันทึก…' : 'บันทึกกิจกรรมใหม่'}</button><button className="btn sec" onClick={() => {setShowAdd(false);setForm(emptyForm());setMsg('')}}>ยกเลิก</button></div>
+        <div className="flex flex-wrap gap-2"><button className="btn" disabled={busy} onClick={editingCode ? saveActivityEdit : add}>{busy ? 'กำลังบันทึก…' : editingCode ? 'บันทึกการแก้ไข' : 'บันทึกกิจกรรมใหม่'}</button><button className="btn sec" disabled={busy} onClick={cancelForm}>ยกเลิก</button></div>
       </div>}
       <div className="grid gap-3">
         <input className="inp" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหารหัส ชื่อกิจกรรม เกณฑ์ หรือหลักฐาน…" />
@@ -649,7 +681,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
             <td className="min-w-[260px]"><div className="whitespace-pre-wrap leading-relaxed">{a.definition?.trim() || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ โปรดสอบถามผู้ดูแลระบบก่อนบันทึกกิจกรรมนี้'}</div>{a.use_role_mult && <div className="mt-1 text-xs text-teal-800">คำนวณตัวคูณตามบทบาท</div>}</td>
             <td className="min-w-[180px]">{(a.eligible || []).join(', ') || 'ไม่ได้ระบุ'}</td>
             <td className="min-w-[160px] whitespace-pre-wrap">{a.note || '—'}</td>
-            {isAdmin && <td className="whitespace-nowrap"><button className="btn sec !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></td>}
+            {isAdmin && <td className="whitespace-nowrap"><div className="flex flex-col items-start gap-1"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div></td>}
           </tr>)}</tbody>
         </table>
       </div>}
