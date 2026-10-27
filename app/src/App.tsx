@@ -55,28 +55,23 @@ function Login({ sb }: any) {
   const [showPw, setShowPw] = useState(false)
   const [showConfirmPw, setShowConfirmPw] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [f, setF] = useState<any>({ prefix: 'นางสาว', first: '', last: '', position: '', unit: '', groups: [] as string[] })
+  const [staffQuery, setStaffQuery] = useState('')
+  const [staffResults, setStaffResults] = useState<any[]>([])
+  const [selectedStaff, setSelectedStaff] = useState<any>(null)
   const [msg, setMsg] = useState('')
-  const [extra, setExtra] = useState<number[]>([])
   const [success, setSuccess] = useState(false)
-  const [positions, setPositions] = useState<any[]>([])
-  const [units, setUnits] = useState<any[]>([])
   useEffect(() => {
-    sb.from('positions').select('*').then((r: any) => setPositions(r.data || []))
-    sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
-  }, [sb])
-  const grp = positions.find(x => x.name === f.position)?.grp
-  const groups = [...new Set(units.map((u: any) => u.parent_group).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th'))
-  const isGroupHead = f.position === 'หัวหน้ากลุ่มงานการพยาบาล'
-  const isHead = isGroupHead || f.position === 'หัวหน้าหอผู้ป่วย/หัวหน้างาน'
-  const selectedGroupUnits = isGroupHead ? units.filter((u: any) => (f.groups || []).includes(u.parent_group)) : []
-  const primaryUnit = units.find((u: any) => String(u.id) === String(f.unit))
-  const extraUnitOptions = units.filter((u: any) => String(u.id) !== String(f.unit) && !(isGroupHead && (f.groups || []).includes(u.parent_group)))
+    if (mode !== 'up' || staffQuery.trim().length < 2 || selectedStaff) { setStaffResults([]); return }
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      const { data, error } = await sb.functions.invoke('p4p-staff-search', { body: { q: staffQuery.trim() } })
+      if (!cancelled) setStaffResults(!error && Array.isArray(data?.results) ? data.results : [])
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [sb, mode, staffQuery, selectedStaff])
   const usernameValid = /^[a-z0-9][a-z0-9._-]{2,29}$/.test(username.trim().toLowerCase())
-  const profileValid = f.first.trim() && f.last.trim() && f.position && f.unit
   const passwordsMatch = pw === confirmPw
-  const ok = !busy && usernameValid && pw.length >= (mode === 'in' ? 1 : 6) && (mode === 'in' || (passwordsMatch && profileValid))
-  const set = (k: string) => (e: any) => setF((old: any) => ({ ...old, [k]: e.target.value }))
+  const ok = !busy && usernameValid && pw.length >= (mode === 'in' ? 1 : 6) && (mode === 'in' || (!!selectedStaff && passwordsMatch))
   const go = async () => {
     if (!ok) return
     setMsg(''); setSuccess(false); setBusy(true)
@@ -87,7 +82,7 @@ function Login({ sb }: any) {
         if (error) setMsg('เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน')
       } else {
         const { data, error } = await sb.functions.invoke('p4p-register', {
-          body: { username: cleanUsername, password: pw, prefix: f.prefix, first_name: f.first.trim(), last_name: f.last.trim(), position: f.position, unit_id: Number(f.unit) }
+          body: { username: cleanUsername, password: pw, staff_id: selectedStaff.source_row }
         })
         if (error) {
           let detail = ''
@@ -96,16 +91,8 @@ function Login({ sb }: any) {
         } else if (data?.error) {
           setMsg(data.error)
         } else {
-          const { data: sd, error: signInError } = await sb.auth.signInWithPassword({ email: cleanUsername + '@p4p.invalid', password: pw })
-          const groupUnitIds = isGroupHead ? selectedGroupUnits.map((u: any) => Number(u.id)) : []
-          const wanted = isHead ? [...new Set([...groupUnitIds, ...extra.map(Number)])].filter(id => id !== Number(f.unit)) : []
-          let extraUnitsError: any = null
-          if (!signInError && sd?.user && wanted.length) {
-            const result = await sb.from('profile_units').upsert(wanted.map(id => ({ user_id: sd.user.id, unit_id: id, approved: true })), { onConflict: 'user_id,unit_id' })
-            extraUnitsError = result.error
-          }
+          const { error: signInError } = await sb.auth.signInWithPassword({ email: cleanUsername + '@p4p.invalid', password: pw })
           if (signInError) setMsg('ลงทะเบียนสำเร็จแล้ว แต่เข้าสู่ระบบอัตโนมัติไม่สำเร็จ กรุณาเข้าสู่ระบบอีกครั้ง')
-          else if (extraUnitsError) setMsg('ลงทะเบียนสำเร็จ แต่บันทึกหน่วยงานเพิ่มเติมไม่สำเร็จ กรุณาแจ้งผู้ดูแลระบบ: ' + extraUnitsError.message)
           else setSuccess(true)
         }
       }
@@ -126,54 +113,32 @@ function Login({ sb }: any) {
     <div className="auth-heading"><p className="hospital-name">กลุ่มการพยาบาล<br />โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</p><p className="eyebrow">P4P · SMART NURSING WORKFLOW</p><h1>{mode === 'in' ? 'ยินดีต้อนรับ' : 'สร้างบัญชีผู้ใช้งาน'}</h1><p>{mode === 'in' ? 'เข้าสู่ระบบบันทึกกิจกรรมและคำนวณแต้ม P4P' : 'กรอกข้อมูลเพื่อเริ่มใช้งานระบบ P4P'}</p></div>
     <div className="auth-form">
       {mode === 'up' && <>
-        <div className="name-grid">
-          <div className="space-y-1"><label className="field-label">คำนำหน้า</label><select className="inp" value={f.prefix} onChange={set('prefix')}>{PREFIXES.map(x => <option key={x}>{x}</option>)}</select></div>
-          <div className="space-y-1"><label className="field-label">ชื่อ</label><input className="inp" placeholder="ชื่อ" value={f.first} onChange={set('first')} /></div>
-          <div className="space-y-1"><label className="field-label">นามสกุล</label><input className="inp" placeholder="นามสกุล" value={f.last} onChange={set('last')} /></div>
-        </div>
-        <div className="space-y-1"><label className="field-label">ตำแหน่ง</label><select className="inp" value={f.position} onChange={set('position')}><option value="">เลือกตำแหน่ง</option>{positions.map(x => <option key={x.name} value={x.name}>{x.name}</option>)}</select></div>
-        {grp && <p className="field-hint">กลุ่มวิชาชีพที่ {positions.find(x => x.name === f.position)?.pay_group} · ชุดกิจกรรม: <b>{grp}</b>{grp === 'ยังไม่กำหนดสายงาน' && ' (ตำแหน่งนี้ยังไม่มีชุดกิจกรรม โปรดแจ้งผู้ดูแลระบบ)'} · {positions.find(x => x.name === f.position)?.rate} แต้ม/นาที</p>}
-        {!isGroupHead && <div className="space-y-1"><label className="field-label">หน่วยงาน</label><select className="inp" value={f.unit} onChange={e => { const next = e.target.value; setF((old: any) => ({ ...old, unit: next })); setExtra(old => old.filter(id => id !== Number(next))) }}><option value="">เลือกหน่วยงาน</option>{groups.map((g: any) => <optgroup key={g} label={g}>{units.filter((u: any) => u.parent_group === g).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}</select></div>}
-        {isGroupHead ? <>
-          <div className="space-y-1">
-            <label className="field-label">กลุ่มงานที่รับผิดชอบ</label>
-            <div className="unit-check-list">
-              {groups.map((g: any) => <label key={g} className="unit-check"><input type="checkbox" checked={(f.groups || []).includes(g)} onChange={e => {
-                const nextGroups = e.target.checked ? [...new Set([...(f.groups || []), g])] : (f.groups || []).filter((x: string) => x !== g)
-                const firstSelectedGroup = nextGroups[0]
-                const firstUnit = units.find((u: any) => u.parent_group === firstSelectedGroup)
-                setF((old: any) => ({ ...old, groups: nextGroups, unit: firstUnit ? String(firstUnit.id) : '' }))
-                setExtra([])
-              }} />{g}</label>)}
-            </div>
-            <p className="field-hint">เลือกได้หลายกลุ่มงาน ระบบจะให้สิทธิ์ดูแลทุกหน่วยงานในกลุ่มงานที่เลือกโดยอัตโนมัติ</p>
-          </div>
-          {(f.groups || []).length > 0 && <div className="space-y-1">
-            <label className="field-label">หน่วยงานในกลุ่มงานที่ดูแลอัตโนมัติ</label>
-            <div className="unit-check-list">{selectedGroupUnits.length ? selectedGroupUnits.map((u: any) => <div key={u.id} className="unit-check"><span aria-hidden="true">✓</span><span>{u.name}</span></div>) : <p className="p-3 text-sm text-stone-500">ไม่พบหน่วยงานในกลุ่มงานนี้</p>}</div>
+        <div className="space-y-1">
+          <label className="field-label">ค้นหาชื่อ–นามสกุลบุคลากร</label>
+          <input className="inp" type="search" autoComplete="off" placeholder="พิมพ์ชื่อหรือนามสกุลอย่างน้อย 2 ตัวอักษร" value={selectedStaff ? selectedStaff.prefix + selectedStaff.first_name + ' ' + selectedStaff.last_name : staffQuery} onChange={e => { setSelectedStaff(null); setStaffQuery(e.target.value); setMsg('') }} />
+          {staffResults.length > 0 && <div className="unit-check-list" role="listbox" aria-label="ผลการค้นหาบุคลากร">
+            {staffResults.map((person: any) => <button type="button" key={person.source_row} className="unit-check text-left w-full" onClick={() => { setSelectedStaff(person); setStaffQuery(''); setStaffResults([]); setMsg('') }}>
+              <span className="font-semibold">{person.prefix}{person.first_name} {person.last_name}</span>
+              <span className="block text-xs text-stone-600">{person.position} · {person.unit_name || person.nursing_group}</span>
+              <span className="block text-xs text-stone-500">{person.org_role} · {person.staff_group}</span>
+            </button>)}
           </div>}
-        </> : <div className="space-y-1">
-          <label className="field-label">หน่วยงาน</label>
-          <select className="inp" value={f.unit} onChange={e => { const next = e.target.value; setF((old: any) => ({ ...old, unit: next })); setExtra(old => old.filter(id => id !== Number(next))) }}>
-            <option value="">เลือกหน่วยงาน</option>
-            {groups.map((g: any) => <optgroup key={g} label={g}>{units.filter((u: any) => u.parent_group === g).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}
-          </select>
-        </div>}
-        {isHead && <div className="space-y-1">
-          <label className="field-label">เลือกหน่วยงานที่ดูแลเพิ่มเติม (ถ้ามี)</label>
-          {isGroupHead && <p className="field-hint">เลือกเพิ่มได้เฉพาะหน่วยงานนอกกลุ่มงานที่รับผิดชอบโดยอัตโนมัติ</p>}
-          {(!f.unit || (isGroupHead && !(f.groups || []).length)) ? <p className="field-hint">กรุณาเลือก{isGroupHead ? 'กลุ่มงานอย่างน้อย 1 กลุ่ม' : 'หน่วยงานหลัก'}ก่อน จึงจะเลือกหน่วยงานเพิ่มเติมได้</p> : <>
-            <div className="unit-check-list">{groups.map((g: any) => {
-              const options = extraUnitOptions.filter((u: any) => u.parent_group === g)
-              return options.length ? <div key={g}><div className="unit-check-head">{g}</div>
-                {options.map((u: any) => <label key={u.id} className="unit-check"><input type="checkbox" checked={extra.includes(u.id)} onChange={e => setExtra(x => e.target.checked ? [...x.filter(i => i !== Number(f.unit) && !selectedGroupUnits.some((su: any) => su.id === i)), u.id] : x.filter(i => i !== u.id))} />{u.name}</label>)}</div> : null
-            })}</div>
-            <p className="field-hint">หน่วยงานเพิ่มเติมที่เลือกจะมีผลทันทีหลังลงทะเบียน ไม่ต้องรออนุมัติจากผู้ดูแลระบบ</p>
-          </>}
-        </div>}
+          {staffQuery.trim().length >= 2 && !selectedStaff && !staffResults.length && <p className="field-hint">ไม่พบรายชื่อที่ตรงกัน หรือกำลังค้นหา หากไม่พบกรุณาติดต่อผู้ดูแลระบบ</p>}
+          {selectedStaff && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-1 text-sm text-stone-800">
+            <div className="flex items-start justify-between gap-2"><strong className="text-base">{selectedStaff.prefix}{selectedStaff.first_name} {selectedStaff.last_name}</strong><button type="button" className="text-xs underline" onClick={() => { setSelectedStaff(null); setStaffQuery('') }}>เปลี่ยนชื่อ</button></div>
+            <p><b>ตำแหน่ง:</b> {selectedStaff.position}</p>
+            <p><b>บทบาท:</b> {selectedStaff.org_role}</p>
+            <p><b>กลุ่ม:</b> {selectedStaff.staff_group}</p>
+            <p><b>ประเภทเจ้าหน้าที่:</b> {selectedStaff.staff_type}</p>
+            <p><b>หน่วยงาน:</b> {selectedStaff.unit_name || 'ไม่ระบุในฐานข้อมูล'}</p>
+            {selectedStaff.extra_unit_names && <p><b>หน่วยงานเพิ่มเติม:</b> {selectedStaff.extra_unit_names}</p>}
+            <p><b>กลุ่มงาน:</b> {selectedStaff.nursing_group}</p>
+            {selectedStaff.extra_nursing_group_names && <p><b>กลุ่มงานเพิ่มเติม:</b> {selectedStaff.extra_nursing_group_names}</p>}
+            <p className="field-hint">ข้อมูลดึงจากฐานข้อมูลบุคลากร ไม่ต้องกรอกซ้ำ</p>
+          </div>}
+        </div>
       </>}
-      <div className="space-y-1">
-        <label className="field-label">ชื่อผู้ใช้ (Username)</label>
+      <label className="field-label">ชื่อผู้ใช้ (Username)</label>
         <input className="inp" type="text" autoComplete="username" placeholder="เช่น nurse.somchai" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && mode === 'in' && ok && go()} />
         <p className="field-hint">ใช้ตัวอักษรภาษาอังกฤษ a–z ตัวเลข จุด ขีดกลาง หรือขีดล่าง 3–30 ตัว</p>
       </div>
