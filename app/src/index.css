@@ -133,3 +133,6 @@ select.inp option { color:#182b3d; font-weight:400; background:#fff; }
   .print-sheet .pt tbody { break-inside:auto; }
   .print-sheet .pt tr { break-inside:avoid !important; page-break-inside:avoid !important; }
 }
+
+.act-body { min-width:0; display:block; }
+.act-main { display:block; color:#0b7a6a; font-size:.75rem; font-weight:700; line-height:1.3; }
