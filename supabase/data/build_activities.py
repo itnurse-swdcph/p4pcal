@@ -14,22 +14,24 @@ def domain(cat, title, default='บริการ'):
     if ADMIN.search(cat) or ADMIN.search(title): return 'บริหาร'
     return default
 out, rows = [], []
-def add(line, code, dom, title, uom, minutes, evidence='', note='', active=True, role=False):
-    out.append(dict(code=code, domain=dom, title=title, uom=uom or '-', minutes=minutes if minutes is not None else 0, use_role_mult=role,
+def add(line, code, dom, title, uom, minutes, evidence='', note='', active=True, role=False, category=None, main=None):
+    out.append(dict(code=code, domain=dom, category=category, main_activity=main, title=title, uom=uom or '-', minutes=minutes if minutes is not None else 0, use_role_mult=role,
         max_day=None, max_month=None, need_evidence=False, definition=evidence or None, no_dup_group=None, eligible=[line], note=note or None, active=active and minutes is not None))
 
 # --- พยาบาล (รหัสเดิมในแบบ) ---
-ws = wb['พยาบาล']; cat = ''
+ws = wb['พยาบาล']; cat = ''; top = ''
+strip_no = lambda t: re.sub(r'^\d+\s*[.\)]?\s*', '', t).strip()
 DOM = {'ADM': 'บริหาร', 'SVC': 'บริการ', 'ACD': 'วิชาการ'}
 for r in ws.iter_rows(min_row=6):
     b, c, d, e, f = [x.value for x in r[1:6]]
     if c:
         code = norm(c).upper().replace('SCV-', 'SVC-')   # ในแบบพิมพ์ผิดเป็น scv-09-xx
         role = code in ROLE_MULT
-        add('พยาบาล', code, DOM[code[:3]], norm(d), norm(e), num(f), note=f'หมวด: {cat}', role=role)
+        add('พยาบาล', code, DOM[code[:3]], norm(d), norm(e), num(f), role=role, category=top, main=strip_no(cat))
     elif b:
         t = norm(b)
         if re.match(r'^\d', t): cat = t
+        elif t.startswith('งานด้าน'): top = t; cat = ''
 
 # --- สายงานที่มีรหัสกิจกรรมในแบบ ---
 SHEETS = {'พนักงานช่วยเหลือคนไข้': 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก': 'พนักงานประจำตึก', 'พนักงานธุรการ': 'พนักงานธุรการ'}
@@ -52,9 +54,9 @@ for sheet, line in SHEETS.items():
         if 'ศูนย์เครื่องมือแพทย์' in scope: title = '[เฉพาะศูนย์เครื่องมือแพทย์] ' + title
         elif 'ไตเทียม' in scope: title = '[เฉพาะไตเทียม/คลินิก] ' + title
         elif out_of_scope: title = '[นอกภารกิจตำแหน่ง ไม่นับ] ' + title
-        note = '; '.join(x for x in [f'หมวด: {cat}', f"กิจกรรมหลัก: {g(r, 'main')}" if g(r, 'main') else '', f"ข้อควรระวัง: {g(r, 'caution')}" if g(r, 'caution') else '',
+        note = '; '.join(x for x in [f"ข้อควรระวัง: {g(r, 'caution')}" if g(r, 'caution') else '',
                                     f"กำกับดูแล: {g(r, 'sup')}" if g(r, 'sup') else '', f'ขอบเขต: {scope}' if scope else ''] if x)
-        add(line, code, domain(cat, g(r, 'sub')), title, g(r, 'uom'), minutes, evidence=g(r, 'ev'), note=note, active=not out_of_scope)
+        add(line, code, domain(cat, g(r, 'sub')), title, g(r, 'uom'), minutes, evidence=g(r, 'ev'), note=note, active=not out_of_scope, category=strip_no(cat), main=g(r, 'main') or None)
 
 # --- สายงานที่ไม่มีรหัสในแบบ: สร้างรหัสตามลำดับหมวด/ข้อ ---
 for sheet, line, pre in [('พนักงานเปล', 'พนักงานเปล', 'TRP'), ('Paramedics', 'Paramedic', 'PMD'), ('EMT', 'EMT', 'EMT')]:
@@ -66,7 +68,7 @@ for sheet, line, pre in [('พนักงานเปล', 'พนักงา�
         if not (b and c): continue
         item += 1
         title = re.sub(r'^\s*\d+\s*[.\)]\s*', '', norm(b))
-        add(line, f'{pre}-{sec:02d}-{item:03d}', domain(secname, title), title, norm(c), num(d), note=f'หมวด: {secname}')
+        add(line, f'{pre}-{sec:02d}-{item:03d}', domain(secname, title), title, norm(c), num(d), category=secname.strip())
 
 codes = [x['code'] for x in out]
 assert len(codes) == len(set(codes)), 'รหัสซ้ำ'
