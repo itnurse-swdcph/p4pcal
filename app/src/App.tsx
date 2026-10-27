@@ -7,6 +7,10 @@ const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ว่าที่ร้อยตรี', 'ว่าที่ร้อยตรีหญิง']
 const FOOTER_TEXT = '© 2026 Developed By Natnarinthorn | Nursing Informatics System'
 const SHIFTS: [string, string][] = [['แสตนด์เช้า', 'แสตนด์เช้า (08.00–16.00 เวลาราชการ)'], ['เช้า', 'เวรเช้า'], ['บ่าย', 'เวรบ่าย'], ['ดึก', 'เวรดึก (00.00–08.00)']]
+// สายงานกิจกรรม = ค่า positions.grp ตรงกับ activities.eligible (ผู้ช่วยช่างทั่วไปใช้ชุดเดียวกับผู้ช่วยเหลือคนไข้)
+const LINE_ORDER = ['พยาบาล', 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก', 'พนักงานธุรการ', 'พนักงานเปล', 'Paramedic', 'EMT']
+const LINE_LABEL: Record<string, string> = { 'พยาบาล': 'พยาบาล (รวมหัวหน้า)', 'ผู้ช่วยเหลือคนไข้': 'ผู้ช่วยเหลือคนไข้ / ผู้ช่วยช่าง' }
+const NO_LINE = 'ยังไม่กำหนดสายงาน'
 const ROLE_TH: any = { staff: 'เจ้าหน้าที่', head: 'หัวหน้างาน', committee: 'กรรมการ P4P', admin: 'ผู้ดูแลระบบ' }
 const ROLES = ['ประธาน', 'เลขานุการ/กรรมการ', 'สมาชิก/ผู้เข้าร่วม']
 const nf = (n: any, d = 2) => Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: d, minimumFractionDigits: d })
@@ -128,7 +132,7 @@ function Login({ sb }: any) {
           <div className="space-y-1"><label className="field-label">นามสกุล</label><input className="inp" placeholder="นามสกุล" value={f.last} onChange={set('last')} /></div>
         </div>
         <div className="space-y-1"><label className="field-label">ตำแหน่ง</label><select className="inp" value={f.position} onChange={set('position')}><option value="">เลือกตำแหน่ง</option>{positions.map(x => <option key={x.name} value={x.name}>{x.name}</option>)}</select></div>
-        {grp && <p className="field-hint">กลุ่มตำแหน่ง: <b>{grp}</b> · {positions.find(x => x.name === f.position)?.rate} แต้ม/นาที</p>}
+        {grp && <p className="field-hint">กลุ่มวิชาชีพที่ {positions.find(x => x.name === f.position)?.pay_group} · ชุดกิจกรรม: <b>{grp}</b>{grp === 'ยังไม่กำหนดสายงาน' && ' (ตำแหน่งนี้ยังไม่มีชุดกิจกรรม โปรดแจ้งผู้ดูแลระบบ)'} · {positions.find(x => x.name === f.position)?.rate} แต้ม/นาที</p>}
         {!isGroupHead && <div className="space-y-1"><label className="field-label">หน่วยงาน</label><select className="inp" value={f.unit} onChange={e => { const next = e.target.value; setF((old: any) => ({ ...old, unit: next })); setExtra(old => old.filter(id => id !== Number(next))) }}><option value="">เลือกหน่วยงาน</option>{groups.map((g: any) => <optgroup key={g} label={g}>{units.filter((u: any) => u.parent_group === g).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</optgroup>)}</select></div>}
         {isGroupHead ? <>
           <div className="space-y-1">
@@ -232,7 +236,7 @@ function Main({ sb, session }: any) {
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
     {cur === 'payout' && <PayoutPage sb={sb} month={month} isAdmin={role === 'admin'} />}
     {cur === 'settings' && <SettingsPage sb={sb} />}
-    {cur === 'activities' && <ActivityLibrary sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
+    {cur === 'activities' && <ActivityLibrary myLine={positions.find((x: any) => x.name === profile.position)?.grp} seeAll={role !== 'staff'} sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
     {cur === 'audit' && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} audit />}
     </div>
     <footer className="app-footer">{FOOTER_TEXT}</footer>
@@ -599,18 +603,22 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
   </div>
 }
 
-function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
+function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, seeAll }: any) {
   const [query, setQuery] = useState('')
   const [domain, setDomain] = useState('บริหาร')
+  const allLines = [...new Set([...(positions || []).map((p: any) => p.grp), ...(acts || []).flatMap((a: any) => a.eligible || [])])].filter((g: any) => g && g !== NO_LINE) as string[]
+  const lines: string[] = seeAll ? [...LINE_ORDER.filter(l => allLines.includes(l)), ...allLines.filter(l => !LINE_ORDER.includes(l))] : ([myLine].filter((l: any) => l && l !== NO_LINE) as string[])
+  const [line, setLine] = useState<string>(myLine && lines.includes(myLine) ? myLine : lines[0] || '')
+  useEffect(() => { if (!lines.includes(line)) setLine(myLine && lines.includes(myLine) ? myLine : lines[0] || '') }, [lines.join('|')])
   const [showAdd, setShowAdd] = useState(false)
   const [editingCode, setEditingCode] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
-  const groups = [...new Set((positions || []).map((p: any) => p.grp).filter(Boolean))] as string[]
-  const emptyForm = () => ({ code: '', title: '', domain: 'บริการ', uom: '', minutes: '1', max_day: '', max_month: '', eligible: groups, need_evidence: false, definition: '', use_role_mult: false, note: '' })
+  const groups = [...new Set((positions || []).map((p: any) => p.grp).filter((g: any) => g && g !== NO_LINE))] as string[]
+  const emptyForm = () => ({ code: '', title: '', domain: 'บริการ', uom: '', minutes: '1', max_day: '', max_month: '', eligible: line ? [line] : groups, need_evidence: false, definition: '', use_role_mult: false, note: '' })
   const [form, setForm] = useState<any>(emptyForm)
   const filtered = (acts || []).filter((a: any) =>
-    a.domain === domain &&
+    a.domain === domain && (a.eligible || []).includes(line) &&
     [a.code, a.title, a.definition, a.note].some((v: any) => String(v || '').toLowerCase().includes(query.trim().toLowerCase()))
   )
   const add = async () => {
@@ -675,7 +683,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
   }
   return <div className="space-y-4">
     <div className="card space-y-3">
-      <div className="flex flex-wrap items-center gap-3"><div className="mr-auto"><h2 className="text-lg font-bold">คลังกิจกรรม P4P</h2><p className="text-sm text-stone-600">ค้นหาและศึกษารายละเอียด เกณฑ์การนับแต้ม และหลักฐานประกอบของกิจกรรมทั้งหมดที่เปิดใช้งาน</p></div>
+      <div className="flex flex-wrap items-center gap-3"><div className="mr-auto"><h2 className="text-lg font-bold">คลังกิจกรรม P4P</h2><p className="text-sm text-stone-600">{seeAll ? 'ค้นหาและศึกษารายละเอียด เกณฑ์การนับแต้ม และหลักฐานประกอบ แยกตามสายงาน (เห็นทุกสายงาน)' : 'แสดงเฉพาะกิจกรรมของตำแหน่งของคุณ ค้นหาและศึกษาเกณฑ์การนับแต้มและหลักฐานประกอบ'}</p></div>
       {isAdmin && <button className="btn" onClick={() => { if (showAdd) cancelForm(); else { setShowAdd(true); setMsg('') } }}>{showAdd ? 'ปิดแบบฟอร์ม' : '+ เพิ่มกิจกรรม'}</button>}</div>
       {msg && <p role="status" className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">{msg}</p>}
       {showAdd && isAdmin && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
@@ -689,7 +697,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
           <label className="field-label">จำกัดจำนวนต่อวัน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_day} onChange={e => setForm({...form, max_day:e.target.value})} /></label>
           <label className="field-label">จำกัดจำนวนต่อเดือน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_month} onChange={e => setForm({...form, max_month:e.target.value})} /></label>
         </div>
-        <div><p className="field-label mb-2">กลุ่มตำแหน่งที่มีสิทธิ์ทำกิจกรรม</p><div className="flex flex-wrap gap-3">{groups.map(g => <label key={g} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.eligible.includes(g)} onChange={e => setForm({...form, eligible:e.target.checked ? [...form.eligible,g] : form.eligible.filter((x: string) => x !== g)})} />{g}</label>)}</div></div>
+        <div><p className="field-label mb-2">สายงานที่มีสิทธิ์ทำกิจกรรม</p><div className="flex flex-wrap gap-3">{groups.map(g => <label key={g} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.eligible.includes(g)} onChange={e => setForm({...form, eligible:e.target.checked ? [...form.eligible,g] : form.eligible.filter((x: string) => x !== g)})} />{g}</label>)}</div></div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.need_evidence} onChange={e => setForm({...form, need_evidence:e.target.checked})} />บังคับแนบหลักฐานประกอบ</label>
         <label className="field-label">รายละเอียดกิจกรรม / หลักฐานที่ต้องใช้<textarea className="inp mt-1 min-h-24" value={form.definition} onChange={e => setForm({...form, definition:e.target.value})} placeholder="อธิบายขอบเขต เกณฑ์การนับ และเอกสาร/หลักฐานที่ต้องแนบให้ตรวจสอบได้" /></label>
         <label className="field-label">หมายเหตุ / เงื่อนไขเพิ่มเติม<textarea className="inp mt-1 min-h-16" value={form.note} onChange={e => setForm({...form, note:e.target.value})} /></label>
@@ -697,10 +705,13 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs }: any) {
         <div className="flex flex-wrap gap-2"><button className="btn" disabled={busy} onClick={editingCode ? saveActivityEdit : add}>{busy ? 'กำลังบันทึก…' : editingCode ? 'บันทึกการแก้ไข' : 'บันทึกกิจกรรมใหม่'}</button><button className="btn sec" disabled={busy} onClick={cancelForm}>ยกเลิก</button></div>
       </div>}
       <div className="grid gap-3">
+        {lines.length > 1 ? <div className="flex flex-wrap gap-2" role="tablist" aria-label="สายงาน">{lines.map(l => { const on = line === l; const n = (acts || []).filter((a: any) => (a.eligible || []).includes(l)).length
+          return <button key={l} type="button" role="tab" aria-selected={on} onClick={() => setLine(l)} className={'rounded-lg border px-3 py-1.5 text-sm font-semibold ' + (on ? 'border-teal-700 bg-teal-700 text-white' : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50')}>{LINE_LABEL[l] || l}<span className="ml-1.5 text-xs opacity-80">{n}</span></button> })}</div>
+          : <p className="text-sm text-stone-700">ชุดกิจกรรมของตำแหน่งคุณ: <b className="text-teal-900">{LINE_LABEL[line] || line || 'ยังไม่กำหนด'}</b>{!line && ' · ตำแหน่งนี้ยังไม่มีชุดกิจกรรม โปรดแจ้งผู้ดูแลระบบ'}</p>}
         <input className="inp" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหารหัส ชื่อกิจกรรม เกณฑ์ หรือหลักฐาน…" />
         <div className="flex flex-wrap gap-2 border-b border-stone-200" role="tablist" aria-label="หมวดกิจกรรม P4P">
           {['บริหาร','บริการ','วิชาการ'].map(x => {
-            const count = (acts || []).filter((a: any) => a.domain === x).length
+            const count = (acts || []).filter((a: any) => a.domain === x && (a.eligible || []).includes(line)).length
             const active = domain === x
             return <button key={x} type="button" role="tab" aria-selected={active} onClick={() => setDomain(x)} className={'rounded-t-lg border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ' + (active ? 'border-teal-700 bg-teal-50 text-teal-900' : 'border-transparent text-stone-600 hover:bg-stone-50 hover:text-stone-900')}>{x}<span className={'ml-2 rounded-full px-2 py-0.5 text-xs ' + (active ? 'bg-teal-100 text-teal-900' : 'bg-stone-100 text-stone-600')}>{count}</span></button>
           })}
@@ -834,7 +845,7 @@ function SettingsPage({ sb }: any) {
 // กลุ่มวิชาชีพและยอดค่าตอบแทน (ตารางที่ 1 / 1ก / 1ข ของหลักเกณฑ์) + จับคู่ตำแหน่งกับกลุ่ม
 function PayGroupsCard({ sb }: any) {
   const [gs, setGs] = useState<any[]>([]); const [pos, setPos] = useState<any[]>([]); const [msg, setMsg] = useState('')
-  const load = () => { sb.from('pay_groups').select('*').order('id').then((r: any) => setGs(r.data || [])); sb.from('positions').select('name,pay_group,rate,guarantee').order('pay_group').then((r: any) => setPos(r.data || [])) }
+  const load = () => { sb.from('pay_groups').select('*').order('id').then((r: any) => setGs(r.data || [])); sb.from('positions').select('name,pay_group,grp,rate,guarantee').order('pay_group').then((r: any) => setPos(r.data || [])) }
   useEffect(load, [])
   const fields: [string, string][] = [['rate', 'แต้ม/นาที'], ['guarantee', 'แต้มประกัน'], ['cap_mult', 'เพดาน (เท่า)'], ['full_amount', 'ยอดต่อคน'], ['quality_pct', 'คุณภาพ %'], ['reserve_pct', 'เงินกัน %'], ['fixed_pay', 'จ่ายคงที่'], ['quality_fail_pct', 'ไม่ผ่าน ได้ %']]
   const set = (id: number, k: string, v: string) => setGs(x => x.map(g => g.id === id ? { ...g, [k]: v } : g))
@@ -843,6 +854,7 @@ function PayGroupsCard({ sb }: any) {
     const { error } = await sb.from('pay_groups').update(body).eq('id', g.id)
     setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `บันทึกกลุ่ม ${g.id} แล้ว`); load()
   }
+  const setPosLine = async (name: string, grp: string) => { const { error } = await sb.from('positions').update({ grp }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `กำหนดชุดกิจกรรมของ "${name}" เป็น ${grp} แล้ว`); load() }
   const setPosGroup = async (name: string, id: number) => { const { error } = await sb.from('positions').update({ pay_group: id }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `ย้าย "${name}" ไปกลุ่ม ${id} แล้ว`); load() }
   const derived = (g: any) => { const F = Number(g.full_amount), q = Math.round(F * Number(g.quality_pct)) / 100, a = F - Math.round(q * 100) / 100, r = Math.round(a * Number(g.reserve_pct)) / 100; return { q: Math.round(q * 100) / 100, a, r: Math.round(r * 100) / 100, s: a - Math.round(r * 100) / 100 } }
   return <div className="card xl:col-span-2 space-y-3">
@@ -852,9 +864,10 @@ function PayGroupsCard({ sb }: any) {
         {fields.map(([k]) => <td key={k}><input className="inp !w-24" inputMode="decimal" value={g[k]} onChange={e => set(g.id, k, e.target.value)} /></td>)}
         <td className="text-xs whitespace-nowrap">{nf(d.q)} / {nf(d.a)} / {nf(d.r)} / {nf(d.s)}</td><td><button className="btn" onClick={() => save(g)}>บันทึก</button></td></tr> })}</tbody></table></div>
     {msg && <p role="status" className="text-sm text-teal-900">{msg}</p>}
-    <details><summary className="cursor-pointer text-sm font-bold">ตำแหน่งในแต่ละกลุ่ม</summary>
+    <details><summary className="cursor-pointer text-sm font-bold">ตำแหน่ง: กลุ่มวิชาชีพ และชุดกิจกรรมที่บันทึกได้</summary>
       <div className="grid sm:grid-cols-2 gap-2 mt-2">{pos.map(x => <label key={x.name} className="flex items-center gap-2 text-sm"><span className="flex-1">{x.name}</span>
-        <select className="inp !w-24" value={x.pay_group} onChange={e => setPosGroup(x.name, +e.target.value)}>{gs.map(g => <option key={g.id} value={g.id}>กลุ่ม {g.id}</option>)}</select></label>)}</div></details>
+        <select className="inp !w-24" aria-label="กลุ่มวิชาชีพ" value={x.pay_group} onChange={e => setPosGroup(x.name, +e.target.value)}>{gs.map(g => <option key={g.id} value={g.id}>กลุ่ม {g.id}</option>)}</select>
+        <select className="inp !w-56" aria-label="ชุดกิจกรรม" value={x.grp} onChange={e => setPosLine(x.name, e.target.value)}>{[...LINE_ORDER, NO_LINE].map(l => <option key={l} value={l}>{LINE_LABEL[l] || l}</option>)}</select></label>)}</div></details>
   </div>
 }
 
