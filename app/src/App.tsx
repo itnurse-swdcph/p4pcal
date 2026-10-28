@@ -160,6 +160,7 @@ function Login({ sb }: any) {
 function Main({ sb, session }: any) {
   const [profile, setProfile] = useState<any>(null); const [noProfile, setNoProfile] = useState(false)
   const [people, setPeople] = useState<any[]>([]); const [acts, setActs] = useState<any[]>([]); const [units, setUnits] = useState<any[]>([])
+  const [directoryUnitNames, setDirectoryUnitNames] = useState<string[] | null>(null)
   const [positions, setPositions] = useState<any[]>([])
   const [actsVersion, setActsVersion] = useState(0)
   const reloadActs = () => setActsVersion(v => v + 1)
@@ -174,6 +175,12 @@ function Main({ sb, session }: any) {
     sb.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle().then((r: any) => { if (!r.data) { setNoProfile(true); return } setProfile(r.data); setUnit(r.data.role === 'admin' ? null : (r.data.unit_id ?? null)) })
     sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || []))
     sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
+    // ใช้ชื่อหน่วยงานจาก staff_directory ที่ active เป็นแหล่งอ้างอิงของ dropdown
+    // แล้วจับคู่กับ units.name เพื่อคง unit_id/foreign keys เดิมโดยไม่แก้ข้อมูลฐานข้อมูล
+    sb.from('staff_directory').select('unit_name').eq('active', true).not('unit_name', 'is', null).then((r: any) => {
+      if (r.error || !Array.isArray(r.data)) { console.error('โหลดรายชื่อหน่วยงานจาก staff_directory ไม่สำเร็จ', r.error); setDirectoryUnitNames(null); return }
+      setDirectoryUnitNames([...new Set(r.data.map((x: any) => String(x.unit_name || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')))
+    })
     sb.from('positions').select('*').then((r: any) => setPositions(r.data || []))
     sb.rpc('my_units').then((r: any) => setMyUnits((r.data || []).map((x: any) => (typeof x === 'object' && x ? Object.values(x)[0] : x) as number)))
     loadPeople()
@@ -184,7 +191,10 @@ function Main({ sb, session }: any) {
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'
   const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน'], ['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ'], ['payout', 'จ่ายเงิน P4P']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [])]
   const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
-  const unitOptions = role === 'head' ? units.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? units : units.filter(u => u.id === profile.unit_id)
+  // แสดงเฉพาะหน่วยงานที่มีอยู่ใน staff_directory ล่าสุด และจับคู่ชื่อแบบตรงตัวกับ units
+  // ไม่สร้าง/เปลี่ยน unit_id และไม่แก้หรือรวมข้อมูลในฐานข้อมูล
+  const directoryUnits = directoryUnitNames === null ? units : units.filter(u => directoryUnitNames.includes(String(u.name || '').trim()))
+  const unitOptions = role === 'head' ? directoryUnits.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
