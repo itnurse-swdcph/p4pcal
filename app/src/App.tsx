@@ -193,7 +193,8 @@ function Main({ sb, session }: any) {
   const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
   // แสดงเฉพาะหน่วยงานที่มีอยู่ใน staff_directory ล่าสุด และจับคู่ชื่อแบบตรงตัวกับ units
   // ไม่สร้าง/เปลี่ยน unit_id และไม่แก้หรือรวมข้อมูลในฐานข้อมูล
-  const directoryUnits = directoryUnitNames === null ? units : units.filter(u => directoryUnitNames.includes(String(u.name || '').trim()))
+  const directoryUnits = (directoryUnitNames === null ? units : units.filter(u => directoryUnitNames.includes(String(u.name || '').trim())))
+    .slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
   const unitOptions = role === 'head' ? directoryUnits.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings }
