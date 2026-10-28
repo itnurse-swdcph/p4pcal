@@ -194,3 +194,19 @@ select.inp option { color:#182b3d; font-weight:400; background:#fff; }
 @media(max-width:1100px){.app-sidebar{width:248px}.p4p-main{width:calc(100% - 248px);margin-left:248px}.nav-compact .app-sidebar{width:76px}.nav-compact .p4p-main{width:calc(100% - 76px);margin-left:76px}.topbar-unit .inp{width:13rem}}
 @media(max-width:760px){.app-sidebar,.nav-compact .app-sidebar{width:min(292px,86vw);transform:translateX(-105%);box-shadow:12px 0 40px rgba(12,30,48,.18)}.app-sidebar.mobile-open{transform:translateX(0)}.p4p-main,.nav-compact .p4p-main{width:100%;margin-left:0}.sidebar-scrim{display:block;position:fixed;inset:0;z-index:35;background:rgba(16,34,52,.42);backdrop-filter:blur(2px)}.mobile-close,.menu-toggle{display:grid}.sidebar-collapse{display:none}.app-topbar{min-height:4.5rem;padding:.7rem .85rem;gap:.65rem}.topbar-heading h1{font-size:1.05rem}.topbar-eyebrow{font-size:.56rem}.topbar-actions{gap:.4rem}.topbar-unit{max-width:42vw}.topbar-unit .inp{width:100%;min-width:0;max-width:42vw}.topbar-month .inp{width:8.2rem}.topbar-unit>svg,.topbar-month>svg{display:none}.app-content{padding:.85rem;gap:.85rem}.app-content>.flex,.app-content>div{max-width:100%;min-width:0}}
 @media(max-width:480px){.topbar-actions{flex-direction:column;align-items:stretch;gap:.3rem}.topbar-unit .inp{max-width:38vw;padding:.35rem;font-size:.72rem}.topbar-month .inp{width:8rem;padding:.35rem;font-size:.72rem}.topbar-heading h1{font-size:.95rem}.app-topbar{align-items:center}.app-content{padding:.65rem}.card{padding:.8rem}}
+
+/* ตารางทุกหน้าต้องพอดีกับความกว้างพื้นที่ ไม่สร้างแถบเลื่อนแนวนอน */
+table:not(.pt) { width:100%; max-width:100%; table-layout:fixed; }
+table:not(.pt) th { white-space:normal; overflow-wrap:anywhere; word-break:normal; }
+table:not(.pt) td { min-width:0; overflow-wrap:anywhere; word-break:normal; }
+.overflow-x-auto { overflow-x:visible !important; max-width:100%; }
+@media (max-width: 900px) {
+  table:not(.pt) th { padding:.5rem .35rem; font-size:.72rem; line-height:1.35; }
+  table:not(.pt) td { padding:.5rem .35rem; font-size:.78rem; line-height:1.4; }
+  table:not(.pt) td button, table:not(.pt) th button { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+}
+@media (max-width: 520px) {
+  table:not(.pt) th { padding:.4rem .25rem; font-size:.68rem; }
+  table:not(.pt) td { padding:.4rem .25rem; font-size:.72rem; }
+}
+
