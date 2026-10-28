@@ -649,15 +649,27 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const formCategories = [...new Set(formLineActivities.map((a: any) => a.category).filter(Boolean))] as string[]
   const nextActivityCode = (selectedLine: string, selectedCategory: string, selectedDomain: string) => {
     const domainPrefix: Record<string, string> = { 'บริหาร': 'ADM', 'บริการ': 'SVC', 'วิชาการ': 'ACD' }
-    const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && (a.category || '') === selectedCategory)
-    const structured = matching.map((a: any) => ({ activity: a, parts: String(a.code || '').match(/^([A-Z]+)-(\d+)-(\d+)$/i) })).filter((x: any) => x.parts)
+    const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && String(a.category || '').trim() === String(selectedCategory || '').trim())
+    const structured = matching.map((a: any) => ({ activity: a, parts: String(a.code || '').trim().match(/^([A-Z]+)-(\d+)-(\d+)$/i) })).filter((x: any) => x.parts)
     if (structured.length) {
-      const parts = structured[0].parts
-      const prefix = parts[1].toUpperCase()
-      const categoryNo = parts[2]
-      const sameGroup = (acts || []).filter((a: any) => { const m = String(a.code || '').match(/^([A-Z]+)-(\d+)-(\d+)$/i); return (a.eligible || []).includes(selectedLine) && m && m[1].toUpperCase() === prefix && m[2] === categoryNo })
-      const max = sameGroup.reduce((n: number, a: any) => Math.max(n, Number(String(a.code).match(/-(\d+)$/)?.[1] || 0)), 0)
-      return prefix + '-' + categoryNo + '-' + String(max + 1).padStart(2, '0')
+      // หมวดเดียวกันอาจมีข้อมูลเดิมหลายรูปแบบ/หลายชุดรหัส ให้ต่อจากชุดที่มีเลขกิจกรรมสูงสุด
+      // และให้น้ำหนัก prefix ตามด้านที่เลือก เพื่อไม่ย้อนกลับไปเริ่ม ACD-01-02 เมื่อมี ACD-04-09 อยู่แล้ว
+      const preferredPrefix = domainPrefix[selectedDomain] || ''
+      const groupsByCode: Record<string, { prefix: string; categoryNo: string; maxItem: number }> = {}
+      structured.forEach((x: any) => {
+        const prefix = x.parts[1].toUpperCase()
+        const categoryNo = x.parts[2]
+        const key = prefix + '-' + categoryNo
+        const itemNo = Number(x.parts[3] || 0)
+        if (!groupsByCode[key]) groupsByCode[key] = { prefix, categoryNo, maxItem: itemNo }
+        else groupsByCode[key].maxItem = Math.max(groupsByCode[key].maxItem, itemNo)
+      })
+      const groups = Object.values(groupsByCode)
+      const preferredGroups = groups.filter(g => g.prefix === preferredPrefix)
+      const candidates = preferredGroups.length ? preferredGroups : groups
+      candidates.sort((a, b) => b.maxItem - a.maxItem || Number(b.categoryNo) - Number(a.categoryNo))
+      const chosen = candidates[0]
+      return chosen.prefix + '-' + chosen.categoryNo + '-' + String(chosen.maxItem + 1).padStart(2, '0')
     }
     const simple = matching.map((a: any) => String(a.code || '').match(/^([A-Z]+)-?(\d+)$/i)).find(Boolean)
     if (simple) {
