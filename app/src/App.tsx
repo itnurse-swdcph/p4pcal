@@ -650,12 +650,27 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const nextActivityCode = (selectedLine: string, selectedCategory: string, selectedDomain: string) => {
     const domainPrefix: Record<string, string> = { 'บริหาร': 'ADM', 'บริการ': 'SVC', 'วิชาการ': 'ACD' }
     const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && (a.category || '') === selectedCategory)
-    const structured = matching.map((a: any) => ({ activity: a, match: String(a.code || '').match(/^([A-Z]+)-(\d+)-(\d+)$/i) })).filter((x: any) => x.match)
+    const structured = matching.map((a: any) => ({ activity: a, parts: String(a.code || '').match(/^([A-Z]+)-(\d+)-(\d+)$/i) })).filter((x: any) => x.parts)
     if (structured.length) {
-      const latest = structured[0].match
-      const prefix = latest[1].toUpperCase()
-      const categoryNo = latest[2]
-      const sameGroup = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && String(a.code || '').match(new RegExp('^' + prefix + '-' + categoryNo + '-\\\\d+
+      const parts = structured[0].parts
+      const prefix = parts[1].toUpperCase()
+      const categoryNo = parts[2]
+      const sameGroup = (acts || []).filter((a: any) => { const m = String(a.code || '').match(/^([A-Z]+)-(\d+)-(\d+)$/i); return (a.eligible || []).includes(selectedLine) && m && m[1].toUpperCase() === prefix && m[2] === categoryNo })
+      const max = sameGroup.reduce((n: number, a: any) => Math.max(n, Number(String(a.code).match(/-(\d+)$/)?.[1] || 0)), 0)
+      return prefix + '-' + categoryNo + '-' + String(max + 1).padStart(2, '0')
+    }
+    const simple = matching.map((a: any) => String(a.code || '').match(/^([A-Z]+)-?(\d+)$/i)).find(Boolean)
+    if (simple) {
+      const prefix = simple[1].toUpperCase()
+      const max = matching.reduce((n: number, a: any) => Math.max(n, Number(String(a.code).match(/(\d+)$/)?.[1] || 0)), 0)
+      return prefix + '-' + String(max + 1).padStart(3, '0')
+    }
+    const prefix = domainPrefix[selectedDomain] || 'ACT'
+    const categoryNo = String(Math.max(1, formCategories.indexOf(selectedCategory) + 1)).padStart(2, '0')
+    const sameGroup = (acts || []).filter((a: any) => { const m = String(a.code || '').match(/^([A-Z]+)-(\d+)-(\d+)$/i); return (a.eligible || []).includes(selectedLine) && m && m[1].toUpperCase() === prefix && m[2] === categoryNo })
+    const max = sameGroup.reduce((n: number, a: any) => Math.max(n, Number(String(a.code).match(/-(\d+)$/)?.[1] || 0)), 0)
+    return prefix + '-' + categoryNo + '-' + String(max + 1).padStart(2, '0')
+  }
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const filtered = inLine.filter((a: any) => (category === 'ทั้งหมด' || (a.category || 'อื่นๆ') === category) &&
     terms.every(t => [a.code, a.category, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
