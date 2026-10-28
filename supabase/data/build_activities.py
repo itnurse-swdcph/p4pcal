@@ -9,6 +9,22 @@ def num(v):
 ROLE_MULT = {'ADM-01-01', 'ADM-04-01', 'ACD-01-01'}      # ประชุม/เกื้อกูล/ประชุมวิชาการ: คงตัวคูณบทบาทเดิม
 ACAD = re.compile(r'วิทยากร|ฝึกซ้อม|ฝึกทักษะ|ฝึกอบรม|อบรม|สอน|ทบทวนภารกิจ|ประชุมทบทวน|CQI|โครงการ|นำเสนอผลงาน|รายงานความเสี่ยง|รายงานคุณภาพ|ฝึกปฏิบัติ')
 ADMIN = re.compile(r'ประชุม|เกื้อกูล|พิธี|จัดทำรายงาน|สารบรรณ|พัสดุ|การเงิน|บุคลากร')
+RULES = {   # สายงาน: (ด้านเริ่มต้น หรือ None = ต้องจับคู่ให้ครบ, {ด้าน: [คำสำคัญในชื่อหมวด]})
+  'ผู้ช่วยเหลือคนไข้': (None, {'บริหาร': ['เตรียมอุปกรณ์', 'สิ่งส่งตรวจ', 'ความปลอดภัยและสิ่งแวดล้อม', 'ศูนย์เครื่องมือแพทย์', 'ระบบแก๊สทางการแพทย์', 'งานประชุม'],
+                               'บริการ': ['กิจวัตร', 'เคลื่อนย้ายและนำส่ง', 'รับใหม่และจำหน่าย', 'ช่วยปฏิบัติการพยาบาล'], 'วิชาการ': ['ให้ข้อมูล']}),
+  'พนักงานประจำตึก': (None, {'บริหาร': ['รับ-ส่งเอกสาร', 'สนับสนุนวัสดุ', 'ความปลอดภัยและคุณภาพ', 'งานประชุม'],
+                             'บริการ': ['ทำความสะอาดพื้นที่', 'ทำความสะอาดและฆ่าเชื้อ', 'จัดการขยะ', 'เคลื่อนย้ายผู้ป่วย เครื่องมือ', 'ควรทบทวนขอบเขต'], 'วิชาการ': ['สนับสนุนการให้บริการผู้ป่วย']}),
+  'พนักงานธุรการ': ('บริหาร', {'วิชาการ': ['บริการข้อมูลและประชาสัมพันธ์']}),
+  'พนักงานเปล': ('บริการ', {'บริหาร': ['เตรียมความพร้อมและสนับสนุนบริการ']}),
+  'Paramedic': (None, {'บริหาร': ['เตรียมความพร้อม', 'งานอื่นๆ'], 'บริการ': ['ปฏิบัติการฉุกเฉินนอก', 'ส่งต่อ', 'บริการในโรงพยาบาล']}),
+  'EMT': (None, {'บริหาร': ['เตรียมความพร้อม', 'งานอื่นๆ'], 'บริการ': ['ปฏิบัติการฉุกเฉินนอก', 'บริการในโรงพยาบาล'], 'วิชาการ': ['พัฒนาคุณภาพ']}),
+}
+def dom_for(line, cat):
+    default, rules = RULES[line]
+    hits = [d for d, kws in rules.items() if any(k in cat for k in kws)]
+    if len(hits) == 1: return hits[0]
+    if not hits and default: return default
+    raise SystemExit(f'จัดหมวดเข้าด้านไม่ได้/ซ้ำ: {line} | {cat} | {hits}')
 def domain(cat, title, default='บริการ'):
     if ACAD.search(title) or ACAD.search(cat): return 'วิชาการ'
     if ADMIN.search(cat) or ADMIN.search(title): return 'บริหาร'
@@ -56,7 +72,7 @@ for sheet, line in SHEETS.items():
         elif out_of_scope: title = '[นอกภารกิจตำแหน่ง ไม่นับ] ' + title
         note = '; '.join(x for x in [f"ข้อควรระวัง: {g(r, 'caution')}" if g(r, 'caution') else '',
                                     f"กำกับดูแล: {g(r, 'sup')}" if g(r, 'sup') else '', f'ขอบเขต: {scope}' if scope else ''] if x)
-        add(line, code, domain(cat, g(r, 'sub')), title, g(r, 'uom'), minutes, evidence=g(r, 'ev'), note=note, active=not out_of_scope, category=strip_no(cat), main=g(r, 'main') or None)
+        add(line, code, dom_for(line, strip_no(cat)), title, g(r, 'uom'), minutes, evidence=g(r, 'ev'), note=note, active=not out_of_scope, category=strip_no(cat), main=g(r, 'main') or None)
 
 # --- สายงานที่ไม่มีรหัสในแบบ: สร้างรหัสตามลำดับหมวด/ข้อ ---
 for sheet, line, pre in [('พนักงานเปล', 'พนักงานเปล', 'TRP'), ('Paramedics', 'Paramedic', 'PMD'), ('EMT', 'EMT', 'EMT')]:
@@ -68,7 +84,7 @@ for sheet, line, pre in [('พนักงานเปล', 'พนักงา�
         if not (b and c): continue
         item += 1
         title = re.sub(r'^\s*\d+\s*[.\)]\s*', '', norm(b))
-        add(line, f'{pre}-{sec:02d}-{item:03d}', domain(secname, title), title, norm(c), num(d), category=secname.strip())
+        add(line, f'{pre}-{sec:02d}-{item:03d}', dom_for(line, secname), title, norm(c), num(d), category=re.sub(r'(งานรับ[–-])+', 'งานรับ–', secname.strip()))   # แก้พิมพ์ซ้ำ "งานรับ–งานรับ–ส่งต่อ"
 
 codes = [x['code'] for x in out]
 assert len(codes) == len(set(codes)), 'รหัสซ้ำ'
