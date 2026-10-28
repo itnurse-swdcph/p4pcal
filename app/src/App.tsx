@@ -352,7 +352,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     }
     setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); setModalOpen(false); setNotice('บันทึกเป็นแบบร่างแล้ว กดปุ่ม "ส่ง" ในตารางเมื่อพร้อมให้หัวหน้ารับรอง (แบบร่างแก้ไขหรือลบได้ แต่เมื่อส่งแล้วจะล็อก)'); reload()
   }
-  return <div className="grid lg:grid-cols-[minmax(26rem,34rem)_1fr] gap-4">
+  return <div className="space-y-4">
     <div className="card space-y-2 self-start">
       <h2 className="font-bold">เพิ่มรายการ</h2>
       {picker && <>
