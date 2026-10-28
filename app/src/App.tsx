@@ -166,6 +166,9 @@ function Main({ sb, session }: any) {
   const [month, setMonth] = useState(today().slice(0, 7)); const [tab, setTab] = useState('')
   const [unit, setUnit] = useState<number | null>(null)
   const [myUnits, setMyUnits] = useState<number[]>([])
+  // Hooks must run in the same order before any conditional return.
+  const [mobileNav, setMobileNav] = useState(false)
+  const [compactNav, setCompactNav] = useState(false)
   const loadPeople = () => sb.from('people').select('*').eq('active', true).order('name').then((r: any) => setPeople(r.data || []))
   useEffect(() => {
     sb.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle().then((r: any) => { if (!r.data) { setNoProfile(true); return } setProfile(r.data); setUnit(r.data.role === 'admin' ? null : (r.data.unit_id ?? null)) })
@@ -183,8 +186,6 @@ function Main({ sb, session }: any) {
   const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
   const unitOptions = role === 'head' ? units.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? units : units.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
-  const [mobileNav, setMobileNav] = useState(false)
-  const [compactNav, setCompactNav] = useState(false)
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
