@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { createPortal } from 'react-dom'
 import { Eye, EyeOff, Printer, ShieldCheck } from 'lucide-react'
@@ -11,6 +11,8 @@ const SHIFTS: [string, string][] = [['แสตนด์เช้า', 'แส�
 const LINE_ORDER = ['พยาบาล', 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก', 'พนักงานธุรการ', 'พนักงานเปล', 'Paramedic', 'EMT']
 const LINE_LABEL: Record<string, string> = { 'พยาบาล': 'พยาบาล (รวมหัวหน้า)', 'ผู้ช่วยเหลือคนไข้': 'ผู้ช่วยเหลือคนไข้ / ผู้ช่วยช่าง' }
 const NO_LINE = 'ยังไม่กำหนดสายงาน'
+// รหัสผู้ใช้ที่ล็อกอิน ใช้ตัดสินว่าปุ่ม ส่ง/แก้ไข/ลบ ของแบบร่างเป็นของใคร (ฐานข้อมูลบังคับกฎซ้ำอีกชั้น)
+const MeCtx = createContext<string | null>(null)
 const ROLE_TH: any = { staff: 'เจ้าหน้าที่', head: 'หัวหน้างาน', committee: 'กรรมการ P4P', admin: 'ผู้ดูแลระบบ' }
 const ROLES = ['ประธาน', 'เลขานุการ/กรรมการ', 'สมาชิก/ผู้เข้าร่วม']
 const nf = (n: any, d = 2) => Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: d, minimumFractionDigits: d })
@@ -181,7 +183,7 @@ function Main({ sb, session }: any) {
   const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
   const unitOptions = role === 'head' ? units.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? units : units.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
-  return <div className="min-h-screen flex flex-col"><div className="flex-1 w-full px-3 sm:px-6 lg:px-10 py-3 sm:py-6 space-y-4">
+  return <MeCtx.Provider value={session.user.id}><div className="min-h-screen flex flex-col"><div className="flex-1 w-full px-3 sm:px-6 lg:px-10 py-3 sm:py-6 space-y-4">
     <header className="flex flex-wrap items-center gap-3 border-b-2 border-stone-800 pb-3">
       <div className="mr-auto"><h1 className="text-xl font-bold leading-tight">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1><p className="text-xs font-bold text-teal-800">ระบบบันทึกกิจกรรมและคำนวณแต้ม P4P</p>
         <p className="text-sm text-stone-600">{profile.full_name || session.user.email} · <b>{ROLE_TH[role]}</b>{!isRev && units.find(u => u.id === profile.unit_id) && ` · ${units.find(u => u.id === profile.unit_id).name}`}{role === 'head' && unitOptions.length > 1 && ` (ดูแล ${unitOptions.length} หน่วยงาน)`}</p></div>
@@ -204,7 +206,7 @@ function Main({ sb, session }: any) {
     {cur === 'audit' && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} audit />}
     </div>
     <footer className="app-footer">{FOOTER_TEXT}</footer>
-  </div>
+  </div></MeCtx.Provider>
 }
 
 // PostgREST จำกัดผลลัพธ์ต่อคำขอ (ปกติ 1,000 แถว) จึงดึงเป็นช่วงจนครบ
@@ -233,7 +235,7 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
       if (!baseRows.length) { setRows([]); return }
       const extraMap = new Map<any, any>()
       for (let i = 0; i < baseRows.length; i += 200) {
-        const { data } = await sb.from('logs').select('id, sub_activity, evidence_image_path').in('id', baseRows.slice(i, i + 200).map((x: any) => x.id))
+        const { data } = await sb.from('logs').select('id, sub_activity, evidence_image_path, entered_by, reject_reason, submitted_at').in('id', baseRows.slice(i, i + 200).map((x: any) => x.id))
         ;(data || []).forEach((x: any) => extraMap.set(x.id, x))
       }
       if (alive) setRows(baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) })))
@@ -245,6 +247,7 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
 
 function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, canApprove }: any) {
   const picker = !!canApprove
+  const me = useContext(MeCtx)
   const [printing, setPrinting] = useState(false) // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
   const [uSel, setUSel] = useState<number | null>(defaultUnit ?? unitOptions?.[0]?.id ?? null)
   const people = useMemo(() => (picker ? (allPeople || []).filter((p: any) => p.unit_id === uSel) : peopleProp), [picker, allPeople, uSel, peopleProp])
@@ -252,6 +255,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const [rows, reload] = useLogs(sb, month, ids)
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
   const [q, setQ] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null)
+  const [notice, setNotice] = useState('')
   const [shift, setShift] = useState('แสตนด์เช้า'); const [caps, setCaps] = useState<any>({ cap_shift_points: 90, cap_day_points: 180 })
   useEffect(() => { sb.from('app_settings').select('key,value').in('key', ['cap_shift_points', 'cap_day_points']).then((r: any) => setCaps(Object.fromEntries([['cap_shift_points', 90], ['cap_day_points', 180], ...(r.data || []).map((x: any) => [x.key, Number(x.value)])]))) }, [])
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
@@ -264,6 +268,8 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const act = acts.find((a: any) => a.code === code)
   const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate * (act.use_role_mult ? (role === ROLES[0] ? 2 : role === ROLES[1] ? 1.5 : 1) : 1) : 0
   const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
+  const myDrafts = shown.filter((r: any) => r.status === 'draft' && r.entered_by === me)
+  const myRejected = shown.filter((r: any) => r.status === 'rejected' && r.entered_by === me)
   // เพดานคะแนนต่อเวรและต่อวัน (คำนวณตัดส่วนเกินที่ฐานข้อมูล ตรงนี้แสดงโควตาที่ใช้ไปแล้ว)
   const capS = Number(caps.cap_shift_points) || 90, capD = Number(caps.cap_day_points) || 180
   const dayRows = rows.filter((r: any) => r.person_id === pid && r.work_date === date && r.status !== 'rejected')
@@ -330,7 +336,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       const { error: pathError } = await sb.from('logs').update({ evidence_image_path: path }).eq('id', inserted.id)
       if (pathError) { setErr(`อัปโหลดรูปแล้ว แต่บันทึกการเชื่อมโยงรูปไม่สำเร็จ: ${pathError.message}`); reload(); return }
     }
-    setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); setModalOpen(false); reload()
+    setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); setModalOpen(false); setNotice('บันทึกเป็นแบบร่างแล้ว กดปุ่ม "ส่ง" ในตารางเมื่อพร้อมให้หัวหน้ารับรอง (แบบร่างแก้ไขหรือลบได้ แต่เมื่อส่งแล้วจะล็อก)'); reload()
   }
   return <div className="grid lg:grid-cols-[minmax(26rem,34rem)_1fr] gap-4">
     <div className="card space-y-2 self-start">
@@ -379,6 +385,10 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     <div className="space-y-3">
       {person && <div className="flex justify-end"><button type="button" className="btn sec" onClick={() => setPrinting(true)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปประจำเดือน (A4)</button></div>}
       {printing && person && <PrintSheet sb={sb} person={person} rows={shown} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
+      {notice && <p role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
+      {myRejected.length > 0 && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900"><b>มี {myRejected.length} รายการที่หัวหน้าไม่รับรอง</b> ดูเหตุผลในตาราง แล้วกด "แก้ไข" หรือ "ส่งใหม่"</p>}
+      {myDrafts.length > 0 && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-stone-300 bg-white p-3 text-sm"><span>แบบร่างที่ยังไม่ส่ง <b>{myDrafts.length}</b> รายการ (ยังไม่นับคะแนน)</span>
+        <button type="button" className="btn" onClick={async () => { if (!confirm(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรอง? เมื่อส่งแล้วจะแก้ไขหรือลบไม่ได้`)) return; const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', myDrafts.map((r: any) => r.id)); if (error) alert('ส่งรายการไม่สำเร็จ: ' + error.message); else { setNotice(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรองแล้ว`); reload() } }}>ส่งทั้งหมด ({myDrafts.length})</button></div>}
       <Totals rows={shown} people={person ? [person] : []} positions={positions} />
       <LogTable sb={sb} rows={shown} reload={reload} canApprove={canApprove} showName={!pid && people.length > 1} acts={acts} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} />
     </div>
@@ -393,7 +403,8 @@ const statusLabel = (st: any) => {
   return parts.length === 1 ? parts[0][1] : parts.map(([k, l]) => `${l} ${st[k]}/${total}`).join(' · ')
 }
 // ใบสรุปผลงาน P4P รายบุคคล (A4) แสดงเป็นหน้าตัวอย่างก่อนพิมพ์ ผ่าน portal เพื่อให้สั่งพิมพ์เฉพาะใบนี้
-function PrintSheet({ sb, person, rows, month, units, positions, onClose }: any) {
+function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose }: any) {
+  const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status !== 'draft'), [rowsIn])
   const [head, setHead] = useState<any>(null)
   useEffect(() => { sb.rpc('unit_head', { p_unit: person.unit_id }).then((r: any) => setHead(r.data?.[0] || null)) }, [person.unit_id])
   const unit = units.find((u: any) => u.id === person.unit_id)
@@ -458,10 +469,26 @@ function Totals({ rows, people, positions }: any) {
   </div>
 }
 
-const ST: any = { pending: ['รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
+const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', 'bg-stone-200'], pending: ['ส่งแล้ว รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); alert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = false, acts = [], editTargetRow = null, clearEditTarget = () => {} }: any) {
+function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, readOnly = false, acts = [], editTargetRow = null, clearEditTarget = () => {} }: any) {
+  const me = useContext(MeCtx)
+  // แบบร่างเป็นของผู้บันทึกเท่านั้น คนอื่น (รวมหัวหน้า) ไม่เห็นจนกว่าจะส่ง
+  const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me), [allRows, me])
+  const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
+  const submitRows = async (ids: number[]) => {
+    if (!ids.length) return
+    const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', ids)
+    if (error) { alert('ส่งรายการไม่สำเร็จ: ' + error.message); return }
+    reload()
+  }
+  const confirmReject = async () => {
+    if (!reason.trim()) { alert('กรุณาระบุเหตุผลที่ไม่รับรอง เพื่อแจ้งผู้บันทึก'); return }
+    const { error } = await sb.from('logs').update({ status: 'rejected', reject_reason: reason.trim() }).eq('id', rejecting.id)
+    if (error) { alert('บันทึกไม่สำเร็จ: ' + error.message); return }
+    setRejecting(null); setReason(''); reload()
+  }
   const [editing, setEditing] = useState<any>(null)
   const [form, setForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
@@ -540,14 +567,23 @@ function LogTable({ sb, rows, reload, canApprove, showName = true, readOnly = fa
         if (Number(r.max_month) > 0 && sameActivityRows.filter((x: any) => String(x.work_date || '').slice(0, 7) === String(r.work_date || '').slice(0, 7)).reduce((sum: number, x: any) => sum + Number(x.qty || 0), 0) > Number(r.max_month)) addOnce(checkWarnings, `เกินเพดาน/เดือน (${r.max_month})`)
         return <tr key={r.id}>
         <td className="whitespace-nowrap">{formatThaiShortDate(r.work_date)}<div className="text-xs text-stone-500">{r.shift === 'เช้า' || r.shift === 'บ่าย' || r.shift === 'ดึก' ? 'เวร' + r.shift : 'แสตนด์เช้า'}</div></td>{showName && <td>{r.person_name}</td>}
-        <td><b>{r.activity_code}</b> {r.title}{r.role && <span className="text-xs text-stone-500"> · {r.role} ×{r.mult}</span>}{r.sub_activity && <div className="text-sm mt-1">กิจกรรมย่อย: {r.sub_activity}</div>}{r.evidence && <div className="text-xs text-stone-500 mt-1">หลักฐาน: {r.evidence}</div>}{r.evidence_image_path && <div className="mt-1"><button className="text-xs underline text-teal-800" onClick={() => openEvidence(sb, r.evidence_image_path)}>ดูรูปหลักฐาน</button></div>}</td>
+        <td><b>{r.activity_code}</b> {r.title}{r.role && <span className="text-xs text-stone-500"> · {r.role} ×{r.mult}</span>}{r.sub_activity && <div className="text-sm mt-1">กิจกรรมย่อย: {r.sub_activity}</div>}{r.evidence && <div className="text-xs text-stone-500 mt-1">หลักฐาน: {r.evidence}</div>}{r.evidence_image_path && <div className="mt-1"><button className="text-xs underline text-teal-800" onClick={() => openEvidence(sb, r.evidence_image_path)}>ดูรูปหลักฐาน</button></div>}{r.reject_reason && r.status !== 'approved' && <div className="mt-1 rounded border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-800"><b>{r.status === 'rejected' ? 'ไม่รับรอง เหตุผล' : 'เหตุผลที่ไม่รับรองครั้งก่อน'}:</b> {r.reject_reason}</div>}</td>
         <td>{r.qty} {r.uom}</td><td className="whitespace-nowrap">{nf(r.counted_points)}{Number(r.cap_cut) > 0 && Number(r.points_before_cap) > 0 ? <span className="text-xs text-amber-700"> (ตัดเพดาน −{nf(r.cap_cut)})</span> : Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
         <td className="text-xs">{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
         <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span></td>
-        <td className="whitespace-nowrap space-x-1">{!readOnly && r.status === 'pending' && <button className="btn sec !py-0.5" onClick={() => beginEdit(r)}>แก้ไข</button>}
-          {!readOnly && canApprove && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => set(r.id, 'rejected')}>ไม่รับรอง</button></>}
-          {!readOnly && (canApprove || r.status === 'pending') && <button className="text-xs underline" onClick={() => del(r.id)}>ลบ</button>}</td>
+        <td className="whitespace-nowrap space-x-1">
+          {!readOnly && me && r.entered_by === me && (r.status === 'draft' || r.status === 'rejected') && <>
+            <button className="btn !py-0.5" onClick={() => submitRows([r.id])}>{r.status === 'rejected' ? 'ส่งใหม่' : 'ส่ง'}</button>
+            <button className="btn sec !py-0.5" onClick={() => beginEdit(r)}>แก้ไข</button>
+            <button className="text-xs underline text-red-700" onClick={() => del(r.id)}>ลบ</button></>}
+          {!readOnly && canApprove && r.status === 'pending' && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => { setRejecting(r); setReason('') }}>ไม่รับรอง</button></>}
+          {r.status === 'pending' && !canApprove && <span className="text-xs text-stone-500">ล็อก (รอหัวหน้า)</span>}</td>
       </tr>})}{!displayedRows.length && <tr><td colSpan={8} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
+    {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="reject-title"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-3">
+      <h3 id="reject-title" className="text-lg font-bold">ไม่รับรองรายการ</h3>
+      <p className="text-sm text-stone-700"><b>{rejecting.person_name}</b> · {formatThaiShortDate(rejecting.work_date)} · {rejecting.activity_code} {rejecting.title}</p>
+      <label className="field-label block">เหตุผลที่ไม่รับรอง (ผู้บันทึกจะเห็นข้อความนี้)<textarea className="inp mt-1 min-h-[6rem]" value={reason} onChange={e => setReason(e.target.value)} autoFocus placeholder="เช่น จำนวนไม่ตรงกับเอกสาร ไม่มีหลักฐานประกอบ" /></label>
+      <div className="flex justify-end gap-2"><button className="btn sec" onClick={() => setRejecting(null)}>ยกเลิก</button><button className="btn red" disabled={!reason.trim()} onClick={confirmReject}>ยืนยันไม่รับรอง</button></div></div></div>}
     {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="edit-log-title"><div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4">
       <div className="flex items-start justify-between gap-3 border-b pb-3"><div><h2 id="edit-log-title" className="text-lg font-bold">แก้ไขรายการที่รอรับรอง</h2><p className="text-xs text-stone-500">แก้ไขข้อมูลได้ก่อนรับรองรายการ ระบบจะคำนวณแต้มและตรวจเงื่อนไขใหม่จากข้อมูลล่าสุด</p></div><button className="btn sec" onClick={() => setEditing(null)}>ปิด</button></div>
       {editError && <p role="alert" className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">{editError}</p>}
@@ -720,7 +756,8 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
 
 function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, canPrint }: any) {
   const [printFor, setPrintFor] = useState<any>(null)
-  const [rows, reload] = useLogs(sb, month, null, unit)
+  const [rowsAll, reload] = useLogs(sb, month, null, unit)
+  const rows = useMemo(() => rowsAll.filter((r: any) => r.status !== 'draft'), [rowsAll])   // แบบร่างยังไม่ถึงหัวหน้า
   const [sel, setSel] = useState<string>('')
   const sum = useMemo(() => people.map((p: any) => {
     const rs = rows.filter((r: any) => r.person_id === p.id); const g = positions.find((x: any) => x.name === p.position)?.guarantee || 0
