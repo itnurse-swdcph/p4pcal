@@ -648,10 +648,14 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const formLineActivities = (acts || []).filter((a: any) => (a.eligible || []).includes(formLine))
   const formCategories = [...new Set(formLineActivities.map((a: any) => a.category).filter(Boolean))] as string[]
   const nextActivityCode = (selectedLine: string, selectedCategory: string, selectedDomain: string) => {
-    const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && (a.category || '') === selectedCategory && /^[A-Z]+-?\\d+$/i.test(String(a.code || '')))
+    const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && (a.category || '') === selectedCategory && /^[A-Z]+-?\d+$/i.test(String(a.code || '')))
     const domainPrefix: Record<string, string> = { 'บริหาร': 'ADM', 'บริการ': 'SVC', 'วิชาการ': 'ACD' }
     const prefix = matching.length ? String(matching[0].code).match(/^[A-Z]+/i)?.[0]?.toUpperCase() || domainPrefix[selectedDomain] || 'ACT' : domainPrefix[selectedDomain] || 'ACT'
-    const samePrefix = (acts || []).filter((a: any) => new RegExp('^' + prefix + '-?\\\\d+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const samePrefix = (acts || []).filter((a: any) => new RegExp('^' + prefix + '-?\\d+$', 'i').test(String(a.code || '')))
+    const max = samePrefix.reduce((n: number, a: any) => Math.max(n, Number(String(a.code).match(/(\d+)$/)?.[1] || 0)), 0)
+    return prefix + '-' + String(max + 1).padStart(3, '0')
+  }
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const filtered = inLine.filter((a: any) => (category === 'ทั้งหมด' || (a.category || 'อื่นๆ') === category) &&
     terms.every(t => [a.code, a.category, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
   const add = async () => {
