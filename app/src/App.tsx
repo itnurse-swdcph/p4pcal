@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { createPortal } from 'react-dom'
-import { Eye, EyeOff, Printer, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardList, LibraryBig, ClipboardCheck, Users, Wallet, Settings, LogOut, ChevronLeft, CalendarDays, Building2, Shield } from 'lucide-react'
 
 const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_publishable_8qxOgD-AHGnv9RWWAZTUQQ_I0MPIMv3' }
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ว่าที่ร้อยตรี', 'ว่าที่ร้อยตรีหญิง']
@@ -183,15 +183,27 @@ function Main({ sb, session }: any) {
   const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
   const unitOptions = role === 'head' ? units.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? units : units.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
-  return <MeCtx.Provider value={session.user.id}><div className="min-h-screen flex flex-col"><div className="flex-1 w-full px-3 sm:px-6 lg:px-10 py-3 sm:py-6 space-y-4">
-    <header className="flex flex-wrap items-center gap-3 border-b-2 border-stone-800 pb-3">
-      <div className="mr-auto"><h1 className="text-xl font-bold leading-tight">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1><p className="text-xs font-bold text-teal-800">ระบบบันทึกกิจกรรมและคำนวณแต้ม P4P</p>
-        <p className="text-sm text-stone-600">{profile.full_name || session.user.email} · <b>{ROLE_TH[role]}</b>{!isRev && units.find(u => u.id === profile.unit_id) && ` · ${units.find(u => u.id === profile.unit_id).name}`}{role === 'head' && unitOptions.length > 1 && ` (ดูแล ${unitOptions.length} หน่วยงาน)`}</p></div>
-      {(isRev || (role === 'head' && unitOptions.length > 1)) && <select className="inp !w-72" aria-label="หน่วยงาน" value={unit ?? ''} onChange={e => setUnit(e.target.value ? +e.target.value : null)}>{role === 'admin' && <option value="">เลือกหน่วยงานก่อน</option>}{unitOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>}
-      <input type="month" className="inp !w-40" value={month} onChange={e => setMonth(e.target.value)} />
-      <button className="btn sec" onClick={() => sb.auth.signOut()}>ออกจากระบบ</button>
-    </header>
-    <nav className="flex gap-1 flex-wrap">{tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={'btn ' + (cur === k ? '' : 'sec')}>{l}</button>)}</nav>
+  const [mobileNav, setMobileNav] = useState(false)
+  const [compactNav, setCompactNav] = useState(false)
+  const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings }
+  const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
+  const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
+  return <MeCtx.Provider value={session.user.id}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
+    {mobileNav && <button aria-label="ปิดเมนู" className="sidebar-scrim" onClick={() => setMobileNav(false)}/>}
+    <aside className={'app-sidebar ' + (mobileNav ? 'mobile-open' : '')}>
+      <div className="sidebar-brand"><img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/icon.png" alt="P4P" /><div className="sidebar-brand-copy"><strong>P4P Nursing</strong><span>SMART WORKFLOW</span></div><button className="sidebar-icon mobile-close" aria-label="ปิดเมนู" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
+      <div className="sidebar-org"><span className="sidebar-org-icon"><Building2 size={17}/></span><div><strong>กลุ่มการพยาบาล</strong><span>รพ.สมเด็จพระยุพราชสว่างแดนดิน</span></div></div>
+      <div className="sidebar-section-label">เมนูหลัก</div><nav className="sidebar-navigation" aria-label="เมนูหลัก">{navigation}</nav>
+      <div className="sidebar-bottom"><div className="sidebar-user"><span className="sidebar-avatar">{(profile.full_name || session.user.email || 'U').trim().charAt(0)}</span><div className="sidebar-user-copy"><strong>{profile.full_name || session.user.email}</strong><span>{ROLE_TH[role]}</span></div></div><button className="sidebar-link sidebar-logout" onClick={() => sb.auth.signOut()}><LogOut size={18}/><span>ออกจากระบบ</span></button><div className="sidebar-version">P4P · Nursing Informatics</div></div>
+      <button className="sidebar-collapse" title={compactNav ? 'ขยายเมนู' : 'ย่อเมนู'} aria-label={compactNav ? 'ขยายเมนู' : 'ย่อเมนู'} onClick={() => setCompactNav(v => !v)}><ChevronLeft size={18}/><span>{compactNav ? 'ขยายเมนู' : 'ย่อเมนู'}</span></button>
+    </aside>
+    <div className="p4p-main">
+      <header className="app-topbar"><button className="sidebar-icon menu-toggle" aria-label="เปิดเมนู" onClick={() => setMobileNav(true)}><Menu size={22}/></button><div className="topbar-heading"><span className="topbar-eyebrow">P4P NURSING SYSTEM</span><h1>{pageTitle}</h1></div><div className="topbar-actions">
+      {(isRev || (role === 'head' && unitOptions.length > 1)) && <label className="topbar-unit"><Building2 size={16}/><select className="inp" aria-label="หน่วยงาน" value={unit ?? ''} onChange={e => setUnit(e.target.value ? +e.target.value : null)}>{role === 'admin' && <option value="">เลือกหน่วยงานก่อน</option>}{unitOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>}
+      <label className="topbar-month"><CalendarDays size={17}/><input type="month" aria-label="เดือนที่แสดง" className="inp" value={month} onChange={e => setMonth(e.target.value)} /></label>
+      </div></header>
+      <main className="app-content">
+
     {tabs.length === 0 && <p>บัญชีนี้ยังไม่มีสิทธิ์ใช้งาน</p>}
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
@@ -204,8 +216,9 @@ function Main({ sb, session }: any) {
     {cur === 'settings' && <SettingsPage sb={sb} />}
     {cur === 'activities' && <ActivityLibrary myLine={positions.find((x: any) => x.name === profile.position)?.grp} seeAll={role !== 'staff'} sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
     {cur === 'audit' && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} audit />}
+      </main>
+      <footer className="app-footer">{FOOTER_TEXT}</footer>
     </div>
-    <footer className="app-footer">{FOOTER_TEXT}</footer>
   </div></MeCtx.Provider>
 }
 
