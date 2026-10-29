@@ -310,3 +310,54 @@ table.log-table.log-table-with-name th:nth-child(3),
 table.log-table.log-table-with-name td:nth-child(3) { width: 30%; }
 table.log-table th:first-child,
 table.log-table td:first-child { width: 12%; }
+
+
+/* ===== Responsive containment: controls must stay inside their cards and tables ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { width: 100%; max-width: 100%; min-width: 0; }
+body { overflow-x: hidden; }
+main, section, article, aside, .card, [role="dialog"], [role="tabpanel"] { min-width: 0; max-width: 100%; }
+.card, [role="dialog"] { overflow-wrap: anywhere; }
+button, .btn, input, select, textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+button, .btn {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.35;
+}
+.card .flex, [role="dialog"] .flex { min-width: 0; }
+.card .flex.justify-end, [role="dialog"] .flex.justify-end,
+.card .flex.items-center.gap-2, .card .flex.items-center.gap-3,
+.card .flex.gap-2, .card .flex.gap-3,
+[role="dialog"] .flex.gap-2, [role="dialog"] .flex.gap-3 {
+  flex-wrap: wrap;
+}
+table:not(.pt) { border-collapse: collapse; }
+table:not(.pt) td, table:not(.pt) th { min-width: 0; overflow-wrap: anywhere; }
+table:not(.pt) td:last-child { white-space: normal !important; }
+table:not(.pt) td button, table:not(.pt) td .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin: .12rem .08rem;
+  white-space: normal;
+  max-width: 100%;
+}
+table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
+@media (max-width: 760px) {
+  .card { padding-left: min(.85rem, 3vw); padding-right: min(.85rem, 3vw); }
+  .card .flex.justify-between, [role="dialog"] .flex.justify-between { flex-wrap: wrap; }
+  .card .flex > button, .card .flex > .btn, [role="dialog"] .flex > button, [role="dialog"] .flex > .btn { flex-shrink: 1; }
+  table:not(.pt) { font-size: .74rem; }
+  table:not(.pt) td button, table:not(.pt) td .btn { padding: .3rem .4rem; font-size: .7rem; }
+}
+@media (max-width: 420px) {
+  .app-content { padding: .5rem; }
+  .card { padding: .65rem; }
+  .btn { padding: .45rem .55rem; font-size: .78rem; }
+  table:not(.pt) th, table:not(.pt) td { padding: .32rem .2rem; }
+}
