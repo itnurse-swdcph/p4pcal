@@ -349,7 +349,7 @@ function Main({ sb, session }: any) {
         </div>
         <p className="text-xs text-stone-600">{role === 'admin' ? 'ผู้ดูแลระบบสามารถเลือกหน่วยงานได้ทั้งหมด' : 'แสดงเฉพาะหน่วยงานที่บัญชีของคุณได้รับมอบหมายให้รับผิดชอบ'}</p>
       </div>
-      {reviewGroup && (unit != null || cur === 'review') ? (unit != null ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'review' ? <GroupHeadsReport sb={sb} groupName={reviewGroup} people={scope} month={month} positions={positions} units={units} /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกหน่วยงานเพื่อรับรองกิจกรรม</div>) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
+      {reviewGroup && (unit != null || cur === 'review') ? (unit != null ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'review' ? <GroupHeadsReport sb={sb} groupName={reviewGroup} people={scope} allPeople={people} month={month} positions={positions} units={units} /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกหน่วยงานเพื่อรับรองกิจกรรม</div>) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
     </div>}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
@@ -1210,7 +1210,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   </div>
 }
 
-function GroupHeadsReport({ sb, groupName, people = [], month, positions = [], units = [] }: any) {
+function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, positions = [], units = [] }: any) {
   const [heads, setHeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [printFor, setPrintFor] = useState<any>(null)
@@ -1227,7 +1227,8 @@ function GroupHeadsReport({ sb, groupName, people = [], month, positions = [], u
         .filter((p: any) => String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))
         .map((p: any) => {
           const displayName = p.full_name || `${p.prefix || ''}${p.first_name || ''} ${p.last_name || ''}`.trim()
-          const linked = (people || []).find((x: any) => (p.person_id && x.id === p.person_id) || (p.source_row != null && Number(x.staff_directory_id) === Number(p.source_row)) || String(x.name || '').trim() === String(displayName || '').trim())
+          const personRecords = [...(allPeople || []), ...(people || [])].filter((x: any, i: number, a: any[]) => a.findIndex((y: any) => y.id === x.id) === i)
+          const linked = personRecords.find((x: any) => (p.person_id && x.id === p.person_id) || (p.source_row != null && Number(x.staff_directory_id) === Number(p.source_row)) || String(x.name || '').trim() === String(displayName || '').trim())
           return { ...linked, ...p, id: linked?.id || p.person_id || (p.source_row != null ? `dir:${p.source_row}` : displayName), name: displayName || linked?.name, displayName, group_name: groupName, staff_directory_id: p.source_row ?? linked?.staff_directory_id, unit_id: linked?.unit_id ?? p.unit_id ?? null, position: p.position || linked?.position, org_role: p.org_role || linked?.org_role, active: p.active !== false }
         })
         .filter((p: any) => p.displayName)
@@ -1236,7 +1237,7 @@ function GroupHeadsReport({ sb, groupName, people = [], month, positions = [], u
       setLoading(false)
     })
     return () => { alive = false }
-  }, [sb, groupName, people])
+  }, [sb, groupName, people, allPeople])
   useEffect(() => {
     let alive = true
     const groupUnitIds = (units || []).filter((u: any) => String(u.parent_group || '').trim() === String(groupName || '').trim()).map((u: any) => Number(u.id)).filter(Number.isFinite)
