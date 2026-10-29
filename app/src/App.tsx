@@ -966,9 +966,19 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     const signerLookup = parentGroup
       ? sb.rpc('directory_group_staff', { p_group_name: parentGroup })
       : sb.rpc('directory_staff', { p_unit_name: unitName })
-    signerLookup.then(({ data, error }: any) => {
+    // โหลดหัวหน้าทุกหน่วย/กลุ่มจากทะเบียนกลางด้วย เพื่อให้ลงนามได้แม้ผู้รับผิดชอบหลักอยู่อีกหน่วยหรืออีกกลุ่ม
+    const allLeadersLookup = sb.from('staff_directory')
+      .select('source_row,prefix,first_name,last_name,position,org_role,unit_name,extra_unit_names,nursing_group,extra_nursing_group_names,active')
+      .eq('active', true)
+      .or('org_role.ilike.%หัวหน้างาน%,org_role.ilike.%หัวหน้ากลุ่มงาน%')
+    Promise.all([signerLookup, allLeadersLookup]).then(([groupResult, leadersResult]: any[]) => {
       if (!alive) return
-      setSignaturePeople(!error && Array.isArray(data) ? data : [])
+      const local = !groupResult.error && Array.isArray(groupResult.data) ? groupResult.data : []
+      const leaders = !leadersResult.error && Array.isArray(leadersResult.data) ? leadersResult.data : []
+      const merged = [...local, ...leaders]
+      setSignaturePeople(merged.filter((d: any, i: number, a: any[]) =>
+        a.findIndex((x: any) => Number(x.source_row) === Number(d.source_row)) === i
+      ))
     })
     sb.from('staff_directory').select('prefix,first_name,last_name,position,org_role,unit_name').eq('active', true).or('org_role.ilike.%รักษาการหัวหน้าภารกิจด้านการพยาบาล%,org_role.ilike.%รักษาการหัวหน้าพยาบาล%').limit(20).then(({ data, error }: any) => {
       if (!alive || error || !Array.isArray(data)) return
