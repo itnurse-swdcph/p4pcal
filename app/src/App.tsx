@@ -257,6 +257,63 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
   </div>
 }
 
+
+function GroupOverview({ sb, people, units, groupName, month, positions }: any) {
+  const groupUnits = (units || []).filter((u: any) => String(u.parent_group || '').trim() === groupName)
+  const unitIds = groupUnits.map((u: any) => Number(u.id))
+  const [rows, reload] = useLogs(sb, month, null, unitIds)
+  const [directoryRoster, setDirectoryRoster] = useState<any[]>([])
+  const [rates, setRates] = useState<Record<number, number>>({})
+  const [selected, setSelected] = useState<string[]>([])
+  const [selectionMode, setSelectionMode] = useState('all')
+  useEffect(() => {
+    let alive = true
+    Promise.all(groupUnits.map(async (u: any) => {
+      const { data } = await sb.rpc('directory_staff', { p_unit_name: u.name })
+      return (Array.isArray(data) ? data : []).filter((d: any) => d.active !== false).map((d: any) => ({
+        id: d.person_id || 'dir:' + d.source_row, staff_directory_id: d.source_row, directory_source_row: d.source_row,
+        name: String(d.full_name || ((d.prefix || '') + (d.first_name || '') + ' ' + (d.last_name || ''))).trim(),
+        position: d.position || '', org_role: d.org_role || '', unit_id: Number(u.id), unit_name: u.name, fromDirectory: true
+      }))
+    })).then((all: any[]) => { if (alive) setDirectoryRoster(all.flat()) })
+    Promise.all(groupUnits.map(async (u: any) => {
+      const { data } = await sb.from('unit_settings').select('unit_id,baht_per_point').eq('unit_id', u.id).eq('month', month + '-01').maybeSingle()
+      return [Number(u.id), Number(data?.baht_per_point || 0)]
+    })).then((all: any[]) => { if (alive) setRates(Object.fromEntries(all)) })
+    return () => { alive = false }
+  }, [sb, groupName, month, units])
+  const roster = useMemo(() => {
+    const base = (people || []).filter((p: any) => unitIds.includes(Number(p.unit_id))).map((p: any) => ({ ...p, unit_name: groupUnits.find((u: any) => Number(u.id) === Number(p.unit_id))?.name }))
+    for (const d of directoryRoster) {
+      const match = base.some((p: any) => (d.staff_directory_id && Number(p.staff_directory_id) === Number(d.staff_directory_id)) || String(p.name || '').trim() === d.name)
+      if (!match) base.push(d)
+    }
+    return base.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
+  }, [people, directoryRoster, groupName, units])
+  const summary = useMemo(() => roster.map((p: any, i: number) => {
+    const ownRows = rows.filter((r: any) => String(r.person_id) === String(p.id))
+    const approved = ownRows.filter((r: any) => r.status === 'approved')
+    const points = approved.reduce((v: number, r: any) => v + Number(r.counted_points || 0), 0)
+    const guarantee = guaranteeForPosition(p.position, positions, p.org_role)
+    const excess = Math.max(0, points - guarantee)
+    const rate = Number(rates[Number(p.unit_id)] || 0)
+    return { p, order: i + 1, guarantee, points, excess, rate, payout: excess * rate, pending: ownRows.filter((r: any) => r.status === 'pending').length }
+  }), [roster, rows, positions, rates])
+  const printRows = selectionMode === 'selected' ? summary.filter((x: any) => selected.includes(String(x.p.id))) : summary
+  const total = (k: string) => printRows.reduce((n: number, x: any) => n + Number(x[k] || 0), 0)
+  const print = () => { document.body.classList.add('print-group-overview'); window.print(); window.setTimeout(() => document.body.classList.remove('print-group-overview'), 1000) }
+  return <div className="space-y-3">
+    <div className="card flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">รายงานภาพรวมกลุ่มงาน: {groupName}</h2><p className="text-sm text-stone-600">รวม {groupUnits.length} หน่วยงานย่อย · บุคลากร {roster.length} ราย · เดือน {month}</p></div><div className="flex gap-2 no-print"><button className="btn sec" onClick={reload}>รีเฟรช</button><button className="btn" onClick={print}>พิมพ์รายงาน</button></div></div>
+    <div className="card space-y-3 no-print">
+      <label className="block space-y-1"><span className="field-label">รายชื่อที่จะพิมพ์</span><select className="inp w-full" value={selectionMode} onChange={e => setSelectionMode(e.target.value)}><option value="all">พิมพ์รายชื่อทั้งหมด</option><option value="selected">พิมพ์เฉพาะรายชื่อที่เลือก</option></select></label>
+      {selectionMode === 'selected' && <div className="max-h-56 overflow-auto grid sm:grid-cols-2 gap-2">{summary.map((x: any) => <label key={x.p.id} className="flex gap-2 items-center"><input type="checkbox" checked={selected.includes(String(x.p.id))} onChange={e => setSelected(prev => e.target.checked ? [...prev, String(x.p.id)] : prev.filter(id => id !== String(x.p.id)))} />{x.p.name}<span className="text-xs text-stone-500">({x.p.unit_name || groupUnits.find((u: any) => Number(u.id) === Number(x.p.unit_id))?.name || '—'})</span></label>)}</div>}
+      <p className="text-xs text-stone-500">ยอดรวมในรายงานที่พิมพ์จะคำนวณจากรายชื่อที่เลือก หากเลือกโหมดเฉพาะรายชื่อ</p>
+    </div>
+    <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>หน่วยงาน</th><th>แต้มประกัน</th><th>แต้มรับรองแล้ว</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมเงิน</th></tr></thead><tbody>{summary.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td>{x.p.name}</td><td>{x.p.unit_name || groupUnits.find((u: any) => Number(u.id) === Number(x.p.unit_id))?.name || '—'}</td><td>{nf(x.guarantee, 0)}</td><td>{nf(x.points)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}<tr className="font-bold"><td colSpan={3}>รวมภาพรวมกลุ่มงาน</td><td>{nf(total('guarantee'), 0)}</td><td>{nf(total('points'))}</td><td>{nf(total('excess'))}</td><td>—</td><td>{nf(total('payout'))} บาท</td></tr></tbody></table></div>
+    <div className="hidden print:block"><h2>รายงานภาพรวมกลุ่มงาน {groupName} ประจำเดือน {month}</h2><table className="w-full border-collapse"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>หน่วยงาน</th><th>แต้มประกัน</th><th>แต้มรับรองแล้ว</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมเงิน</th></tr></thead><tbody>{printRows.map((x: any, i: number) => <tr key={x.p.id}><td>{i + 1}</td><td>{x.p.name}</td><td>{x.p.unit_name || groupUnits.find((u: any) => Number(u.id) === Number(x.p.unit_id))?.name || '—'}</td><td>{nf(x.guarantee, 0)}</td><td>{nf(x.points)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)}</td><td>{nf(x.payout)}</td></tr>)}<tr><td colSpan={3}>รวมตามรายชื่อที่พิมพ์</td><td>{total('guarantee')}</td><td>{total('points')}</td><td>{total('excess')}</td><td>—</td><td>{total('payout')}</td></tr></tbody></table></div>
+  </div>
+}
+
 function Main({ sb, session }: any) {
   const [profile, setProfile] = useState<any>(null); const [noProfile, setNoProfile] = useState(false)
   const [people, setPeople] = useState<any[]>([]); const [acts, setActs] = useState<any[]>([]); const [units, setUnits] = useState<any[]>([])
@@ -306,6 +363,10 @@ function Main({ sb, session }: any) {
   })
     .slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
   const unitOptions = role === 'head' ? directoryUnits.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
+  const canGroupOverview = role === 'admin' || myLevel >= 2 || String(profile.org_role || '').includes('หัวหน้ากลุ่มงาน') || String(profile.position || '').includes('รักษาการหัวหน้าพยาบาล') || String(profile.position || '').includes('รักษาการหัวหน้าภารกิจด้านการพยาบาล')
+  const allGroups = [...new Set(directoryUnits.map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th'))
+  const myGroupNames = [profile.nursing_group, profile.staff_group, ...String(profile.extra_nursing_group_names || '').split(/[,;|]/)].map((x: any) => String(x || '').trim()).filter(Boolean)
+  const visibleGroups = role === 'admin' || myLevel >= 3 ? allGroups : allGroups.filter(g => myGroupNames.includes(g) || unitOptions.some((u: any) => String(u.parent_group || '').trim() === g))
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
@@ -337,19 +398,19 @@ function Main({ sb, session }: any) {
           <label className="block space-y-1"><span className="field-label">กลุ่มงาน</span>
             <select className="inp w-full" value={reviewGroup} onChange={e => { const g = e.target.value; setReviewGroup(g); const matches = unitOptions.filter((u: any) => String(u.parent_group || '').trim() === g); setUnit(matches.length === 1 ? Number(matches[0].id) : null) }}>
               <option value="">เลือกกลุ่มงาน</option>
-              {[...new Set(unitOptions.map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')).map((g: string) => <option key={g} value={g}>{g}</option>)}
+              {(cur === 'review' && canGroupOverview ? visibleGroups : [...new Set(unitOptions.map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th'))).map((g: string) => <option key={g} value={g}>{g}</option>)}
             </select>
           </label>
-          <label className="block space-y-1"><span className="field-label">หน่วยงาน</span>
+          {!(cur === 'review' && canGroupOverview) && <label className="block space-y-1"><span className="field-label">หน่วยงาน</span>
             <select className="inp w-full" value={unit ?? ''} disabled={!reviewGroup} onChange={e => setUnit(e.target.value ? Number(e.target.value) : null)}>
               <option value="">{reviewGroup ? 'เลือกหน่วยงาน' : 'กรุณาเลือกกลุ่มงานก่อน'}</option>
               {unitOptions.filter((u: any) => String(u.parent_group || '').trim() === reviewGroup).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
-          </label>
+          </label>}
         </div>
-        <p className="text-xs text-stone-600">{role === 'admin' ? 'ผู้ดูแลระบบสามารถเลือกหน่วยงานได้ทั้งหมด' : 'แสดงเฉพาะหน่วยงานที่บัญชีของคุณได้รับมอบหมายให้รับผิดชอบ'}</p>
+        <p className="text-xs text-stone-600">{cur === 'review' && canGroupOverview ? 'รายงานภาพรวมรวมทุกหน่วยงานย่อยในกลุ่มงานที่เลือก' : 'การรับรองยังใช้ลำดับและขอบเขตสิทธิ์เดิม'}</p>
       </div>
-      {unit && reviewGroup ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานและหน่วยงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
+      {cur === 'review' && canGroupOverview && reviewGroup ? <GroupOverview units={units} sb={sb} people={people} groupName={reviewGroup} month={month} positions={positions} /> : unit && reviewGroup ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานและหน่วยงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
     </div>}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
