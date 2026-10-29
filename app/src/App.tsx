@@ -796,7 +796,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet">
-      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th colSpan={5} className="ps-repeat-heading"><div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div><h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1><div className="ps-top"><div className="ps-info"><div><b>ชื่อ-สกุล</b> {person.name}</div><div><b>ตำแหน่ง</b> {person.position}</div><div><b>หน่วยงาน/งาน</b> {unit?.name || '-'}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div><div><b>เดือน</b> {monthText}</div></div><table className="pt ps-sum"><thead><tr><th>รายการสรุป</th><th>จำนวน</th></tr></thead><tbody><tr><td>แต้มประกัน/เดือน</td><td className="r">{nf(guarantee, 0)}</td></tr><tr><td>แต้มการปฏิบัติงาน</td><td className="r">{nf(total)}</td></tr><tr><td>แต้มส่วนต่าง</td><td className="r">{nf(excess)}</td></tr><tr><td>อัตราเงินเพิ่ม</td><td className="r">{nf(unitRate)} บาท/แต้ม</td></tr><tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{nf(payout)} บาท</td></tr></tbody></table></div></th></tr><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
+      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th colSpan={5} className="ps-repeat-heading"><div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div><h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1><div className="ps-top"><div className="ps-info"><div><b>ชื่อ-สกุล</b> {person.name}</div><div><b>ตำแหน่ง</b> {person.position}</div><div><b>หน่วยงาน/งาน</b> {unit?.name || (String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? (person.group_name || person.nursing_group || person.extra_nursing_group_names || '-') : '- ')}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div><div><b>เดือน</b> {monthText}</div></div><table className="pt ps-sum"><thead><tr><th>รายการสรุป</th><th>จำนวน</th></tr></thead><tbody><tr><td>แต้มประกัน/เดือน</td><td className="r">{nf(guarantee, 0)}</td></tr><tr><td>แต้มการปฏิบัติงาน</td><td className="r">{nf(total)}</td></tr><tr><td>แต้มส่วนต่าง</td><td className="r">{nf(excess)}</td></tr><tr><td>อัตราเงินเพิ่ม</td><td className="r">{nf(unitRate)} บาท/แต้ม</td></tr><tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{nf(payout)} บาท</td></tr></tbody></table></div></th></tr><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
         <tbody>{activityRows.map((item: any) => item.type === 'domain'
           ? <tr key={item.key} className="ps-domain-row"><th colSpan={5}>{item.domain}</th></tr>
           : <tr key={item.key}><td className="nw">{item.code}</td><td className="ps-activity-name">{item.title}</td><td className="c">{item.uom || '—'}</td><td className="r">{n2(item.qty)}</td><td className="r">{nf(item.pts)}</td></tr>)}
@@ -1210,23 +1210,79 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   </div>
 }
 
-function GroupHeadsReport({ sb, groupName }: any) {
+function GroupHeadsReport({ sb, groupName, people = [], month, positions = [], units = [] }: any) {
   const [heads, setHeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [printFor, setPrintFor] = useState<any>(null)
+  const [printReport, setPrintReport] = useState(false)
+  const [rates, setRates] = useState<Record<string, number>>({})
+  const [rowsAll, reload] = useLogs(sb, month, null, null)
   useEffect(() => {
     let alive = true
     setLoading(true)
     sb.rpc('directory_group_staff', { p_group_name: groupName }).then(({ data, error }: any) => {
       if (!alive) return
       if (error) { console.error('โหลดหัวหน้ากลุ่มงานไม่สำเร็จ', error); setHeads([]) }
-      else setHeads((Array.isArray(data) ? data : []).filter((p: any) => String(p.org_role || '').includes('หัวหน้ากลุ่มงาน')).map((p: any) => ({ ...p, displayName: p.full_name || `${p.prefix || ''}${p.first_name || ''} ${p.last_name || ''}`.trim() })).filter((p: any) => p.displayName).filter((p: any, i: number, a: any[]) => a.findIndex((x: any) => x.displayName === p.displayName) === i).sort((a: any, b: any) => a.displayName.localeCompare(b.displayName, 'th')))
+      else setHeads((Array.isArray(data) ? data : [])
+        .filter((p: any) => String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))
+        .map((p: any) => {
+          const displayName = p.full_name || `${p.prefix || ''}${p.first_name || ''} ${p.last_name || ''}`.trim()
+          const linked = (people || []).find((x: any) => (p.person_id && x.id === p.person_id) || (p.source_row != null && Number(x.staff_directory_id) === Number(p.source_row)) || String(x.name || '').trim() === String(displayName || '').trim())
+          return { ...linked, ...p, id: linked?.id || p.person_id || (p.source_row != null ? `dir:${p.source_row}` : displayName), name: displayName || linked?.name, displayName, group_name: groupName, staff_directory_id: p.source_row ?? linked?.staff_directory_id, unit_id: linked?.unit_id ?? p.unit_id ?? null, position: p.position || linked?.position, org_role: p.org_role || linked?.org_role, active: p.active !== false }
+        })
+        .filter((p: any) => p.displayName)
+        .filter((p: any, i: number, a: any[]) => a.findIndex((x: any) => x.displayName === p.displayName) === i)
+        .sort((a: any, b: any) => a.displayName.localeCompare(b.displayName, 'th')))
       setLoading(false)
     })
     return () => { alive = false }
-  }, [sb, groupName])
+  }, [sb, groupName, people])
+  useEffect(() => {
+    let alive = true
+    const groupUnitIds = (units || []).filter((u: any) => String(u.parent_group || '').trim() === String(groupName || '').trim()).map((u: any) => Number(u.id)).filter(Number.isFinite)
+    if (!groupUnitIds.length || !month) { setRates({}); return }
+    sb.from('unit_settings').select('unit_id,baht_per_point').in('unit_id', groupUnitIds).eq('month', month + '-01').then(({ data, error }: any) => {
+      if (!alive) return
+      if (error) { console.error('โหลดอัตราเงินเพิ่มของกลุ่มงานไม่สำเร็จ', error); setRates({}); return }
+      setRates(Object.fromEntries((data || []).map((x: any) => [String(x.unit_id), Number(x.baht_per_point || 0)])))
+    })
+    return () => { alive = false }
+  }, [sb, groupName, month, units])
+  const monthText = month ? new Date(month + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : ''
+  const groupRate = Object.values(rates).find((n: number) => Number.isFinite(n)) || 0
+  const sum = useMemo(() => heads.map((p: any, index: number) => {
+    const rs = rowsAll.filter((r: any) => r.person_id === p.id || (p.person_id && r.person_id === p.person_id))
+    const approved = rs.filter((r: any) => r.status === 'approved')
+    const g = guaranteeForPosition(p.position, positions, p.org_role)
+    const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
+    const excess = Math.max(0, workPoints - g)
+    const rate = p.unit_id != null && rates[String(p.unit_id)] != null ? rates[String(p.unit_id)] : groupRate
+    return { p, order: index + 1, g, workPoints, excess, rate, payout: excess * rate, rs }
+  }), [heads, rowsAll, positions, rates, groupRate])
+  useEffect(() => {
+    if (!printReport) return
+    const afterPrint = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
+    window.addEventListener('afterprint', afterPrint)
+    return () => window.removeEventListener('afterprint', afterPrint)
+  }, [printReport])
+  const openPrintReport = () => {
+    if (!sum.length) { alert('ไม่พบข้อมูลรายงานของกลุ่มงาน'); return }
+    document.body.classList.remove('print-unit-report', 'print-individual-report', 'unit-report-preview-open')
+    document.body.classList.add('unit-report-preview-open')
+    setPrintReport(true)
+  }
+  const startPrintReport = () => {
+    document.body.classList.remove('unit-report-preview-open', 'print-individual-report')
+    document.body.classList.add('print-unit-report')
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()))
+  }
+  const closePrintReport = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
   return <div className="card space-y-3">
-    <div><h2 className="text-lg font-bold">สรุปรายงานหน่วยงาน · {groupName}</h2><p className="text-sm text-stone-600">แสดงเฉพาะรายชื่อหัวหน้ากลุ่มงาน โดยไม่รวมบุคลากรของหน่วยงานย่อย</p></div>
-    {loading ? <p className="text-sm text-stone-500">กำลังโหลดรายชื่อ…</p> : heads.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th className="text-left p-2">ลำดับ</th><th className="text-left p-2">ชื่อ–นามสกุล</th><th className="text-left p-2">ตำแหน่ง</th><th className="text-left p-2">กลุ่มงาน</th></tr></thead><tbody>{heads.map((p: any, i: number) => <tr key={p.source_row || p.displayName} className="border-t"><td className="p-2">{i + 1}</td><td className="p-2 font-medium">{p.displayName}</td><td className="p-2">{p.position || '—'}</td><td className="p-2">{groupName}</td></tr>)}</tbody></table></div> : <p className="text-sm text-stone-600">ไม่พบรายชื่อหัวหน้ากลุ่มงานในกลุ่มงานนี้</p>}
+    <div><h2 className="text-lg font-bold">สรุปรายงานหน่วยงาน · {groupName}</h2><p className="text-sm text-stone-600">แสดงเฉพาะรายชื่อหัวหน้ากลุ่มงาน โดยไม่รวมบุคลากรของหน่วยงานย่อย · ประจำเดือน {monthText}</p></div>
+    <div className="flex flex-wrap gap-2"><button type="button" className="btn" onClick={openPrintReport} disabled={loading || !sum.length}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์รายงานกลุ่มงาน</button></div>
+    {loading ? <p className="text-sm text-stone-500">กำลังโหลดรายชื่อ…</p> : sum.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th className="p-2">ลำดับ</th><th className="p-2 text-left">ชื่อ-สกุล</th><th className="p-2 text-left">ตำแหน่ง</th><th className="p-2">แต้มประกัน/เดือน</th><th className="p-2">แต้มการปฏิบัติงาน</th><th className="p-2">แต้มส่วนต่าง</th><th className="p-2">อัตราเงินเพิ่ม</th><th className="p-2">รวมจำนวนเงินที่ได้รับ</th></tr></thead><tbody>{sum.map((x: any) => <tr key={x.p.id} className="border-t"><td className="p-2 text-center">{x.order}</td><td className="p-2"><b>{x.p.displayName}</b><div><button type="button" className="btn sec !py-0.5 !px-2 !text-xs no-print" onClick={() => setPrintFor(x.p)}>ดูตัวอย่าง/พิมพ์รายบุคคล</button></div></td><td className="p-2">{x.p.position || '—'}</td><td className="p-2 text-center">{nf(x.g, 0)}</td><td className="p-2 text-center">{nf(x.workPoints)}</td><td className="p-2 text-center">{nf(x.excess)}</td><td className="p-2 text-center">{nf(x.rate)} บาท/แต้ม</td><td className="p-2 text-center font-semibold">{nf(x.payout)} บาท</td></tr>)}<tr className="border-t font-bold"><td colSpan={3} className="p-2">รวมกลุ่มงาน</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.g, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.workPoints, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.excess, 0))}</td><td className="p-2 text-center">—</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.payout, 0))} บาท</td></tr></tbody></table></div> : <p className="text-sm text-stone-600">ไม่พบรายชื่อหัวหน้ากลุ่มงานในกลุ่มงานนี้</p>}
+    {printReport && createPortal(<div className="unit-report-print"><div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์</span><button type="button" className="btn" onClick={startPrintReport}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={closePrintReport}>ปิด</button></div><table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">กลุ่มงาน {groupName}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead><tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td>{x.p.displayName}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}<tr className="unit-report-total"><td colSpan={3}>รวมกลุ่มงาน</td><td>{nf(sum.reduce((a: number, x: any) => a + x.g, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.workPoints, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((a: number, x: any) => a + x.payout, 0))} บาท</td></tr></tbody></table></div>, document.body)}
+    {printFor && <PrintSheet sb={sb} person={printFor} rows={rowsAll.filter((r: any) => r.person_id === printFor.id || (printFor.person_id && r.person_id === printFor.person_id))} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
   </div>
 }
 
