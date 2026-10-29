@@ -300,3 +300,13 @@ select.inp { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://w
   .activity-entry-card { padding: .9rem; }
   .activity-entry-card .act-list { max-height: 16rem; }
 }
+
+
+/* Give the activity description column more room so long activity names wrap less. */
+table.log-table { table-layout: fixed; }
+table.log-table:not(.log-table-with-name) th:nth-child(2),
+table.log-table:not(.log-table-with-name) td:nth-child(2) { width: 34%; }
+table.log-table.log-table-with-name th:nth-child(3),
+table.log-table.log-table-with-name td:nth-child(3) { width: 30%; }
+table.log-table th:first-child,
+table.log-table td:first-child { width: 12%; }
