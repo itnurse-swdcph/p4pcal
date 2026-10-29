@@ -999,22 +999,39 @@ function PayGroupsCard({ sb }: any) {
   const [gs, setGs] = useState<any[]>([]); const [pos, setPos] = useState<any[]>([]); const [msg, setMsg] = useState('')
   const load = () => { sb.from('pay_groups').select('*').order('id').then((r: any) => setGs(r.data || [])); sb.from('positions').select('name,pay_group,grp,rate,guarantee').order('pay_group').then((r: any) => setPos(r.data || [])) }
   useEffect(load, [])
-  const fields: [string, string][] = [['rate', 'แต้ม/นาที'], ['guarantee', 'แต้มประกันกลุ่ม'], ['cap_mult', 'เพดาน (เท่า)'], ['full_amount', 'ยอดต่อคน (บาท)'], ['reserve_pct', 'เงินกันเฉลี่ยคืน %']]
+  const fields: [string, string][] = [['rate', 'แต้ม/นาที'], ['guarantee', 'แต้มประกัน'], ['cap_mult', 'เพดาน (เท่า)'], ['full_amount', 'ยอดจัดสรรต่อคน (บาท)'], ['reserve_pct', 'เงินกันเฉลี่ยคืน %']]
   const set = (id: number, k: string, v: string) => setGs(x => x.map(g => g.id === id ? { ...g, [k]: v } : g))
   const save = async (g: any) => {
-    const body: any = {}; for (const [k] of fields) { const v = Number(g[k]); if (!(v > 0)) { setMsg(`กลุ่ม ${g.id}: ค่า "${fields.find(f => f[0] === k)![1]}" ต้องมากกว่า 0`); return } body[k] = v }
+    const body: any = {}
+    for (const [k] of fields) { const v = Number(g[k]); if (!(v > 0)) { setMsg(`กลุ่ม ${g.id}: ค่า "${fields.find(f => f[0] === k)![1]}" ต้องมากกว่า 0`); return } body[k] = v }
+    if (g.id === 1) body.fixed_pay = Math.round(Number(g.full_amount) * 0.77 * 100) / 100
     const { error } = await sb.from('pay_groups').update(body).eq('id', g.id)
     setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `บันทึกกลุ่ม ${g.id} แล้ว`); load()
   }
   const setPosLine = async (name: string, grp: string) => { const { error } = await sb.from('positions').update({ grp }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `กำหนดชุดกิจกรรมของ "${name}" เป็น ${grp} แล้ว`); load() }
   const setPosGroup = async (name: string, id: number) => { const { error } = await sb.from('positions').update({ pay_group: id }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `ย้าย "${name}" ไปกลุ่ม ${id} แล้ว`); load() }
-  const derived = (g: any) => { const F = Number(g.full_amount), q = 0, a = F, r = Math.round(a * Number(g.reserve_pct)) / 100; return { q, a, r: Math.round(r * 100) / 100, s: a - Math.round(r * 100) / 100 } }
+  const groupOneRows = [
+    { label: 'พยาบาลวิชาชีพ หัวหน้ากลุ่มงาน', guarantee: 960, key: 'leader' },
+    { label: 'พยาบาลวิชาชีพหัวหน้างาน', guarantee: 1080, key: 'supervisor' },
+    { label: 'พยาบาลวิชาชีพ ผู้ปฏิบัติ', guarantee: 1200, key: 'staff' },
+  ]
+  const minimumPay = (g: any, guarantee = Number(g.guarantee)) => Number((Number(g.full_amount) * (Number(g.guarantee) > guarantee ? 0.77 : 0.77)).toFixed(2))
   return <div className="card xl:col-span-2 space-y-3">
-    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">กำหนดยอดต่อคนและเกณฑ์แต้มประกันของกลุ่ม เงินจ่ายพื้นฐาน 77% เมื่อแต้มต่ำกว่าเกณฑ์ และ 97% เมื่อแต้มถึงเกณฑ์ หัวหน้ากลุ่มงานใช้เกณฑ์ 960 แต้ม และหัวหน้างาน 1,080 แต้ม</p></div>
-    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่ม</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>ส่วนกิจกรรม / เงินกัน / ส่วนตามคะแนน</th><th></th></tr></thead>
-      <tbody>{gs.map(g => { const d = derived(g); return <tr key={g.id}><td className="min-w-[14rem]"><b>{g.name}</b></td>
-        {fields.map(([k]) => <td key={k}><input className="inp !w-24" inputMode="decimal" value={g[k]} onChange={e => set(g.id, k, e.target.value)} /></td>)}
-        <td className="text-xs whitespace-nowrap">{nf(d.q)} / {nf(d.a)} / {nf(d.r)} / {nf(d.s)}</td><td><button className="btn" onClick={() => save(g)}>บันทึก</button></td></tr> })}</tbody></table></div>
+    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ยอดจ่ายขั้นต่ำ = 77% ของยอดจัดสรรต่อคน เมื่อคะแนนต่ำกว่าแต้มประกัน · เมื่อคะแนนถึงเกณฑ์จ่าย 97% · เงินกันเฉลี่ยคืน 3% และยกเลิกการกันเงินคุณภาพ</p></div>
+    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ / ประเภทบุคลากร</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>เงินจ่ายขั้นต่ำ (บาท)</th><th></th></tr></thead>
+      <tbody>{gs.map(g => {
+        const rows = g.id === 1 ? groupOneRows : [{ label: g.name, guarantee: Number(g.guarantee), key: 'group' }]
+        return rows.map((row, idx) => <tr key={`${g.id}-${row.key}`}>
+          <td className="min-w-[16rem]"><b>{row.label}</b>{g.id === 1 && <div className="text-xs text-stone-500">กลุ่ม 1 พยาบาลวิชาชีพ</div>}</td>
+          <td>{nf(g.rate, 3)}</td>
+          <td>{nf(row.guarantee, 0)}</td>
+          <td>{nf(g.cap_mult, 2)}</td>
+          <td>{nf(g.full_amount)}</td>
+          <td>{nf(g.reserve_pct, 0)}%</td>
+          <td className="font-semibold whitespace-nowrap">{nf(Number(g.full_amount) * 0.77)}</td>
+          <td>{idx === 0 && <button className="btn" onClick={() => save(g)}>บันทึก</button>}</td>
+        </tr>)
+      })}</tbody></table></div>
     {msg && <p role="status" className="text-sm text-teal-900">{msg}</p>}
     <details><summary className="cursor-pointer text-sm font-bold">ตำแหน่ง: กลุ่มวิชาชีพ และชุดกิจกรรมที่บันทึกได้</summary>
       <div className="grid sm:grid-cols-2 gap-2 mt-2">{pos.map(x => <label key={x.name} className="flex items-center gap-2 text-sm"><span className="flex-1">{x.name}</span>
@@ -1022,62 +1039,6 @@ function PayGroupsCard({ sb }: any) {
         <select className="inp !w-56" aria-label="ชุดกิจกรรม" value={x.grp} onChange={e => setPosLine(x.name, e.target.value)}>{[...LINE_ORDER, NO_LINE].map(l => <option key={l} value={l}>{LINE_LABEL[l] || l}</option>)}</select></label>)}</div></details>
   </div>
 }
-
-// จ่ายเงิน P4P (กรรมการ/แอดมิน): คำนวณรายกลุ่มวิชาชีพทั้งโรงพยาบาล ตามข้อ 3–5 ของหลักเกณฑ์
-function PayoutPage({ sb, month, isAdmin }: any) {
-  const [data, setData] = useState<any>(null); const [err, setErr] = useState(''); const [n, setN] = useState(0); const [grp, setGrp] = useState(0); const [busy, setBusy] = useState(false)
-  const m1 = month + '-01'
-  useEffect(() => {
-    let alive = true; setErr('')
-    sb.rpc('p4p_calc', { p_month: m1 }).then((r: any) => {
-      if (!alive) return
-      if (r.error) { setErr(r.error.message); setData(null) } else setData(r.data)
-    })
-    return () => { alive = false }
-  }, [month, n])
-  const refresh = () => setN(x => x + 1)
-  const closed = !!data?.closed; const lines: any[] = data?.lines || []
-  const setElig = async (person_id: string, eligible: boolean) => {
-    const { error } = await sb.from('person_eligibility').upsert({ person_id, month: m1, eligible })
-    if (error) setErr(error.message); else refresh()
-  }
-  const act = async (fn: 'p4p_close' | 'p4p_reopen') => {
-    if (!confirm(fn === 'p4p_close' ? `ปิดงวด ${month}? ผลคำนวณจะถูกบันทึกถาวร ยกเศษไปเดือนถัดไป และล็อกบันทึกกิจกรรมของเดือนนี้` : `เปิดงวด ${month} เพื่อแก้ไข? ผลที่ปิดไว้จะถูกลบ`)) return
-    setBusy(true); const { error } = await sb.rpc(fn, { p_month: m1 }); setBusy(false)
-    if (error) setErr(error.message); else refresh()
-  }
-  const csv = () => {
-    const h = ['กลุ่ม', 'หน่วยงาน', 'ชื่อ', 'ตำแหน่ง', 'มีสิทธิ์', 'คะแนนที่รับรอง', 'คะแนนที่นับ', 'เงินจ่ายพื้นฐาน', 'เงินกันเฉลี่ยคืน', 'เงินเพิ่ม', 'รวม']
-    const b = lines.map(l => [l.pay_group, l.unit_name, l.name, l.position, l.eligible ? 'ใช่' : 'ไม่', l.points, l.counted, l.activity, data.groups.find((g: any) => g.pay_group === l.pay_group)?.reserve || 0, l.extra, l.total])
-    const blob = new Blob(['\ufeff' + [h, ...b].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')], { type: 'text/csv' }); const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob); a.download = `p4p_payout_${month}.csv`; a.click()
-  }
-  const w = data?.warnings; const shown = lines.filter(l => !grp || l.pay_group === grp)
-  return <div className="space-y-4">
-    <div className="card space-y-2">
-      <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold mr-auto">จ่ายเงิน P4P เดือน {month}</h2>
-        {closed ? <span className="px-2 py-1 text-sm bg-emerald-100 border border-emerald-300">ปิดงวดแล้ว</span> : <span className="px-2 py-1 text-sm bg-amber-100 border border-amber-300">ร่างคำนวณ ยังไม่ปิดงวด</span>}
-        <button className="btn sec" onClick={csv} disabled={!lines.length}>ส่งออก CSV</button>
-        {isAdmin && !closed && <button className="btn" disabled={busy || !data} onClick={() => act('p4p_close')}>ปิดงวดเดือนนี้</button>}
-        {isAdmin && closed && <button className="btn sec" disabled={busy} onClick={() => act('p4p_reopen')}>เปิดงวดเพื่อแก้ไข</button>}</div>
-      {err && <p role="alert" className="text-sm text-red-700">{err}</p>}
-      {!closed && w && <ul className="text-sm space-y-1">
-        {w.pending_rows > 0 && <li className="text-amber-800">! ยังมีรายการรอรับรอง {w.pending_rows} รายการ ซึ่งยังไม่นับคะแนน (นับเฉพาะที่รับรองแล้ว)</li>}
-        {w.any_closed && !w.prev_closed && <li className="text-amber-800">! เดือนก่อนหน้ายังไม่ปิดงวด เศษเงินที่ยกมาจึงยังเป็น 0 และปิดงวดเดือนนี้ไม่ได้</li>}</ul>}
-    </div>
-    {data && <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ</th><th>ผู้มีสิทธิ์ / ไม่มีสิทธิ์</th><th>กองเงินเพิ่ม</th><th>คะแนนส่วนเกินรวม</th><th>บาท/คะแนนส่วนเกิน</th><th>เศษยกไป เงินเพิ่ม</th></tr></thead>
-      <tbody>{data.groups.map((g: any) => <tr key={g.pay_group}><td><b>{g.name}</b></td><td>{g.n_eligible} / {g.n_ineligible}</td><td>{nf(g.pool_extra)}</td><td>{nf(g.sum_excess)}</td><td>{nf(g.rate_per_point, 4)}</td><td>{nf(g.carry_extra_out)}</td></tr>)}</tbody></table></div>}
-    {data && <div className="flex items-center gap-2"><label className="field-label">กรองกลุ่ม</label>
-      <select className="inp !w-72" value={grp} onChange={e => setGrp(+e.target.value)}><option value={0}>ทุกกลุ่ม</option>{data.groups.map((g: any) => <option key={g.pay_group} value={g.pay_group}>{g.name}</option>)}</select>
-      <span className="text-sm text-stone-600">รวมจ่าย {nf(shown.reduce((t, l) => t + Number(l.total), 0))} บาท · {shown.length} คน</span></div>}
-    {data && <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>กลุ่ม</th><th>ชื่อ</th><th>หน่วยงาน</th><th>มีสิทธิ์</th><th>คะแนนที่รับรอง</th><th>คะแนนที่นับ</th><th>เงินจ่ายพื้นฐาน</th><th>เงินกันเฉลี่ยคืน</th><th>เงินเพิ่ม</th><th>รวม (บาท)</th></tr></thead>
-      <tbody>{shown.map(l => <tr key={l.id} className={l.eligible ? '' : 'bg-stone-100 text-stone-500'}><td>{l.pay_group}</td><td><b>{l.name}</b><div className="text-xs">{l.position}</div></td><td className="text-xs">{l.unit_name}</td>
-        <td><input type="checkbox" aria-label="มีสิทธิ์" checked={l.eligible} disabled={closed} onChange={e => setElig(l.id, e.target.checked)} /></td>
-        <td>{nf(l.points)}</td><td>{nf(l.counted)}</td><td>{nf(l.activity)}</td><td>{nf(data.groups.find((g: any) => g.pay_group === l.pay_group)?.reserve || 0)}</td><td>{nf(l.extra)}</td><td><b>{nf(l.total)}</b></td></tr>)}
-        {!shown.length && <tr><td colSpan={10} className="text-center text-stone-500 py-6">ยังไม่มีบุคลากร</td></tr>}</tbody></table></div>}
-  </div>
-}
-
 function UsersPage({ sb, units }: any) {
   const [rows, setRows] = useState<any[]>([]); const [pu, setPu] = useState<any[]>([]); const [n, setN] = useState(0)
   useEffect(() => {
