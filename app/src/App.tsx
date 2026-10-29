@@ -519,13 +519,22 @@ const statusLabel = (st: any) => {
 function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose }: any) {
   const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status !== 'draft'), [rowsIn])
   const [head, setHead] = useState<any>(null)
+  const [unitRate, setUnitRate] = useState(0)
   const ap = useContext(ApproverCtx)
-  useEffect(() => { sb.rpc('approver_of', { p_person: person.id }).then((r: any) => setHead(r.data?.[0] || null)) }, [person.id])
+  useEffect(() => {
+    let alive = true
+    sb.rpc('approver_of', { p_person: person.id }).then((r: any) => { if (alive) setHead(r.data?.[0] || null) })
+    if (person.unit_id && month) sb.from('unit_settings').select('baht_per_point').eq('unit_id', person.unit_id).eq('month', month + '-01').maybeSingle().then(({ data, error }: any) => { if (alive) setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0) })
+    else setUnitRate(0)
+    return () => { alive = false }
+  }, [sb, person.id, person.unit_id, month])
   const unit = units.find((u: any) => u.id === person.unit_id)
-  const guarantee = guaranteeForPosition(person.position, positions)
+  const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
   const monthText = new Date(month + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
   const byDomain = (d: string) => rows.filter((r: any) => r.domain === d).reduce((a: number, r: any) => a + Number(r.counted_points), 0)
-  const total = DOMAINS.reduce((a, d) => a + byDomain(d), 0)
+  const total = rows.filter((r: any) => r.status === 'approved').reduce((a: number, r: any) => a + Number(r.counted_points || 0), 0)
+  const excess = Math.max(0, total - guarantee)
+  const payout = excess * unitRate
   const groups = useMemo(() => {
     const m = new Map<string, any>()
     rows.forEach((r: any) => {
@@ -556,11 +565,12 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
           <div><b>หน่วยงาน/งาน</b> {unit?.name || '-'}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div>
           <div><b>เดือน</b> {monthText}</div>
         </div>
-        <table className="pt ps-sum"><thead><tr><th>ด้าน</th><th>แต้ม</th></tr></thead><tbody>
-          {DOMAINS.map(d => <tr key={d}><td>{d}</td><td className="r">{nf(byDomain(d))}</td></tr>)}
-          <tr className="b"><td>รวม</td><td className="r">{nf(total)}</td></tr>
-          <tr><td>แต้มประกัน</td><td className="r">{nf(guarantee)}</td></tr>
-          <tr className="b"><td>ส่วนที่เกิน</td><td className="r">{nf(Math.max(0, total - guarantee))}</td></tr>
+        <table className="pt ps-sum"><thead><tr><th>รายการสรุป</th><th>จำนวน</th></tr></thead><tbody>
+          <tr><td>แต้มประกัน/เดือน</td><td className="r">{nf(guarantee, 0)}</td></tr>
+          <tr><td>แต้มการปฏิบัติงาน</td><td className="r">{nf(total)}</td></tr>
+          <tr><td>แต้มส่วนต่าง</td><td className="r">{nf(excess)}</td></tr>
+          <tr><td>อัตราเงินเพิ่ม</td><td className="r">{nf(unitRate)} บาท/แต้ม</td></tr>
+          <tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{nf(payout)} บาท</td></tr>
         </tbody></table>
       </div>
       <table className="pt ps-acts"><thead><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>นาทีรวม</th><th>แต้มที่นับ</th><th>สถานะ</th><th>ด้าน</th></tr></thead>
@@ -926,7 +936,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
   const [signaturePeople, setSignaturePeople] = useState<any[]>([])
   const [unitRate, setUnitRate] = useState(0)
-  const [actingChiefName, setActingChiefName] = useState('นางสาวมัณฑนา เพชรคำ')
+  const [actingChiefName, setActingChiefName] = useState('')
   const [printReport, setPrintReport] = useState(false)
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
@@ -946,7 +956,11 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         setSignaturePeople(!error && Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
       })
     } else setSignaturePeople([])
-    sb.from('people').select('name').eq('name', 'นางสาวมัณฑนา เพชรคำ').maybeSingle().then(({ data }: any) => { if (alive && data?.name) setActingChiefName(data.name) })
+    sb.from('staff_directory').select('prefix,first_name,last_name,org_role,unit_name').eq('active', true).or('org_role.ilike.%รักษาการหัวหน้าภารกิจด้านการพยาบาล%,org_role.ilike.%รักษาการหัวหน้าพยาบาล%').limit(20).then(({ data, error }: any) => {
+      if (!alive || error || !Array.isArray(data)) return
+      const chief = data.find((d: any) => String(d.org_role || '').includes('รักษาการหัวหน้าภารกิจด้านการพยาบาล')) || data.find((d: any) => String(d.org_role || '').includes('รักษาการหัวหน้าพยาบาล'))
+      if (chief) setActingChiefName(`${chief.prefix || ''}${chief.first_name || ''} ${chief.last_name || ''}`.trim())
+    })
     const monthDate = month + '-01'
     sb.from('unit_settings').select('baht_per_point').eq('unit_id', unit).eq('month', monthDate).maybeSingle().then(({ data, error }: any) => {
       if (!alive) return
@@ -982,8 +996,8 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const groupName = selectedUnit?.parent_group || ''
   const signers = [...signaturePeople, ...directoryPeople]
   const monthText = month ? new Date(month + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : ''
-  const unitHeadName = signers.find((d: any) => String(d.org_role || '').replace(/\\s+/g, '').includes('หัวหน้างาน') && String(d.unit_name || '').trim() === unitName)?.full_name || ''
-  const groupHeadName = signers.find((d: any) => String(d.org_role || '').replace(/\\s+/g, '').includes('หัวหน้ากลุ่มงาน') && String(d.unit_name || '').trim() === groupName)?.full_name || ''
+  const unitHeadName = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้างาน') && String(d.unit_name || '').trim() === unitName)?.full_name || ''
+  const groupHeadName = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้ากลุ่มงาน') && String(d.unit_name || '').trim() === groupName)?.full_name || ''
   const printUnitReport = () => { setPrintReport(true); setTimeout(() => window.print(), 150) }
   const bulk = async () => {
     const ids = rows.filter((r: any) => r.status === 'pending' && !r.errors.length && !r.warnings.length && canDecideRow(ap, me, r)).map((r: any) => r.id)
