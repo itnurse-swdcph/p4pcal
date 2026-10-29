@@ -479,6 +479,22 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const act = acts.find((a: any) => a.code === code)
   const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate * (act.use_role_mult ? (role === ROLES[0] ? 2 : role === ROLES[1] ? 1.5 : 1) : 1) : 0
   const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
+  // ใช้ข้อมูลบุคลากรและชุดรายการแบบเดียวกับหน้าสรุปรายบุคคลก่อนเปิดใบพิมพ์
+  const printPerson = person ? (() => {
+    const canonical = personRecords.find((p: any) => p.id === person.id || (person.person_id && p.id === person.person_id))
+    return {
+      ...(canonical || {}),
+      ...person,
+      name: person.name || canonical?.name,
+      position: person.position || canonical?.position,
+      org_role: person.org_role || canonical?.org_role,
+      unit_id: person.unit_id ?? canonical?.unit_id,
+      sub_unit: person.sub_unit || canonical?.sub_unit,
+    }
+  })() : null
+  const printRows = printPerson ? rows.filter((r: any) =>
+    r.person_id === printPerson.id || (printPerson.person_id && r.person_id === printPerson.person_id)
+  ) : []
   const myDrafts = shown.filter((r: any) => r.status === 'draft' && r.entered_by === me)
   const myRejected = shown.filter((r: any) => r.status === 'rejected' && r.entered_by === me)
   // เพดานคะแนนต่อเวรและต่อวัน (คำนวณตัดส่วนเกินที่ฐานข้อมูล ตรงนี้แสดงโควตาที่ใช้ไปแล้ว)
@@ -571,7 +587,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   return <div className="space-y-4">
     <div className="space-y-3">
       {person && <div className="flex flex-wrap justify-end gap-2"><button type="button" className="btn sec" onClick={() => setPrinting(true)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปประจำเดือน (A4)</button><button type="button" className="btn" onClick={() => document.getElementById('saved-activity-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>ตรวจสอบรายการบันทึก</button></div>}
-      {printing && person && <PrintSheet sb={sb} person={person} rows={shown} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
+      {printing && printPerson && <PrintSheet sb={sb} person={printPerson} rows={printRows} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
       {myDrafts.length > 0 && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-stone-300 bg-white p-3 text-sm"><span>แบบร่างที่ยังไม่ส่ง <b>{myDrafts.length}</b> รายการ (ยังไม่นับคะแนน)</span>
         <button type="button" className="btn" onClick={async () => { if (!confirm(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรอง? เมื่อส่งแล้วจะแก้ไขหรือลบไม่ได้`)) return; const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', myDrafts.map((r: any) => r.id)); if (error) alert('ส่งรายการไม่สำเร็จ: ' + error.message); else { setNotice(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรองแล้ว`); reload() } }}>ส่งทั้งหมด ({myDrafts.length})</button></div>}
       <ActivitySummary sb={sb} rows={shown} person={person ? { ...person, org_role: person.org_role || profileOrgRole } : null} positions={positions} month={month} units={units} />
