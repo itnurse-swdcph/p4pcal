@@ -1307,11 +1307,46 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     const unitName = (units || []).find((u: any) => Number(u.id) === Number(unit))?.name
     const parentGroup = (units || []).find((u: any) => Number(u.id) === Number(unit))?.parent_group || ''
     if (!unit || !unitName) { setDirectoryPeople([]); setSignaturePeople([]); setUnitRate(0); return }
-    sb.rpc('directory_staff', { p_unit_name: unitName }).then(({ data, error }: any) => {
+    const normalizeUnit = (v: any) => String(v || '').normalize('NFC').replace(/\\s+/g, '').trim().toLocaleLowerCase('th')
+    const unitKey = normalizeUnit(unitName)
+    const splitNames = (v: any) => String(v || '').split(/[,;|]/).map(normalizeUnit).filter(Boolean)
+    const loadDirectoryRoster = async () => {
+      // ดึงทั้ง RPC และทะเบียนกลางโดยตรง เพื่อไม่ให้รายชื่อที่ไม่มีบัญชีใช้งานหายไปเมื่อ RPC ล้มเหลว
+      const rpcPromise = sb.rpc('directory_staff', { p_unit_name: unitName })
+        .then(({ data, error }: any) => {
+          if (error) { console.error('โหลด directory_staff ไม่สำเร็จ', error); return [] }
+          return Array.isArray(data) ? data.filter((d: any) => d.active !== false) : []
+        }).catch((error: any) => { console.error('โหลด directory_staff ไม่สำเร็จ', error); return [] })
+      const fetchAllActive = async () => {
+        const all: any[] = []
+        const pageSize = 1000
+        for (let offset = 0; ; offset += pageSize) {
+          const { data, error } = await sb.from('staff_directory')
+            .select('source_row,prefix,first_name,last_name,position,org_role,unit_name,extra_unit_names,nursing_group,extra_nursing_group_names,active')
+            .eq('active', true).range(offset, offset + pageSize - 1)
+          if (error) { console.error('โหลดทะเบียน staff_directory ไม่สำเร็จ', error); break }
+          const page = Array.isArray(data) ? data : []
+          all.push(...page)
+          if (page.length < pageSize) break
+        }
+        return all.filter((d: any) =>
+          normalizeUnit(d.unit_name) === unitKey ||
+          splitNames(d.extra_unit_names).includes(unitKey)
+        )
+      }
+      const [rpcRows, directRows] = await Promise.all([rpcPromise, fetchAllActive()])
       if (!alive) return
-      if (error) { console.error('โหลดทะเบียนบุคลากรสำหรับตารางหน่วยงานไม่สำเร็จ', error); setDirectoryPeople([]) }
-      else setDirectoryPeople(Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
-    })
+      const merged = [...rpcRows, ...directRows]
+      const unique = merged.filter((d: any, i: number, arr: any[]) => {
+        const sourceRow = Number(d.source_row)
+        if (Number.isFinite(sourceRow) && sourceRow > 0)
+          return arr.findIndex((x: any) => Number(x.source_row) === sourceRow) === i
+        const name = normalizeUnit(d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`)
+        return arr.findIndex((x: any) => normalizeUnit(x.full_name || `${x.prefix || ''}${x.first_name || ''} ${x.last_name || ''}`) === name) === i
+      })
+      setDirectoryPeople(unique)
+    }
+    loadDirectoryRoster()
     // ใช้ทะเบียนบุคลากรเป็นแหล่งข้อมูลผู้ลงนาม ไม่ต้องมีบัญชีผู้ใช้ และใช้ RPC กลุ่มงานเพื่อรวมหัวหน้ากลุ่มงานที่ unit_name เป็น NULL
     const signerLookup = parentGroup
       ? sb.rpc('directory_group_staff', { p_group_name: parentGroup })
@@ -1485,7 +1520,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       <h2 className="font-bold">{sel ? 'รายการของ ' + roster.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
       <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
     </>}
-    {printFor && <PrintSheet sb={sb} person={printFor} rows={rows.filter((r: any) => r.person_id === printFor.id)} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
+    {printFor && <PrintSheet sb={sb} person={printFor} rows={rows.filter((r: any) => r.person_id === printFor.id || (printFor.person_id && r.person_id === printFor.person_id))} month={month} units={units} positions={positions} rateOverride={sum.find((x: any) => x.p.id === printFor.id)?.rate} onClose={() => setPrintFor(null)} />}
   </div>
 }
 
