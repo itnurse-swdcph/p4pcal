@@ -924,6 +924,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
 function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, canPrint }: any) {
   const [printFor, setPrintFor] = useState<any>(null)
   const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
+  const [signaturePeople, setSignaturePeople] = useState<any[]>([])
   const [unitRate, setUnitRate] = useState(0)
   const [actingChiefName, setActingChiefName] = useState('นางสาวมัณฑนา เพชรคำ')
   const [printReport, setPrintReport] = useState(false)
@@ -932,12 +933,19 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   useEffect(() => {
     let alive = true
     const unitName = (units || []).find((u: any) => Number(u.id) === Number(unit))?.name
-    if (!unit || !unitName) { setDirectoryPeople([]); setUnitRate(0); return }
+    const parentGroup = (units || []).find((u: any) => Number(u.id) === Number(unit))?.parent_group || ''
+    if (!unit || !unitName) { setDirectoryPeople([]); setSignaturePeople([]); setUnitRate(0); return }
     sb.rpc('directory_staff', { p_unit_name: unitName }).then(({ data, error }: any) => {
       if (!alive) return
       if (error) { console.error('โหลดทะเบียนบุคลากรสำหรับตารางหน่วยงานไม่สำเร็จ', error); setDirectoryPeople([]) }
       else setDirectoryPeople(Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
     })
+    if (parentGroup && parentGroup !== unitName) {
+      sb.rpc('directory_staff', { p_unit_name: parentGroup }).then(({ data, error }: any) => {
+        if (!alive) return
+        setSignaturePeople(!error && Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
+      })
+    } else setSignaturePeople([])
     sb.from('people').select('name').eq('name', 'นางสาวมัณฑนา เพชรคำ').maybeSingle().then(({ data }: any) => { if (alive && data?.name) setActingChiefName(data.name) })
     const monthDate = month + '-01'
     sb.from('unit_settings').select('baht_per_point').eq('unit_id', unit).eq('month', monthDate).maybeSingle().then(({ data, error }: any) => {
@@ -969,10 +977,13 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
   }), [rows, roster, positions, unitRate])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
-  const unitName = (units || []).find((u: any) => Number(u.id) === Number(unit))?.name || ''
+  const selectedUnit = (units || []).find((u: any) => Number(u.id) === Number(unit))
+  const unitName = selectedUnit?.name || ''
+  const groupName = selectedUnit?.parent_group || ''
+  const signers = [...signaturePeople, ...directoryPeople]
   const monthText = month ? new Date(month + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : ''
-  const unitHeadName = directoryPeople.find((d: any) => String(d.org_role || '').replace(/\\s+/g, '').includes('หัวหน้างาน'))?.full_name || ''
-  const groupHeadName = directoryPeople.find((d: any) => String(d.org_role || '').replace(/\\s+/g, '').includes('หัวหน้ากลุ่มงาน'))?.full_name || ''
+  const unitHeadName = signers.find((d: any) => String(d.org_role || '').replace(/\\s+/g, '').includes('หัวหน้างาน') && String(d.unit_name || '').trim() === unitName)?.full_name || ''
+  const groupHeadName = signers.find((d: any) => String(d.org_role || '').replace(/\\s+/g, '').includes('หัวหน้ากลุ่มงาน') && String(d.unit_name || '').trim() === groupName)?.full_name || ''
   const printUnitReport = () => { setPrintReport(true); setTimeout(() => window.print(), 150) }
   const bulk = async () => {
     const ids = rows.filter((r: any) => r.status === 'pending' && !r.errors.length && !r.warnings.length && canDecideRow(ap, me, r)).map((r: any) => r.id)
@@ -1001,7 +1012,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td className="text-center">—</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
     {printReport && <div className="unit-report-print">
       <h1>แบบสรุปผลปฏิบัติงาน</h1>
-      <div className="unit-report-subtitle">งาน {unitName}　 กลุ่มงาน {groupHeadName ? unitName : '................................'}　 ประจำเดือน {monthText}</div>
+      <div className="unit-report-subtitle">งาน {unitName}　 กลุ่มงาน {groupName || '................................'}　 ประจำเดือน {monthText}</div>
       <table className="unit-report-table"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
       <tr className="unit-report-total"><td colSpan={3}>รวมทั้งหน่วยงาน</td><td>{nf(sum.reduce((v: number, x: any) => v + x.g, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.workPoints, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((v: number, x: any) => v + x.payout, 0))} บาท</td></tr></tbody></table>
