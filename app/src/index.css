@@ -899,14 +899,14 @@ body.unit-report-preview-open .unit-report-print * {
   table-layout: fixed !important;
   font-family: 'Sarabun', 'TH Sarabun New', 'Noto Sans Thai', sans-serif !important;
 }
-.unit-report-table .unit-col-order { width: 3% !important; }
+.unit-report-table .unit-col-order { width: 4% !important; }
 .unit-report-table .unit-col-name { width: 29% !important; }
 .unit-report-table .unit-col-position { width: 21% !important; }
 .unit-report-table .unit-col-guarantee { width: 10.5% !important; }
 .unit-report-table .unit-col-work { width: 12% !important; }
 .unit-report-table .unit-col-excess { width: 9% !important; }
 .unit-report-table .unit-col-rate { width: 8% !important; }
-.unit-report-table .unit-col-payout { width: 10.5% !important; }
+.unit-report-table .unit-col-payout { width: 12% !important; }
 .unit-report-table th,
 .unit-report-table td {
   font-family: 'Sarabun', 'TH Sarabun New', 'Noto Sans Thai', sans-serif !important;
@@ -916,12 +916,12 @@ body.unit-report-preview-open .unit-report-print * {
 .unit-report-table td.unit-report-name { text-align: left !important; padding-left: 2mm !important; }
 @media print {
   body.print-unit-report .unit-report-table { table-layout: fixed !important; width: 100% !important; }
-  body.print-unit-report .unit-report-table .unit-col-order { width: 3% !important; }
+  body.print-unit-report .unit-report-table .unit-col-order { width: 4% !important; }
   body.print-unit-report .unit-report-table .unit-col-name { width: 29% !important; }
   body.print-unit-report .unit-report-table .unit-col-position { width: 21% !important; }
   body.print-unit-report .unit-report-table .unit-col-guarantee { width: 10.5% !important; }
   body.print-unit-report .unit-report-table .unit-col-work { width: 12% !important; }
   body.print-unit-report .unit-report-table .unit-col-excess { width: 9% !important; }
   body.print-unit-report .unit-report-table .unit-col-rate { width: 8% !important; }
-  body.print-unit-report .unit-report-table .unit-col-payout { width: 10.5% !important; }
+  body.print-unit-report .unit-report-table .unit-col-payout { width: 12% !important; }
 }
