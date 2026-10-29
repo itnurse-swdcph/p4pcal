@@ -184,7 +184,7 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
   const groupUnits = (units || []).filter((u: any) => String(u.parent_group || '').trim() === String(form?.nursing_group || '').trim())
   const extraGroupUnits = (units || []).filter((u: any) => extraGroups.includes(String(u.parent_group || '').trim()))
   const setExtraGroups = (values: string[]) => {
-    const validUnits = extraGroupUnits.filter((u: any) => values.includes(String(u.parent_group || '').trim())).map((u: any) => String(u.name || '').trim())
+    const validUnits = (units || []).filter((u: any) => values.includes(String(u.parent_group || '').trim())).map((u: any) => String(u.name || '').trim())
     setForm((old: any) => ({ ...old, extra_nursing_group_names: values.join(' | '), extra_unit_names: splitNames(old?.extra_unit_names).filter((name: string) => validUnits.includes(name)).join(' | ') }))
   }
   const setExtraUnits = (values: string[]) => setForm((old: any) => ({ ...old, extra_unit_names: values.join(' | ') }))
