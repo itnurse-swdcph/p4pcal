@@ -950,12 +950,13 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       if (error) { console.error('โหลดทะเบียนบุคลากรสำหรับตารางหน่วยงานไม่สำเร็จ', error); setDirectoryPeople([]) }
       else setDirectoryPeople(Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
     })
-    if (parentGroup && parentGroup !== unitName) {
-      sb.rpc('directory_staff', { p_unit_name: parentGroup }).then(({ data, error }: any) => {
+    // Use the personnel directory directly for signatories; they do not need an app account.
+    sb.from('staff_directory').select('source_row,prefix,first_name,last_name,full_name,position,org_role,unit_name,active')
+      .eq('active', true).in('unit_name', [...new Set([unitName, parentGroup].filter(Boolean))])
+      .then(({ data, error }: any) => {
         if (!alive) return
-        setSignaturePeople(!error && Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
+        setSignaturePeople(!error && Array.isArray(data) ? data : [])
       })
-    } else setSignaturePeople([])
     sb.from('staff_directory').select('prefix,first_name,last_name,position,org_role,unit_name').eq('active', true).or('org_role.ilike.%รักษาการหัวหน้าภารกิจด้านการพยาบาล%,org_role.ilike.%รักษาการหัวหน้าพยาบาล%').limit(20).then(({ data, error }: any) => {
       if (!alive || error || !Array.isArray(data)) return
       const chief = data.find((d: any) => String(d.org_role || '').includes('รักษาการหัวหน้าภารกิจด้านการพยาบาล')) || data.find((d: any) => String(d.org_role || '').includes('รักษาการหัวหน้าพยาบาล'))
