@@ -376,8 +376,8 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
 @page { size: A4 landscape; margin: 10mm; }
 @media print {
   html, body, #root { width: 100% !important; max-width: none !important; height: auto !important; overflow: visible !important; }
-  body * { visibility: hidden !important; }
-  .unit-report-print, .unit-report-print * { visibility: visible !important; }
+  body.print-unit-report * { visibility: hidden !important; }
+  body.print-unit-report .unit-report-print, body.print-unit-report .unit-report-print * { visibility: visible !important; }
   .unit-report-print {
     display: block !important;
     position: absolute !important;
