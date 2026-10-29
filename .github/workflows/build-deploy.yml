@@ -1,0 +1,46 @@
+name: Build and deploy P4Pcal to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/build-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p4pcal-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package.json
+      - name: Install dependencies
+        working-directory: app
+        run: npm install
+      - name: Build app for GitHub Pages
+        working-directory: app
+        run: npm run build -- --outDir ../docs --emptyOutDir
+      - name: Commit built site
+        run: |
+          if git diff --quiet -- docs; then
+            echo "No generated site changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs
+          git commit -m "build: deploy P4Pcal site"
+          git push
