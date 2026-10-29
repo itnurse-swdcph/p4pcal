@@ -1023,7 +1023,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const signers = [...signaturePeople, ...directoryPeople]
   const monthText = month ? new Date(month + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : ''
   const unitHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้างาน') && (String(d.unit_name || '').trim() === unitName || String(d.extra_unit_names || '').split(/[,;|]/).some((n: string) => n.trim() === unitName)))
-  const groupHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้ากลุ่มงาน') && (String(d.nursing_group || '').trim() === groupName || String(d.unit_name || '').trim() === groupName))
+  const groupHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้ากลุ่มงาน') && [d.nursing_group, d.extra_nursing_group_names].some((groups: any) => String(groups || '').split(/[,;|]/).some((g: string) => g.trim() === groupName)))
   const signerName = (d: any) => d?.full_name || ((d?.prefix || '') + (d?.first_name || '') + ' ' + (d?.last_name || '')).trim()
   const unitHeadName = signerName(unitHead)
   const groupHeadName = signerName(groupHead)
