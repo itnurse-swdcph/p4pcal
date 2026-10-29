@@ -178,6 +178,10 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
   useEffect(() => {
     let alive = true
     const load = async () => {
+      if (locked) {
+        setMessage('บัญชีบทบาทเจ้าหน้าที่หรือหัวหน้างานไม่สามารถแก้ไขทะเบียนบุคลากรของตนเองผ่านเมนูนี้ได้ กรุณาติดต่อผู้ดูแลระบบเพื่อขอแก้ไข')
+        return
+      }
       const sourceRow = profile.staff_directory_id
       if (!sourceRow) { setMessage('บัญชีนี้ยังไม่ได้เชื่อมกับทะเบียนบุคลากร กรุณาติดต่อผู้ดูแลระบบเพื่อผูกข้อมูลก่อน'); return }
       const { data: result, error } = await sb.rpc('get_my_staff_directory')
@@ -188,7 +192,7 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
     }
     void load()
     return () => { alive = false }
-  }, [sb, profile.staff_directory_id])
+  }, [sb, profile.staff_directory_id, locked])
   const set = (key: string, value: any) => setForm((old: any) => ({ ...old, [key]: value }))
   const field = (key: string, label: string, options?: string[]) => <label className="block space-y-1" key={key}><span className="field-label">{label}</span>{options ? <select className="inp w-full" value={form?.[key] ?? ''} disabled={locked} onChange={e => set(key,e.target.value)}><option value="">เลือก{label}</option>{options.map(x => <option key={x} value={x}>{x}</option>)}</select> : <input className="inp w-full" value={form?.[key] ?? ''} disabled={locked} onChange={e => set(key,e.target.value)} />}</label>
   const save = async () => {
