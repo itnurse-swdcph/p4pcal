@@ -522,7 +522,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const ap = useContext(ApproverCtx)
   useEffect(() => { sb.rpc('approver_of', { p_person: person.id }).then((r: any) => setHead(r.data?.[0] || null)) }, [person.id])
   const unit = units.find((u: any) => u.id === person.unit_id)
-  const guarantee = Number(positions.find((x: any) => x.name === person.position)?.guarantee || 0)
+  const guarantee = guaranteeForPosition(person.position, positions)
   const monthText = new Date(month + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
   const byDomain = (d: string) => rows.filter((r: any) => r.domain === d).reduce((a: number, r: any) => a + Number(r.counted_points), 0)
   const total = DOMAINS.reduce((a, d) => a + byDomain(d), 0)
@@ -574,9 +574,17 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   </div>, document.body)
 }
 
+function guaranteeForPosition(position: any, positions: any[] = []) {
+  const name = String(position || '').replace(/\\s+/g, '').trim()
+  // เกณฑ์แต้มประกันเฉพาะตำแหน่งหัวหน้ากลุ่มงานและหัวหน้างาน
+  if (name.includes('หัวหน้ากลุ่มงาน')) return 960
+  if (name.includes('หัวหน้างาน')) return 1080
+  return Number(positions.find((x: any) => String(x.name || '').replace(/\\s+/g, '').trim() === name)?.guarantee || 0)
+}
+
 function Totals({ rows, people, positions }: any) {
   if (people.length !== 1) return null
-  const g = positions.find((x: any) => x.name === people[0].position)?.guarantee || 0
+  const g = guaranteeForPosition(people[0].position, positions)
   const t = rows.reduce((s: number, r: any) => s + Number(r.counted_points), 0)
   return <div className="grid grid-cols-3 gap-2 text-center">
     {[['แต้มที่นับเดือนนี้', t], ['แต้มประกัน', g], ['ส่วนที่เกินประกัน', Math.max(0, t - g)]].map(([l, v]: any) => <div key={l} className="card"><div className="text-xs text-stone-600">{l}</div><div className="text-2xl font-bold">{nf(v)}</div></div>)}
@@ -917,7 +925,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const rows = useMemo(() => rowsAll.filter((r: any) => r.status !== 'draft'), [rowsAll])   // แบบร่างยังไม่ถึงหัวหน้า
   const [sel, setSel] = useState<string>('')
   const sum = useMemo(() => people.map((p: any) => {
-    const rs = rows.filter((r: any) => r.person_id === p.id); const g = positions.find((x: any) => x.name === p.position)?.guarantee || 0
+    const rs = rows.filter((r: any) => r.person_id === p.id); const g = guaranteeForPosition(p.position, positions)
     const d = (x: string) => rs.filter((r: any) => r.domain === x).reduce((s: number, r: any) => s + Number(r.counted_points), 0)
     const tot = d('บริหาร') + d('บริการ') + d('วิชาการ')
     return { p, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, g, appr: rs.filter((r: any) => r.status === 'approved').reduce((t: number, r: any) => t + Number(r.counted_points), 0), n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
