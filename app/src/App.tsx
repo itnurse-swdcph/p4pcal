@@ -565,7 +565,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
           : role.includes('หัวหน้างาน')
             ? `หัวหน้างาน${rawUnit.replace(/^งาน/, '')}`
             : role
-        return [professionalPosition(p), managerial].filter(Boolean).join('\\n')
+        return [professionalPosition(p), managerial].filter(Boolean).join('\n')
       }
       const normalize = (v: any) => String(v || '').replace(/\\s+/g, '').trim()
       const namesIn = (v: any) => String(v || '').split(/[,;|]/).map(normalize).filter(Boolean)
