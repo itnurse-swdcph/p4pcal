@@ -1075,7 +1075,7 @@ function PayoutPage({ sb, month, isAdmin }: any) {
       <tbody>{shown.map(l => <tr key={l.id} className={l.eligible ? '' : 'bg-stone-100 text-stone-500'}><td>{l.pay_group}</td><td><b>{l.name}</b><div className="text-xs">{l.position}</div></td><td className="text-xs">{l.unit_name}</td>
         <td><input type="checkbox" aria-label="มีสิทธิ์" checked={l.eligible} disabled={closed} onChange={e => setElig(l.id, e.target.checked)} /></td>
         <td>{nf(l.points)}</td><td>{nf(l.counted)}</td><td>{nf(l.quality)}</td><td>{nf(l.activity)}</td><td>{nf(l.extra)}</td><td><b>{nf(l.total)}</b></td></tr>)}
-        {!shown.length && <tr><td colSpan={9} className="text-center text-stone-500 py-6">ยังไม่มีบุคลากร</td></tr>}</tbody></table></div>}
+        {!shown.length && <tr><td colSpan={10} className="text-center text-stone-500 py-6">ยังไม่มีบุคลากร</td></tr>}</tbody></table></div>}
   </div>
 }
 
