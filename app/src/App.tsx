@@ -498,7 +498,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const myDrafts = shown.filter((r: any) => r.status === 'draft' && r.entered_by === me)
   const myRejected = shown.filter((r: any) => r.status === 'rejected' && r.entered_by === me)
   // เพดานคะแนนต่อเวรและต่อวัน (คำนวณตัดส่วนเกินที่ฐานข้อมูล ตรงนี้แสดงโควตาที่ใช้ไปแล้ว)
-  const capS = Number(caps.cap_shift_points) || 90, capD = Number(caps.cap_day_points) || 180
+  const capS = Math.min(90, Number(caps.cap_shift_points) || 90), capD = Number(caps.cap_day_points) || 180
   const dayRows = rows.filter((r: any) => r.person_id === pid && r.work_date === date && r.status !== 'rejected')
   const usedShift = dayRows.filter((r: any) => r.shift === shift).reduce((t: number, r: any) => t + Number(r.shift_points || 0), 0)
   const dayUsed = dayRows.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
@@ -1544,7 +1544,7 @@ const GLOBAL_SETTINGS: [string, string, string][] = [
   ['mult_chair', 'ตัวคูณบทบาท – ประธาน', 'ใช้กับกิจกรรมประเภทประชุม/คณะกรรมการที่เลือกบทบาท "ประธาน"'],
   ['mult_sec', 'ตัวคูณบทบาท – เลขานุการ/กรรมการ', ''],
   ['mult_member', 'ตัวคูณบทบาท – สมาชิก/ผู้เข้าร่วม', 'ใช้เมื่อไม่ได้ระบุบทบาทด้วย'],
-  ['cap_shift_points', 'เพดานคะแนนต่อเวร (คะแนน) รวมแสตนด์เช้า', 'คะแนนเกินเพดานบันทึกได้แต่ไม่นับ นับรวมทุกด้าน (บริหาร บริการ วิชาการ)'],
+  ['cap_shift_points', 'เพดานคะแนนต่อเวร (คะแนน) รวมแสตนด์เช้า', 'สูงสุด 90 คะแนนต่อเวร คะแนนเกินเพดานบันทึกได้แต่ไม่นับ นับรวมทุกด้าน (บริหาร บริการ วิชาการ)'],
   ['cap_day_points', 'เพดานคะแนนรวมต่อวัน (คะแนน)', 'เวรผลัดรวมทุกเวรในวันเดียวกัน (เวรดึก 00.00–08.00 นับเป็นวันที่นั้น)']
 ]
 
@@ -1555,7 +1555,7 @@ function SettingsPage({ sb }: any) {
   const saveG = async () => {
     setGMsg('')
     for (const [k, l] of GLOBAL_SETTINGS) {
-      const v = Number(g[k]); const ok = k === 'max_day_minutes' ? Number.isInteger(v) && v >= 1 && v <= 1440 : k.startsWith('cap_') ? v > 0 && v <= 10000 : v > 0 && v <= 10
+      const v = Number(g[k]); const ok = k === 'max_day_minutes' ? Number.isInteger(v) && v >= 1 && v <= 1440 : k === 'cap_shift_points' ? v > 0 && v <= 90 : k === 'cap_day_points' ? v > 0 && v <= 10000 : v > 0 && v <= 10
       if (!(String(g[k] ?? '').trim() !== '' && ok)) { setGMsg(`ค่า "${l}" ไม่ถูกต้อง`); return }
     }
     if (!confirm('การเปลี่ยนค่าเหล่านี้มีผลกับการคำนวณแต้มของทุกหน่วยงานและทุกเดือน รวมรายการที่รับรองแล้วด้วย ยืนยันบันทึก?')) return
