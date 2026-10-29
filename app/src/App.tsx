@@ -890,6 +890,8 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState('')
   const [editEvidenceFile, setEditEvidenceFile] = useState<File | null>(null)
+  const [editActivityQuery, setEditActivityQuery] = useState('')
+  const [editActivityDropdownOpen, setEditActivityDropdownOpen] = useState(false)
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
   const sortedRows = useMemo(() => [...(rows || [])].sort((a: any, b: any) => {
@@ -904,10 +906,15 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
     return bi - ai
   }), [rows])
   const displayedRows = useMemo(() => sortedRows.filter((r: any) => (!filterFrom || String(r.work_date || '') >= filterFrom) && (!filterTo || String(r.work_date || '') <= filterTo)), [sortedRows, filterFrom, filterTo])
+  const selectedEditActivity = (acts || []).find((a: any) => a.code === form.activity_code)
+  const editActivityTerms = editActivityQuery.toLowerCase().split(/\s+/).filter(Boolean)
+  const editActivityOptions = (acts || []).filter((a: any) => a.active !== false && editActivityTerms.every((term: string) => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(term))).sort((a: any, b: any) => String(a.code).localeCompare(String(b.code), 'th'))
   useEffect(() => { if (!editTargetRow) return; if (editTargetRow.status === 'pending') beginEdit(editTargetRow); else alert('รายการนี้รับรองแล้ว จึงไม่สามารถแก้ไขได้'); clearEditTarget() }, [editTargetRow, clearEditTarget])
   const beginEdit = (r: any) => {
     setEditing(r)
     setForm({ work_date: r.work_date || '', activity_code: r.activity_code || '', qty: String(r.qty ?? 1), role: r.role || '', evidence: r.evidence || '', sub_activity: r.sub_activity || '', shift: r.shift || 'เช้า' })
+    setEditActivityQuery('')
+    setEditActivityDropdownOpen(false)
     setEditEvidenceFile(null)
     setEditError('')
   }
@@ -999,7 +1006,17 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       {editError && <p role="alert" className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">{editError}</p>}
       <label className="field-label">เวรที่ปฏิบัติ<select className="inp mt-1" value={form.shift || 'เช้า'} onChange={e => setForm({ ...form, shift: e.target.value })}>{SHIFTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       <label className="field-label">วันที่ปฏิบัติงาน<input type="date" lang="th-TH" className="inp mt-1" value={form.work_date} onChange={e => setForm({...form, work_date:e.target.value})} onKeyDown={e => e.preventDefault()} onPaste={e => e.preventDefault()} onDrop={e => e.preventDefault()} onClick={e => { try { (e.currentTarget as HTMLInputElement).showPicker() } catch {} }} aria-label="เลือกวันที่ปฏิบัติงานจากปฏิทินเท่านั้น" /></label>
-      <label className="field-label">กิจกรรม<select className="inp mt-1" value={form.activity_code} onChange={e => setForm({...form, activity_code:e.target.value})}>{acts.filter((a:any) => a.active !== false).map((a:any) => <option key={a.code} value={a.code}>{a.code} — {a.title}</option>)}</select></label>
+      <label className="field-label block">กิจกรรม
+        <div className="relative mt-1">
+          <input className="inp" type="search" autoComplete="off" value={editActivityQuery} onFocus={() => setEditActivityDropdownOpen(true)} onChange={e => { setEditActivityQuery(e.target.value); setEditActivityDropdownOpen(true) }} onKeyDown={e => { if (e.key === 'Escape') setEditActivityDropdownOpen(false); if (e.key === 'ArrowDown') setEditActivityDropdownOpen(true) }} placeholder="พิมพ์รหัสหรือชื่อกิจกรรมเพื่อค้นหา" aria-expanded={editActivityDropdownOpen} aria-controls="edit-activity-options" role="combobox" aria-autocomplete="list" />
+          {editActivityDropdownOpen && <div id="edit-activity-options" className="edit-activity-options absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl" role="listbox" aria-label="เลือกกิจกรรมที่จะแก้ไข">
+            {editActivityOptions.length ? editActivityOptions.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={form.activity_code === a.code} className="edit-activity-option" onMouseDown={e => e.preventDefault()} onClick={() => { setForm({ ...form, activity_code: a.code }); setEditActivityQuery(''); setEditActivityDropdownOpen(false) }}>
+              <span className="edit-activity-code">{a.code}</span><span className="edit-activity-copy">{a.main_activity && <span className="edit-activity-main">{a.main_activity}</span>}<span className="edit-activity-title">{a.title}</span></span>
+            </button>) : <p className="p-3 text-sm text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้น</p>}
+          </div>}
+        </div>
+        {selectedEditActivity && <div className="edit-activity-selected mt-2 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm"><b>{selectedEditActivity.code}</b>{selectedEditActivity.main_activity && <div className="edit-activity-main">{selectedEditActivity.main_activity}</div>}<div className="edit-activity-title">{selectedEditActivity.title}</div></div>}
+      </label>
       {(() => { const a = acts.find((x:any) => x.code === form.activity_code); return a ? <div className={`rounded-xl border p-3 text-sm ${a.need_evidence ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}><b>{a.need_evidence ? 'หลักฐานที่ต้องใช้สำหรับกิจกรรมนี้ (จำเป็น)' : 'หลักฐานประกอบ'}</b><p className="mt-1 whitespace-pre-wrap">{a.definition || (a.need_evidence ? 'กรุณาระบุหลักฐานอ้างอิงที่ตรวจสอบได้' : 'สามารถระบุเอกสารหรือรูปถ่ายประกอบได้')}</p>{a.need_evidence && <p className="mt-2 text-xs">ต้องกรอกรายละเอียดหลักฐาน หรือมีรูปหลักฐานอย่างน้อย 1 อย่าง</p>}</div> : null })()}
       <label className="field-label">จำนวน ({acts.find((a:any) => a.code === form.activity_code)?.uom || editing.uom || 'หน่วย'})<input type="number" min="0.01" step="0.5" className="inp mt-1" value={form.qty} onChange={e => setForm({...form, qty:e.target.value})} /></label>
       {acts.find((a:any) => a.code === form.activity_code)?.use_role_mult && <label className="field-label">บทบาทในกิจกรรม<select className="inp mt-1" value={form.role} onChange={e => setForm({...form, role:e.target.value})}>{ROLES.map((r:string) => <option key={r}>{r}</option>)}</select></label>}
