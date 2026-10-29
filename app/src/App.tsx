@@ -13,6 +13,18 @@ const LINE_LABEL: Record<string, string> = { 'พยาบาล': 'พยาบ
 const NO_LINE = 'ยังไม่กำหนดสายงาน'
 // รหัสผู้ใช้ที่ล็อกอิน ใช้ตัดสินว่าปุ่ม ส่ง/แก้ไข/ลบ ของแบบร่างเป็นของใคร (ฐานข้อมูลบังคับกฎซ้ำอีกชั้น)
 const MeCtx = createContext<string | null>(null)
+// ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล (ระดับมาจากทะเบียนบุคลากร org_role; ฐานข้อมูลบังคับซ้ำ และรับรองรายการของตนเองไม่ได้)
+// ระดับ 0 เจ้าหน้าที่ 1 หัวหน้างาน 2 หัวหน้ากลุ่มงาน 3 รักษาการหัวหน้าพยาบาล
+const approverLabel = (subjectLevel: number) => subjectLevel >= 3 ? 'ผู้ดูแลระบบ' : subjectLevel === 2 ? 'รักษาการหัวหน้าพยาบาล' : subjectLevel === 1 ? 'หัวหน้ากลุ่มงาน' : 'หัวหน้างาน'
+const ApproverCtx = createContext<{ role: string; level: number; personUser: Record<string, string | null>; personLevel: Record<string, number> } | null>(null)
+function canDecideRow(ap: any, me: string | null, r: any) {
+  if (!ap || !r || !me) return false
+  if (ap.personUser[r.person_id] === me) return false          // รับรองรายการของตนเองไม่ได้
+  if (ap.role === 'admin') return true
+  if (ap.role !== 'head') return false
+  const sl = ap.personLevel[r.person_id] ?? 0
+  return (ap.level === 1 && sl === 0) || (ap.level === 2 && sl === 1) || (ap.level === 3 && sl === 2)
+}
 const ROLE_TH: any = { staff: 'เจ้าหน้าที่', head: 'หัวหน้างาน', committee: 'กรรมการ P4P', admin: 'ผู้ดูแลระบบ' }
 const ROLES = ['ประธาน', 'เลขานุการ/กรรมการ', 'สมาชิก/ผู้เข้าร่วม']
 const nf = (n: any, d = 2) => Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: d, minimumFractionDigits: d })
@@ -170,7 +182,11 @@ function Main({ sb, session }: any) {
   // Hooks must run in the same order before any conditional return.
   const [mobileNav, setMobileNav] = useState(false)
   const [compactNav, setCompactNav] = useState(false)
-  const loadPeople = () => sb.from('people').select('*').eq('active', true).order('name').then((r: any) => setPeople(r.data || []))
+  const [myLevel, setMyLevel] = useState(0); const [personLevel, setPersonLevel] = useState<Record<string, number>>({})
+  const loadPeople = () => {
+    sb.from('people').select('*').eq('active', true).order('name').then((r: any) => setPeople(r.data || []))
+    sb.rpc('person_levels').then((r: any) => setPersonLevel(Object.fromEntries((r.data || []).map((x: any) => [x.person_id, Number(x.lvl)]))))
+  }
   useEffect(() => {
     sb.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle().then((r: any) => { if (!r.data) { setNoProfile(true); return } setProfile(r.data); setUnit(r.data.role === 'admin' ? null : (r.data.unit_id ?? null)) })
     sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || []))
@@ -182,6 +198,7 @@ function Main({ sb, session }: any) {
       setDirectoryUnitNames([...new Set(r.data.map((x: any) => String(x.unit_name || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')))
     })
     sb.from('positions').select('*').then((r: any) => setPositions(r.data || []))
+    sb.rpc('my_approval_level').then((r: any) => setMyLevel(Number(r.data || 0)))
     sb.rpc('my_units').then((r: any) => setMyUnits((r.data || []).map((x: any) => (typeof x === 'object' && x ? Object.values(x)[0] : x) as number)))
     loadPeople()
   }, [])
@@ -204,7 +221,7 @@ function Main({ sb, session }: any) {
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
-  return <MeCtx.Provider value={session.user.id}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
+  return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
     {mobileNav && <button aria-label="ปิดเมนู" className="sidebar-scrim" onClick={() => setMobileNav(false)}/>}
     <aside className={'app-sidebar ' + (mobileNav ? 'mobile-open' : '')}>
       <div className="sidebar-brand"><img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/icon.png" alt="P4P" /><div className="sidebar-brand-copy"><strong>P4P Nursing</strong><span>SMART WORKFLOW</span></div><button className="sidebar-icon mobile-close" aria-label="ปิดเมนู" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
@@ -235,7 +252,7 @@ function Main({ sb, session }: any) {
       </main>
       <footer className="app-footer">{FOOTER_TEXT}</footer>
     </div>
-  </div></MeCtx.Provider>
+  </div></ApproverCtx.Provider></MeCtx.Provider>
 }
 
 // PostgREST จำกัดผลลัพธ์ต่อคำขอ (ปกติ 1,000 แถว) จึงดึงเป็นช่วงจนครบ
@@ -437,7 +454,8 @@ const statusLabel = (st: any) => {
 function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose }: any) {
   const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status !== 'draft'), [rowsIn])
   const [head, setHead] = useState<any>(null)
-  useEffect(() => { sb.rpc('unit_head', { p_unit: person.unit_id }).then((r: any) => setHead(r.data?.[0] || null)) }, [person.unit_id])
+  const ap = useContext(ApproverCtx)
+  useEffect(() => { sb.rpc('approver_of', { p_person: person.id }).then((r: any) => setHead(r.data?.[0] || null)) }, [person.id])
   const unit = units.find((u: any) => u.id === person.unit_id)
   const guarantee = Number(positions.find((x: any) => x.name === person.position)?.guarantee || 0)
   const monthText = new Date(month + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
@@ -485,7 +503,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
           {!groups.length && <tr><td colSpan={8} className="c">ไม่มีกิจกรรมที่บันทึกในเดือนนี้</td></tr>}
           {groups.length > 0 && <tr className="b"><td colSpan={4} className="r">รวม</td><td className="r">{n2(groups.reduce((a, g) => a + g.min, 0))}</td><td className="r">{nf(groups.reduce((a, g) => a + g.pts, 0))}</td><td colSpan={2}></td></tr>}
         </tbody></table>
-      <div className="sign-row">{sign('ผู้บันทึก')}{sign('หัวหน้างาน (รับรอง)', head?.head_name, head?.head_position)}{sign('ผู้ตรวจสอบ (คกก. P4P)')}</div>
+      <div className="sign-row">{sign('ผู้บันทึก')}{sign(`${approverLabel(ap?.personLevel?.[person.id] ?? 0)} (รับรอง)`, head?.approver_name, head?.approver_position)}{sign('ผู้ตรวจสอบ (คกก. P4P)')}</div>
       <div className="ps-foot">พิมพ์เมื่อ {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} · ระบบ P4P กลุ่มการพยาบาล</div>
     </div>
   </div>, document.body)
@@ -504,7 +522,7 @@ const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', '
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); alert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
 function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, readOnly = false, acts = [], editTargetRow = null, clearEditTarget = () => {} }: any) {
-  const me = useContext(MeCtx)
+  const me = useContext(MeCtx); const ap = useContext(ApproverCtx)
   // แบบร่างเป็นของผู้บันทึกเท่านั้น คนอื่น (รวมหัวหน้า) ไม่เห็นจนกว่าจะส่ง
   const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me), [allRows, me])
   const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
@@ -601,14 +619,14 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
         <td><b>{r.activity_code}</b> {r.title}{r.role && <span className="text-xs text-stone-500"> · {r.role} ×{r.mult}</span>}{r.sub_activity && <div className="text-sm mt-1">กิจกรรมย่อย: {r.sub_activity}</div>}{r.evidence && <div className="text-xs text-stone-500 mt-1">หลักฐาน: {r.evidence}</div>}{r.evidence_image_path && <div className="mt-1"><button className="text-xs underline text-teal-800" onClick={() => openEvidence(sb, r.evidence_image_path)}>ดูรูปหลักฐาน</button></div>}{r.reject_reason && r.status !== 'approved' && <div className="mt-1 rounded border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-800"><b>{r.status === 'rejected' ? 'ไม่รับรอง เหตุผล' : 'เหตุผลที่ไม่รับรองครั้งก่อน'}:</b> {r.reject_reason}</div>}</td>
         <td>{r.qty} {r.uom}</td><td className="whitespace-nowrap">{nf(r.counted_points)}{Number(r.cap_cut) > 0 && Number(r.points_before_cap) > 0 ? <span className="text-xs text-amber-700"> (ตัดเพดาน −{nf(r.cap_cut)})</span> : Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
         <td className="text-xs">{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
-        <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span></td>
+        <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-0.5 text-xs text-stone-500">รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}</div>}</td>
         <td className="whitespace-nowrap space-x-1">
           {!readOnly && me && r.entered_by === me && (r.status === 'draft' || r.status === 'rejected') && <>
             <button className="btn !py-0.5" onClick={() => submitRows([r.id])}>{r.status === 'rejected' ? 'ส่งใหม่' : 'ส่ง'}</button>
             <button className="btn sec !py-0.5" onClick={() => beginEdit(r)}>แก้ไข</button>
             <button className="text-xs underline text-red-700" onClick={() => del(r.id)}>ลบ</button></>}
-          {!readOnly && canApprove && r.status === 'pending' && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => { setRejecting(r); setReason('') }}>ไม่รับรอง</button></>}
-          {r.status === 'pending' && !canApprove && <span className="text-xs text-stone-500">ล็อก (รอหัวหน้า)</span>}</td>
+          {!readOnly && r.status === 'pending' && canDecideRow(ap, me, r) && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => { setRejecting(r); setReason('') }}>ไม่รับรอง</button></>}
+          {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}</td>
       </tr>})}{!displayedRows.length && <tr><td colSpan={8} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
     {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="reject-title"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-3">
       <h3 id="reject-title" className="text-lg font-bold">ไม่รับรองรายการ</h3>
@@ -828,6 +846,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
 
 function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, canPrint }: any) {
   const [printFor, setPrintFor] = useState<any>(null)
+  const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
   const rows = useMemo(() => rowsAll.filter((r: any) => r.status !== 'draft'), [rowsAll])   // แบบร่างยังไม่ถึงหัวหน้า
   const [sel, setSel] = useState<string>('')
@@ -840,7 +859,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   }), [rows, people, positions])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const bulk = async () => {
-    const ids = rows.filter((r: any) => r.status === 'pending' && !r.errors.length && !r.warnings.length).map((r: any) => r.id)
+    const ids = rows.filter((r: any) => r.status === 'pending' && !r.errors.length && !r.warnings.length && canDecideRow(ap, me, r)).map((r: any) => r.id)
     if (!ids.length) return alert('ไม่มีรายการ ✓ ที่รอรับรอง')
     if (confirm(`รับรอง ${ids.length} รายการที่ผ่านการตรวจอัตโนมัติ (✓) ทั้งหมด?`)) { await sb.from('logs').update({ status: 'approved' }).in('id', ids); reload() }
   }
@@ -856,6 +875,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
       {stat('แถวทั้งหมด', rows.length)}{stat('✗ ไม่นับแต้ม', rows.filter((r: any) => r.errors.length).length)}{stat('! ต้องตรวจทาน', rows.filter((r: any) => r.warnings.length).length)}
       {stat('รอรับรอง', rows.filter((r: any) => r.status === 'pending').length)}{stat('คะแนนที่รับรองแล้ว', nf(sum.reduce((t: number, x: any) => t + x.appr, 0)))}</div>
+    <p className="text-sm text-stone-700">ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล · <b>คุณรับรองได้เฉพาะรายการของ{ap?.role === 'admin' ? 'ทุกคน (ยกเว้นของตนเอง)' : ap?.level === 1 ? 'เจ้าหน้าที่ในหน่วยงานที่ดูแล' : ap?.level === 2 ? 'หัวหน้างานในกลุ่มงานที่ดูแล' : ap?.level === 3 ? 'หัวหน้ากลุ่มงาน' : 'ผู้ที่อยู่ในลำดับถัดไปเท่านั้น (บัญชีของคุณยังไม่มีสิทธิ์รับรอง)'}</b></p>
     <p className="text-xs text-stone-600">เงินคำนวณรายกลุ่มวิชาชีพทั้งโรงพยาบาลที่เมนู "จ่ายเงิน P4P" โดยนับเฉพาะคะแนนที่หัวหน้ารับรองแล้ว (ไม่เกิน 1.5 เท่าของแต้มประกัน)</p>
     <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button></div>
     <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ชื่อ</th><th>ตำแหน่ง</th><th>บริหาร</th><th>บริการ</th><th>วิชาการ</th><th>รวม</th><th>รับรองแล้ว</th><th>ประกัน</th><th>ข้อสังเกต</th>{canPrint && <th></th>}</tr></thead>
