@@ -227,6 +227,11 @@ select,
 textarea {
   font-family: 'sukhumvit_setmedium', 'Thai Sans Neue Regular', 'Noto Sans Thai', 'Sarabun', sans-serif;
 }
+.print-sheet,
+.print-sheet button,
+.print-sheet input,
+.print-sheet select,
+.print-sheet textarea { font-family: 'Sarabun', 'Noto Sans Thai', sans-serif; }
 .p4p-shell { background: #f4f6f9; color: #25364a; }
 .sidebar-link.active { background: #edf2f8; color: var(--p4p-navy); }
 .sidebar-active-dot { background: var(--p4p-navy); }
