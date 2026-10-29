@@ -6,7 +6,7 @@ import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardL
 const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_publishable_8qxOgD-AHGnv9RWWAZTUQQ_I0MPIMv3' }
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ว่าที่ร้อยตรี', 'ว่าที่ร้อยตรีหญิง']
 const FOOTER_TEXT = '© 2026 Developed By Natnarinthorn | Nursing Informatics System'
-const SHIFTS: [string, string][] = [['แสตนด์เช้า', 'แสตนด์เช้า (08.00–16.00 เวลาราชการ)'], ['เช้า', 'เวรเช้า'], ['บ่าย', 'เวรบ่าย'], ['ดึก', 'เวรดึก (00.00–08.00)']]
+const SHIFTS: [string, string][] = [['ดึก', 'เวรดึก (00.00-08.00)'], ['เช้า', 'เวรเช้า (08.00-16.00)'], ['บ่าย', 'เวรบ่าย (16.00-24.00)']]
 // สายงานกิจกรรม = ค่า positions.grp ตรงกับ activities.eligible (ผู้ช่วยช่างทั่วไปใช้ชุดเดียวกับผู้ช่วยเหลือคนไข้)
 const LINE_ORDER = ['พยาบาล', 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก', 'พนักงานธุรการ', 'พนักงานเปล', 'Paramedic', 'EMT']
 const LINE_LABEL: Record<string, string> = { 'พยาบาล': 'พยาบาล (รวมหัวหน้า)', 'ผู้ช่วยเหลือคนไข้': 'ผู้ช่วยเหลือคนไข้ / ผู้ช่วยช่าง' }
@@ -302,7 +302,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
   const [q, setQ] = useState(''); const [categoryFilter, setCategoryFilter] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null)
   const [notice, setNotice] = useState('')
-  const [shift, setShift] = useState('แสตนด์เช้า'); const [caps, setCaps] = useState<any>({ cap_shift_points: 90, cap_day_points: 180 })
+  const [shift, setShift] = useState('เช้า'); const [caps, setCaps] = useState<any>({ cap_shift_points: 90, cap_day_points: 180 })
   useEffect(() => { sb.from('app_settings').select('key,value').in('key', ['cap_shift_points', 'cap_day_points']).then((r: any) => setCaps(Object.fromEntries([['cap_shift_points', 90], ['cap_day_points', 180], ...(r.data || []).map((x: any) => [x.key, Number(x.value)])]))) }, [])
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
   useEffect(() => { setCategoryFilter(''); setQ('') }, [pid])
@@ -560,7 +560,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
   useEffect(() => { if (!editTargetRow) return; if (editTargetRow.status === 'pending') beginEdit(editTargetRow); else alert('รายการนี้รับรองแล้ว จึงไม่สามารถแก้ไขได้'); clearEditTarget() }, [editTargetRow, clearEditTarget])
   const beginEdit = (r: any) => {
     setEditing(r)
-    setForm({ work_date: r.work_date || '', activity_code: r.activity_code || '', qty: String(r.qty ?? 1), role: r.role || '', evidence: r.evidence || '', sub_activity: r.sub_activity || '', shift: r.shift || 'แสตนด์เช้า' })
+    setForm({ work_date: r.work_date || '', activity_code: r.activity_code || '', qty: String(r.qty ?? 1), role: r.role || '', evidence: r.evidence || '', sub_activity: r.sub_activity || '', shift: r.shift || 'เช้า' })
     setEditEvidenceFile(null)
     setEditError('')
   }
@@ -582,7 +582,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       work_date: form.work_date,
       activity_code: form.activity_code,
       qty: Number(form.qty),
-      shift: form.shift || 'แสตนด์เช้า',
+      shift: form.shift || 'เช้า',
       role: activity.use_role_mult ? (form.role || null) : null,
       evidence: String(form.evidence || '').trim() || ((editEvidenceFile || editing.evidence_image_path) ? 'แนบรูปถ่าย' : null),
       sub_activity: String(form.sub_activity || '').trim() || null
@@ -640,7 +640,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
     {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="edit-log-title"><div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4">
       <div className="flex items-start justify-between gap-3 border-b pb-3"><div><h2 id="edit-log-title" className="text-lg font-bold">แก้ไขรายการที่รอรับรอง</h2><p className="text-xs text-stone-500">แก้ไขข้อมูลได้ก่อนรับรองรายการ ระบบจะคำนวณแต้มและตรวจเงื่อนไขใหม่จากข้อมูลล่าสุด</p></div><button className="btn sec" onClick={() => setEditing(null)}>ปิด</button></div>
       {editError && <p role="alert" className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">{editError}</p>}
-      <label className="field-label">เวรที่ปฏิบัติ<select className="inp mt-1" value={form.shift || 'แสตนด์เช้า'} onChange={e => setForm({ ...form, shift: e.target.value })}>{SHIFTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+      <label className="field-label">เวรที่ปฏิบัติ<select className="inp mt-1" value={form.shift || 'เช้า'} onChange={e => setForm({ ...form, shift: e.target.value })}>{SHIFTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       <label className="field-label">วันที่ปฏิบัติงาน<input type="date" lang="th-TH" className="inp mt-1" value={form.work_date} onChange={e => setForm({...form, work_date:e.target.value})} onKeyDown={e => e.preventDefault()} onPaste={e => e.preventDefault()} onDrop={e => e.preventDefault()} onClick={e => { try { (e.currentTarget as HTMLInputElement).showPicker() } catch {} }} aria-label="เลือกวันที่ปฏิบัติงานจากปฏิทินเท่านั้น" /></label>
       <label className="field-label">กิจกรรม<select className="inp mt-1" value={form.activity_code} onChange={e => setForm({...form, activity_code:e.target.value})}>{acts.filter((a:any) => a.active !== false).map((a:any) => <option key={a.code} value={a.code}>{a.code} — {a.title}</option>)}</select></label>
       {(() => { const a = acts.find((x:any) => x.code === form.activity_code); return a ? <div className={`rounded-xl border p-3 text-sm ${a.need_evidence ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}><b>{a.need_evidence ? 'หลักฐานที่ต้องใช้สำหรับกิจกรรมนี้ (จำเป็น)' : 'หลักฐานประกอบ'}</b><p className="mt-1 whitespace-pre-wrap">{a.definition || (a.need_evidence ? 'กรุณาระบุหลักฐานอ้างอิงที่ตรวจสอบได้' : 'สามารถระบุเอกสารหรือรูปถ่ายประกอบได้')}</p>{a.need_evidence && <p className="mt-2 text-xs">ต้องกรอกรายละเอียดหลักฐาน หรือมีรูปหลักฐานอย่างน้อย 1 อย่าง</p>}</div> : null })()}
