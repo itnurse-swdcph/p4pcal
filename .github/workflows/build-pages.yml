@@ -51,5 +51,9 @@ jobs:
             echo "Published bundle is already up to date."
           else
             git commit -m "build: publish latest P4P web app"
-            git push origin main
+            # Another workflow or maintainer may update main while the build runs.
+            # Rebase this generated-docs commit on the latest remote before pushing.
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
           fi
