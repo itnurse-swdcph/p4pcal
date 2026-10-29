@@ -264,7 +264,7 @@ function Main({ sb, session }: any) {
   const [positions, setPositions] = useState<any[]>([])
   const [actsVersion, setActsVersion] = useState(0)
   const reloadActs = () => setActsVersion(v => v + 1)
-  const [month, setMonth] = useState(today().slice(0, 7)); const [tab, setTab] = useState('')
+  const [month, setMonth] = useState(today().slice(0, 7)); const [tab, setTab] = useState(''); const [logPageActivation, setLogPageActivation] = useState(0)
   const [unit, setUnit] = useState<number | null>(null)
   const [reviewGroup, setReviewGroup] = useState('')
   const [myUnits, setMyUnits] = useState<number[]>([])
@@ -309,7 +309,7 @@ function Main({ sb, session }: any) {
   const scope = people.filter(p => (isRev || role === 'head' ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
-  const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
+  const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
   return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
     {mobileNav && <button aria-label="ปิดเมนู" className="sidebar-scrim" onClick={() => setMobileNav(false)}/>}
     <aside className={'app-sidebar ' + (mobileNav ? 'mobile-open' : '')}>
@@ -330,7 +330,7 @@ function Main({ sb, session }: any) {
     {cur === 'personal' && role !== 'admin' && <PersonalProfilePage sb={sb} profile={profile} role={role} units={directoryUnits} positions={positions} session={session} reload={loadPeople} />}
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
-      : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} currentUserId={session.user.id} currentUserStaffDirectoryId={profile.staff_directory_id} />)}
+      : <LogPage key={logPageActivation} units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} currentUserId={session.user.id} currentUserStaffDirectoryId={profile.staff_directory_id} />)}
     {(cur === 'certify' || cur === 'review') && (role === 'admin' || role === 'head') && <div className="space-y-3">
       <div className="card space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -407,7 +407,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const me = useContext(MeCtx)
   const personRecords = [...(allPeople || []), ...(peopleProp || [])].filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i)
   const ownPerson = personRecords.find((p: any) => p.user_id === currentUserId) || (currentUserStaffDirectoryId != null ? personRecords.find((p: any) => Number(p.staff_directory_id) === Number(currentUserStaffDirectoryId)) : null)
-  const [entryMode, setEntryMode] = useState<'self' | 'other'>(picker ? 'other' : 'self')
+  const [entryMode, setEntryMode] = useState<'self' | 'other'>('self')
   const approver = useContext(ApproverCtx)
   const [printing, setPrinting] = useState(false) // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
   const [uSel, setUSel] = useState<number | null>(defaultUnit ?? unitOptions?.[0]?.id ?? null)
