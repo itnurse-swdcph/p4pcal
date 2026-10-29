@@ -997,17 +997,30 @@ function SettingsPage({ sb }: any) {
 // กลุ่มวิชาชีพและยอดค่าตอบแทน (ตารางที่ 1 / 1ก / 1ข ของหลักเกณฑ์) + จับคู่ตำแหน่งกับกลุ่ม
 function PayGroupsCard({ sb }: any) {
   const [gs, setGs] = useState<any[]>([]); const [pos, setPos] = useState<any[]>([]); const [msg, setMsg] = useState('')
+  const [editing, setEditing] = useState<any>(null)
+  const [draft, setDraft] = useState<any>(null)
+  const [busy, setBusy] = useState(false)
   const load = () => { sb.from('pay_groups').select('*').order('id').then((r: any) => setGs(r.data || [])); sb.from('positions').select('name,pay_group,grp,rate,guarantee').order('pay_group').then((r: any) => setPos(r.data || [])) }
   useEffect(load, [])
   const fields: [string, string][] = [['rate', 'แต้ม/นาที'], ['guarantee', 'แต้มประกัน'], ['cap_mult', 'เพดาน (เท่า)'], ['full_amount', 'ยอดจัดสรรต่อคน (บาท)'], ['reserve_pct', 'เงินกันเฉลี่ยคืน %']]
-  const set = (id: number, k: string, v: string) => setGs(x => x.map(g => g.id === id ? { ...g, [k]: v } : g))
-  const save = async (g: any) => {
+  const save = async () => {
+    if (!editing || !draft) return
     const body: any = {}
-    for (const [k] of fields) { const v = Number(g[k]); if (!(v > 0)) { setMsg(`กลุ่ม ${g.id}: ค่า "${fields.find(f => f[0] === k)![1]}" ต้องมากกว่า 0`); return } body[k] = v }
-    if (g.id === 1) body.fixed_pay = Math.round(Number(g.full_amount) * 0.77 * 100) / 100
-    const { error } = await sb.from('pay_groups').update(body).eq('id', g.id)
-    setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `บันทึกกลุ่ม ${g.id} แล้ว`); load()
+    for (const [k, label] of fields) {
+      const v = Number(draft[k])
+      if (!(v > 0)) { setMsg(`กลุ่ม ${editing.id}: ค่า "${label}" ต้องมากกว่า 0`); return }
+      body[k] = v
+    }
+    if (Number(draft.reserve_pct) > 100) { setMsg('เงินกันเฉลี่ยคืนต้องไม่เกิน 100%'); return }
+    if (Number(draft.cap_mult) > 10) { setMsg('เพดานคะแนนต้องไม่เกิน 10 เท่า'); return }
+    setBusy(true); setMsg('')
+    if (editing.id === 1) body.fixed_pay = Math.round(Number(draft.full_amount) * 0.77 * 100) / 100
+    const { error } = await sb.from('pay_groups').update(body).eq('id', editing.id)
+    setBusy(false)
+    if (error) { setMsg('บันทึกไม่สำเร็จ: ' + error.message); return }
+    setMsg(`บันทึกกลุ่ม ${editing.id} แล้ว`); setEditing(null); setDraft(null); load()
   }
+  const openEdit = (g: any, row: any) => { setEditing({ ...g, row }); setDraft({ ...g }) }
   const setPosLine = async (name: string, grp: string) => { const { error } = await sb.from('positions').update({ grp }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `กำหนดชุดกิจกรรมของ "${name}" เป็น ${grp} แล้ว`); load() }
   const setPosGroup = async (name: string, id: number) => { const { error } = await sb.from('positions').update({ pay_group: id }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `ย้าย "${name}" ไปกลุ่ม ${id} แล้ว`); load() }
   const groupOneRows = [
@@ -1015,24 +1028,33 @@ function PayGroupsCard({ sb }: any) {
     { label: 'พยาบาลวิชาชีพหัวหน้างาน', guarantee: 1080, key: 'supervisor' },
     { label: 'พยาบาลวิชาชีพ ผู้ปฏิบัติ', guarantee: 1200, key: 'staff' },
   ]
-  const minimumPay = (g: any, guarantee = Number(g.guarantee)) => Number((Number(g.full_amount) * (Number(g.guarantee) > guarantee ? 0.77 : 0.77)).toFixed(2))
+  const minimumPay = (g: any) => Number((Number(g.full_amount) * 0.77).toFixed(2))
   return <div className="card xl:col-span-2 space-y-3">
     <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ยอดจ่ายขั้นต่ำ = 77% ของยอดจัดสรรต่อคน เมื่อคะแนนต่ำกว่าแต้มประกัน · เมื่อคะแนนถึงเกณฑ์จ่าย 97% · เงินกันเฉลี่ยคืน 3% และยกเลิกการกันเงินคุณภาพ</p></div>
-    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ / ประเภทบุคลากร</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>เงินจ่ายขั้นต่ำ (บาท)</th><th></th></tr></thead>
+    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ / ประเภทบุคลากร</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>เงินจ่ายขั้นต่ำ (บาท)</th><th>จัดการ</th></tr></thead>
       <tbody>{gs.map(g => {
         const rows = g.id === 1 ? groupOneRows : [{ label: g.name, guarantee: Number(g.guarantee), key: 'group' }]
-        return rows.map((row, idx) => <tr key={`${g.id}-${row.key}`}>
+        return rows.map((row) => <tr key={`${g.id}-${row.key}`}>
           <td className="min-w-[16rem]"><b>{row.label}</b>{g.id === 1 && <div className="text-xs text-stone-500">กลุ่ม 1 พยาบาลวิชาชีพ</div>}</td>
           <td>{nf(g.rate, 3)}</td>
           <td>{nf(row.guarantee, 0)}</td>
           <td>{nf(g.cap_mult, 2)}</td>
           <td>{nf(g.full_amount)}</td>
           <td>{nf(g.reserve_pct, 0)}%</td>
-          <td className="font-semibold whitespace-nowrap">{nf(Number(g.full_amount) * 0.77)}</td>
-          <td>{idx === 0 && <button className="btn" onClick={() => save(g)}>บันทึก</button>}</td>
+          <td className="font-semibold whitespace-nowrap">{nf(minimumPay(g))}</td>
+          <td><button className="btn sec" onClick={() => openEdit(g, row)}>แก้ไข</button></td>
         </tr>)
       })}</tbody></table></div>
     {msg && <p role="status" className="text-sm text-teal-900">{msg}</p>}
+    {editing && draft && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="pay-group-edit-title">
+      <div className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl space-y-4">
+        <div className="flex items-start gap-3"><div className="flex-1"><h3 id="pay-group-edit-title" className="text-lg font-bold">แก้ไขรายละเอียดค่าตอบแทน</h3><p className="text-sm text-stone-600">{editing.row.label}</p></div><button type="button" className="btn sec" onClick={() => { setEditing(null); setDraft(null) }}>ปิด</button></div>
+        <div className="rounded-xl bg-stone-50 p-3 text-sm"><div><b>กลุ่มวิชาชีพ:</b> {editing.name}</div><div><b>แต้มประกันของแถวนี้:</b> {nf(editing.row.guarantee, 0)} แต้ม</div><div><b>เงินจ่ายขั้นต่ำ:</b> {nf(Number(draft.full_amount) * 0.77)} บาท</div><p className="mt-1 text-xs text-stone-500">การแก้ไขข้อมูลกลุ่มจะมีผลกับการคำนวณของกลุ่มวิชาชีพนี้</p></div>
+        <div className="grid sm:grid-cols-2 gap-3">{fields.map(([k, label]) => <label key={k} className="field-label">{label}<input className="inp mt-1" type="number" min="0.01" step={k === 'rate' ? '0.001' : '0.01'} value={draft[k] ?? ''} onChange={e => setDraft({ ...draft, [k]: e.target.value })} /></label>)}</div>
+        <label className="field-label block">เงินจ่ายขั้นต่ำ (บาท)<input className="inp mt-1" type="number" min="0.01" step="0.01" value={Number((Number(draft.full_amount) * 0.77).toFixed(2))} readOnly /><span className="field-hint">คำนวณอัตโนมัติจากยอดจัดสรรต่อคน × 77%</span></label>
+        <div className="flex justify-end gap-2"><button className="btn sec" disabled={busy} onClick={() => { setEditing(null); setDraft(null) }}>ยกเลิก</button><button className="btn" disabled={busy} onClick={save}>{busy ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button></div>
+      </div>
+    </div>}
     <details><summary className="cursor-pointer text-sm font-bold">ตำแหน่ง: กลุ่มวิชาชีพ และชุดกิจกรรมที่บันทึกได้</summary>
       <div className="grid sm:grid-cols-2 gap-2 mt-2">{pos.map(x => <label key={x.name} className="flex items-center gap-2 text-sm"><span className="flex-1">{x.name}</span>
         <select className="inp !w-24" aria-label="กลุ่มวิชาชีพ" value={x.pay_group} onChange={e => setPosGroup(x.name, +e.target.value)}>{gs.map(g => <option key={g.id} value={g.id}>กลุ่ม {g.id}</option>)}</select>
