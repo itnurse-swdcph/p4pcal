@@ -170,6 +170,60 @@ function Login({ sb }: any) {
   </Shell>
 }
 
+function PersonalProfilePage({ sb, profile, role, units, positions, session, reload }: any) {
+  const locked = role === 'staff' || role === 'head'
+  const [form, setForm] = useState<any>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      const sourceRow = profile.staff_directory_id
+      if (!sourceRow) { setMessage('บัญชีนี้ยังไม่ได้เชื่อมกับทะเบียนบุคลากร กรุณาติดต่อผู้ดูแลระบบเพื่อผูกข้อมูลก่อน'); return }
+      const { data, error } = await sb.from('staff_directory').select('*').eq('source_row', sourceRow).maybeSingle()
+      if (!alive) return
+      if (error || !data) { setMessage('โหลดข้อมูลทะเบียนบุคลากรไม่สำเร็จ กรุณาติดต่อผู้ดูแลระบบ'); return }
+      setForm(data)
+    }
+    void load()
+    return () => { alive = false }
+  }, [sb, profile.staff_directory_id])
+  const set = (key: string, value: any) => setForm((old: any) => ({ ...old, [key]: value }))
+  const field = (key: string, label: string, options?: string[]) => <label className="block space-y-1" key={key}><span className="field-label">{label}</span>{options ? <select className="inp w-full" value={form?.[key] ?? ''} disabled={locked} onChange={e => set(key,e.target.value)}><option value="">เลือก{label}</option>{options.map(x => <option key={x} value={x}>{x}</option>)}</select> : <input className="inp w-full" value={form?.[key] ?? ''} disabled={locked} onChange={e => set(key,e.target.value)} />}</label>
+  const save = async () => {
+    if (!form || locked) return
+    if (![form.prefix,form.first_name,form.last_name,form.position,form.staff_group,form.staff_type,form.unit_name,form.nursing_group].every(x => String(x ?? '').trim())) { setMessage('กรุณากรอกชื่อ ตำแหน่ง กลุ่มบุคลากร ประเภทบุคลากร หน่วยงาน และกลุ่มงานให้ครบ'); return }
+    setBusy(true); setMessage('')
+    const payload = { prefix: String(form.prefix).trim(), first_name: String(form.first_name).trim(), last_name: String(form.last_name).trim(), position: String(form.position).trim(), staff_group: String(form.staff_group).trim(), staff_type: String(form.staff_type).trim(), unit_name: String(form.unit_name).trim(), extra_unit_names: String(form.extra_unit_names ?? '').trim() || null, nursing_group: String(form.nursing_group).trim(), extra_nursing_group_names: String(form.extra_nursing_group_names ?? '').trim() || null }
+    const { error } = await sb.from('staff_directory').update(payload).eq('source_row', profile.staff_directory_id)
+    if (!error) {
+      const fullName = payload.prefix + payload.first_name + ' ' + payload.last_name
+      await sb.from('profiles').update({ prefix: payload.prefix, first_name: payload.first_name, last_name: payload.last_name, full_name: fullName, position: payload.position, staff_group: payload.staff_group, staff_type: payload.staff_type, nursing_group: payload.nursing_group, extra_unit_names: payload.extra_unit_names, extra_nursing_group_names: payload.extra_nursing_group_names }).eq('user_id', session.user.id)
+      const unitMatch = units.find((u: any) => String(u.name).trim() === payload.unit_name)
+      if (unitMatch) await sb.from('people').update({ prefix: payload.prefix, first_name: payload.first_name, last_name: payload.last_name, name: fullName, position: payload.position, unit_id: unitMatch.id }).eq('staff_directory_id', profile.staff_directory_id)
+      setMessage('บันทึกข้อมูลบุคลากรเรียบร้อยแล้ว'); reload?.()
+    } else setMessage('บันทึกไม่สำเร็จ: ' + error.message)
+    setBusy(false)
+  }
+  if (!form) return <div className="card space-y-2"><h2 className="text-lg font-bold">แก้ไขข้อมูลส่วนตัว</h2><p>{message || 'กำลังโหลดข้อมูล…'}</p></div>
+  return <div className="card space-y-4"><div><h2 className="text-lg font-bold">แก้ไขข้อมูลส่วนตัว</h2><p className="text-sm text-stone-600">ข้อมูลนี้เชื่อมกับทะเบียนบุคลากรของระบบ P4P</p></div>
+    {locked && <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">บทบาทหัวหน้างานและผู้ปฏิบัติไม่สามารถแก้ไขข้อมูลบุคลากรของตนเองผ่านเมนูนี้ได้ กรุณาติดต่อผู้ดูแลระบบเพื่อขอแก้ไข</p>}
+    <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      {field('prefix','คำนำหน้า', ['นาย','นาง','นางสาว','ว่าที่ร้อยตรี','ว่าที่ร้อยตรีหญิง'])}
+      {field('first_name','ชื่อ')}{field('last_name','นามสกุล')}
+      {field('position','ตำแหน่ง', [...new Set([...(positions||[]).map((p:any)=>String(p.name||'').trim()),String(form.position||'')].filter(Boolean))].sort((a:string,b:string)=>a.localeCompare(b,'th')))}
+      {field('staff_group','กลุ่มบุคลากร')}{field('staff_type','ประเภทบุคลากร')}
+      {field('unit_name','หน่วยงาน', [...new Set([...(units||[]).map((u:any)=>String(u.name||'').trim()),String(form.unit_name||'')].filter(Boolean))].sort((a:string,b:string)=>a.localeCompare(b,'th')))}
+      {field('nursing_group','กลุ่มงาน')}
+      {field('extra_unit_names','หน่วยงานเพิ่มเติม (คั่นด้วย |)')}
+      {field('extra_nursing_group_names','กลุ่มงานเพิ่มเติม (คั่นด้วย |)')}
+    </div>
+    <p className="text-xs text-stone-500">บทบาทการอนุมัติไม่สามารถเปลี่ยนจากหน้านี้ได้ เพื่อป้องกันการเปลี่ยนสิทธิ์ด้วยตนเอง</p>
+    {message && <p role="status" className="text-sm">{message}</p>}
+    {!locked && <button className="btn" onClick={save} disabled={busy}>{busy ? 'กำลังบันทึก…' : 'บันทึกข้อมูลบุคลากร'}</button>}
+  </div>
+}
+
 function Main({ sb, session }: any) {
   const [profile, setProfile] = useState<any>(null); const [noProfile, setNoProfile] = useState(false)
   const [people, setPeople] = useState<any[]>([]); const [acts, setActs] = useState<any[]>([]); const [units, setUnits] = useState<any[]>([])
@@ -208,7 +262,7 @@ function Main({ sb, session }: any) {
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'
-  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ'], ['payout', 'จ่ายเงิน P4P']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [])]
+  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ'], ['payout', 'จ่ายเงิน P4P']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [['personal', 'แก้ไขข้อมูลส่วนตัว']])]
   const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
   // แสดงเฉพาะหน่วยงานที่มีอยู่ใน staff_directory ล่าสุด และจับคู่ชื่อแบบตรงตัวกับ units
   // ไม่สร้าง/เปลี่ยน unit_id และไม่แก้หรือรวมข้อมูลในฐานข้อมูล
@@ -220,7 +274,7 @@ function Main({ sb, session }: any) {
     .slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
   const unitOptions = role === 'head' ? directoryUnits.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id || (!!profile.nursing_group && u.parent_group === profile.nursing_group)) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
-  const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings }
+  const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
   return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
@@ -240,6 +294,7 @@ function Main({ sb, session }: any) {
       <main className="app-content">
 
     {tabs.length === 0 && <p>บัญชีนี้ยังไม่มีสิทธิ์ใช้งาน</p>}
+    {cur === 'personal' && role !== 'admin' && <PersonalProfilePage sb={sb} profile={profile} role={role} units={directoryUnits} positions={positions} session={session} reload={loadPeople} />}
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
       : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} />)}
