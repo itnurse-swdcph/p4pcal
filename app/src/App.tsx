@@ -661,7 +661,9 @@ const statusLabel = (st: any) => {
 }
 // ใบสรุปผลงาน P4P รายบุคคล (A4) แสดงเป็นหน้าตัวอย่างก่อนพิมพ์ ผ่าน portal เพื่อให้สั่งพิมพ์เฉพาะใบนี้
 function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose, rateOverride }: any) {
-  const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status !== 'draft'), [rowsIn])
+  // แบบฟอร์มรายบุคคลใช้ข้อมูลชุดเดียวกันทุกหน้าที่เรียกพิมพ์ และแสดงเฉพาะกิจกรรมที่รับรองแล้ว
+  // เพื่อให้รายละเอียดกิจกรรมตรงกับแต้มรวมในใบสรุปประจำเดือน
+  const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status === 'approved'), [rowsIn])
   const [head, setHead] = useState<any>(null)
   const [unitRate, setUnitRate] = useState(0)
   useEffect(() => {
@@ -756,7 +758,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
     else setUnitRate(0)
     return () => { alive = false }
   }, [sb, person.id, person.unit_id, month, units, rateOverride])
-  const unit = units.find((u: any) => u.id === person.unit_id)
+  const unit = units.find((u: any) => Number(u.id) === Number(person.unit_id))
   const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
   const monthText = new Date(month + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
   const byDomain = (d: string) => rows.filter((r: any) => r.domain === d).reduce((a: number, r: any) => a + Number(r.counted_points), 0)
@@ -804,7 +806,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet">
-      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th colSpan={5} className="ps-repeat-heading"><div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div><h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1><div className="ps-top"><div className="ps-info"><div><b>ชื่อ-สกุล</b> {person.name}</div><div><b>ตำแหน่ง</b> {person.position}</div><div><b>หน่วยงาน/งาน</b> {unit?.name || (String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? (person.group_name || person.nursing_group || person.extra_nursing_group_names || '-') : '- ')}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div><div><b>เดือน</b> {monthText}</div></div><table className="pt ps-sum"><thead><tr><th>รายการสรุป</th><th>จำนวน</th></tr></thead><tbody><tr><td>แต้มประกัน/เดือน</td><td className="r">{nf(guarantee, 0)}</td></tr><tr><td>แต้มการปฏิบัติงาน</td><td className="r">{nf(total)}</td></tr><tr><td>แต้มส่วนต่าง</td><td className="r">{nf(excess)}</td></tr><tr><td>อัตราเงินเพิ่ม</td><td className="r">{nf(unitRate)} บาท/แต้ม</td></tr><tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{nf(payout)} บาท</td></tr></tbody></table></div></th></tr><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
+      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th colSpan={5} className="ps-repeat-heading"><div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div><h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1><div className="ps-top"><div className="ps-info"><div><b>ชื่อ-สกุล</b> {person.name}</div><div><b>ตำแหน่ง</b> {person.position}</div><div><b>หน่วยงาน/งาน</b> {unit?.name || person.unit_name || (String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? (person.group_name || person.nursing_group || person.extra_nursing_group_names || '-') : '- ')}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div><div><b>เดือน</b> {monthText}</div></div><table className="pt ps-sum"><thead><tr><th>รายการสรุป</th><th>จำนวน</th></tr></thead><tbody><tr><td>แต้มประกัน/เดือน</td><td className="r">{nf(guarantee, 0)}</td></tr><tr><td>แต้มการปฏิบัติงาน</td><td className="r">{nf(total)}</td></tr><tr><td>แต้มส่วนต่าง</td><td className="r">{nf(excess)}</td></tr><tr><td>อัตราเงินเพิ่ม</td><td className="r">{nf(unitRate)} บาท/แต้ม</td></tr><tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{nf(payout)} บาท</td></tr></tbody></table></div></th></tr><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
         <tbody>{activityRows.map((item: any) => item.type === 'domain'
           ? <tr key={item.key} className="ps-domain-row"><th colSpan={5}>{item.domain}</th></tr>
           : <tr key={item.key}><td className="nw">{item.code}</td><td className="ps-activity-name">{item.title}</td><td className="c">{item.uom || '—'}</td><td className="r">{n2(item.qty)}</td><td className="r">{nf(item.pts)}</td></tr>)}
