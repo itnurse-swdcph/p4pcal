@@ -1012,10 +1012,12 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const groupHeadName = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้ากลุ่มงาน') && String(d.unit_name || '').trim() === groupName)?.full_name || ''
   useEffect(() => {
     if (!printReport) return
+    const afterPrint = () => { document.body.classList.remove('print-unit-report'); setPrintReport(false) }
+    window.addEventListener('afterprint', afterPrint)
     const timer = window.setTimeout(() => window.print(), 500)
-    return () => window.clearTimeout(timer)
+    return () => { window.clearTimeout(timer); window.removeEventListener('afterprint', afterPrint) }
   }, [printReport])
-  const printUnitReport = () => setPrintReport(true)
+  const printUnitReport = () => { document.body.classList.add('print-unit-report'); setPrintReport(true) }
   const bulk = async () => {
     const ids = rows.filter((r: any) => r.status === 'pending' && !r.errors.length && !r.warnings.length && canDecideRow(ap, me, r)).map((r: any) => r.id)
     if (!ids.length) return alert('ไม่มีรายการ ✓ ที่รอรับรอง')
