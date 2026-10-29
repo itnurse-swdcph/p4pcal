@@ -306,7 +306,7 @@ function Main({ sb, session }: any) {
   })
     .slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
   const unitOptions = role === 'head' ? directoryUnits.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
-  const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
+  const scope = people.filter(p => (isRev || role === 'head' ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
@@ -349,7 +349,7 @@ function Main({ sb, session }: any) {
         </div>
         <p className="text-xs text-stone-600">{role === 'admin' ? 'ผู้ดูแลระบบสามารถเลือกหน่วยงานได้ทั้งหมด' : 'แสดงเฉพาะหน่วยงานที่บัญชีของคุณได้รับมอบหมายให้รับผิดชอบ'}</p>
       </div>
-      {unit && reviewGroup ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานและหน่วยงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
+      {reviewGroup && (unit != null || cur === 'review') ? (unit != null ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'review' ? <GroupHeadsReport sb={sb} groupName={reviewGroup} /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกหน่วยงานเพื่อรับรองกิจกรรม</div>) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
     </div>}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
@@ -566,7 +566,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       {printing && person && <PrintSheet sb={sb} person={person} rows={shown} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
       {myDrafts.length > 0 && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-stone-300 bg-white p-3 text-sm"><span>แบบร่างที่ยังไม่ส่ง <b>{myDrafts.length}</b> รายการ (ยังไม่นับคะแนน)</span>
         <button type="button" className="btn" onClick={async () => { if (!confirm(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรอง? เมื่อส่งแล้วจะแก้ไขหรือลบไม่ได้`)) return; const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', myDrafts.map((r: any) => r.id)); if (error) alert('ส่งรายการไม่สำเร็จ: ' + error.message); else { setNotice(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรองแล้ว`); reload() } }}>ส่งทั้งหมด ({myDrafts.length})</button></div>}
-      <Totals rows={shown} people={person ? [{ ...person, org_role: person.org_role || profileOrgRole }] : []} positions={positions} />
+      <ActivitySummary sb={sb} rows={shown} person={person ? { ...person, org_role: person.org_role || profileOrgRole } : null} positions={positions} month={month} units={units} />
     </div>
     <div className="card activity-entry-card w-full max-w-5xl mx-auto space-y-4">
       <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">P4P · ACTIVITY ENTRY</p><h2 className="text-lg font-bold text-slate-900">เพิ่มรายการกิจกรรม</h2><p className="mt-1 text-sm text-slate-600">กรอกข้อมูลตามลำดับ แล้วตรวจสอบก่อนบันทึก</p></div><span className="hidden sm:inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">แบบฟอร์มบันทึก</span></div>
@@ -805,6 +805,32 @@ function guaranteeForPosition(position: any, positions: any[] = [], orgRole?: an
   if (name.includes('หัวหน้ากลุ่มงาน')) return 960
   if (name.includes('หัวหน้างาน')) return 1080
   return Number(positions.find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === name)?.guarantee || 0)
+}
+
+function ActivitySummary({ sb, rows, person, positions, month, units }: any) {
+  const [unitRate, setUnitRate] = useState(0)
+  useEffect(() => {
+    let alive = true
+    if (!person?.unit_id) { setUnitRate(0); return }
+    sb.from('unit_settings').select('baht_per_point').eq('unit_id', person.unit_id).eq('month', month + '-01').maybeSingle().then(({ data, error }: any) => {
+      if (alive) setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0)
+    })
+    return () => { alive = false }
+  }, [sb, person?.unit_id, month])
+  if (!person) return null
+  const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
+  const earned = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
+  const difference = earned - guarantee
+  const payout = Math.max(0, difference) * unitRate
+  const cards = [
+    { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
+    { label: 'แต้มปฏิบัติงานที่ได้', value: nf(earned), color: 'text-slate-900' },
+    { label: 'แต้มส่วนต่าง', value: (difference > 0 ? '+' : '') + nf(difference), color: difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-slate-700' },
+    { label: 'ประมาณเงินที่ได้', value: nf(payout) + ' บาท', color: 'text-slate-900' }
+  ]
+  return <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" aria-label="สรุปแต้มและประมาณเงินประจำเดือน">
+    {cards.map((item) => <div key={item.label} className="card !p-3 sm:!p-4 min-w-0"><div className="text-xs sm:text-sm text-stone-600">{item.label}</div><div className={'mt-1 text-xl sm:text-2xl font-bold tabular-nums ' + item.color}>{item.value}</div>{item.label === 'ประมาณเงินที่ได้' && <div className="mt-1 text-xs text-stone-500">อัตรา {nf(unitRate)} บาท/แต้ม</div>}</div>)}
+  </div>
 }
 
 function Totals({ rows, people, positions }: any) {
@@ -1149,6 +1175,26 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
           </tr>)}</tbody>
         </table>
       </div>}
+  </div>
+}
+
+function GroupHeadsReport({ sb, groupName }: any) {
+  const [heads, setHeads] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    sb.rpc('directory_group_staff', { p_group_name: groupName }).then(({ data, error }: any) => {
+      if (!alive) return
+      if (error) { console.error('โหลดหัวหน้ากลุ่มงานไม่สำเร็จ', error); setHeads([]) }
+      else setHeads((Array.isArray(data) ? data : []).filter((p: any) => String(p.org_role || '').includes('หัวหน้ากลุ่มงาน')).map((p: any) => ({ ...p, displayName: p.full_name || `${p.prefix || ''}${p.first_name || ''} ${p.last_name || ''}`.trim() })).filter((p: any) => p.displayName).filter((p: any, i: number, a: any[]) => a.findIndex((x: any) => x.displayName === p.displayName) === i).sort((a: any, b: any) => a.displayName.localeCompare(b.displayName, 'th')))
+      setLoading(false)
+    })
+    return () => { alive = false }
+  }, [sb, groupName])
+  return <div className="card space-y-3">
+    <div><h2 className="text-lg font-bold">สรุปรายงานหน่วยงาน · {groupName}</h2><p className="text-sm text-stone-600">แสดงเฉพาะรายชื่อหัวหน้ากลุ่มงาน โดยไม่รวมบุคลากรของหน่วยงานย่อย</p></div>
+    {loading ? <p className="text-sm text-stone-500">กำลังโหลดรายชื่อ…</p> : heads.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th className="text-left p-2">ลำดับ</th><th className="text-left p-2">ชื่อ–นามสกุล</th><th className="text-left p-2">ตำแหน่ง</th><th className="text-left p-2">กลุ่มงาน</th></tr></thead><tbody>{heads.map((p: any, i: number) => <tr key={p.source_row || p.displayName} className="border-t"><td className="p-2">{i + 1}</td><td className="p-2 font-medium">{p.displayName}</td><td className="p-2">{p.position || '—'}</td><td className="p-2">{groupName}</td></tr>)}</tbody></table></div> : <p className="text-sm text-stone-600">ไม่พบรายชื่อหัวหน้ากลุ่มงานในกลุ่มงานนี้</p>}
   </div>
 }
 
