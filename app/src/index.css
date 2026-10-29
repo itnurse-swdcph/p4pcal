@@ -369,3 +369,34 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
 .activity-entry-card .approve-now-btn { background: #0f766e; border-color: #0f766e; color: #fff; }
 .activity-entry-card .approve-now-btn:hover:not(:disabled) { background: #115e59; }
 .activity-entry-card .act-list { min-width: 0; max-width: 100%; }
+
+
+/* Unit performance report: print only the report in A4 landscape. */
+.unit-report-print { display: none; }
+@page { size: A4 landscape; margin: 10mm; }
+@media print {
+  html, body, #root { width: 100% !important; max-width: none !important; height: auto !important; overflow: visible !important; }
+  body * { visibility: hidden !important; }
+  .unit-report-print, .unit-report-print * { visibility: visible !important; }
+  .unit-report-print {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    color: #111 !important;
+    background: #fff !important;
+    font-family: "Sarabun", "TH Sarabun New", sans-serif !important;
+    font-size: 10pt !important;
+    line-height: 1.25 !important;
+  }
+  .unit-report-print h1 { margin: 0 0 4mm; text-align: center; font-size: 16pt; font-weight: 700; }
+  .unit-report-subtitle { text-align: center; font-size: 11pt; margin-bottom: 5mm; }
+  .unit-report-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .unit-report-table th, .unit-report-table td { border: 1px solid #444 !important; padding: 2.2mm 1.2mm !important; text-align: center !important; vertical-align: middle; overflow-wrap: anywhere; }
+  .unit-report-table th { font-weight: 700; background: #eee !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .unit-report-table .unit-report-name { text-align: left !important; }
+  .unit-report-total { font-weight: 700; }
+  .unit-report-signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8mm; margin-top: 15mm; text-align: center; page-break-inside: avoid; }
+  .unit-report-signatures > div { line-height: 1.6; }
+}
