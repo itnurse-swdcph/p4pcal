@@ -611,3 +611,43 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
   .topbar-heading h1 { font-size: .9rem; }
   .print-toolbar { flex-wrap: wrap; }
 }
+
+
+/* Page headings repeat on every printed page; table headers contain columns only. */
+@media print {
+  @page individualReport { margin-top: 27mm !important; }
+  @page unitReport { margin-top: 22mm !important; }
+  .print-sheet .ps-page-heading {
+    position: fixed !important;
+    top: -20mm !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 17mm !important;
+    overflow: hidden !important;
+    background: white !important;
+    z-index: 1000 !important;
+  }
+  .ps-page-heading .ps-hospital { margin: 0 !important; padding: 0 !important; font-size: 10pt !important; text-align: center !important; }
+  .ps-page-heading .ps-title { margin: 0 !important; padding: 0 !important; font-size: 12pt !important; text-align: center !important; }
+  .ps-page-heading .ps-page-person { font-size: 9pt !important; text-align: left !important; white-space: nowrap !important; }
+  .print-sheet > .ps-hospital,
+  .print-sheet > .ps-title { display: none !important; }
+  .print-sheet .ps-top .ps-info { display: none !important; }
+  .print-sheet .ps-acts .ps-repeat-title,
+  .print-sheet .ps-acts .ps-repeat-person,
+  .unit-report-table .unit-report-repeat-title,
+  .unit-report-table .unit-report-repeat-unit { display: none !important; }
+  .unit-report-print .unit-report-page-heading {
+    position: fixed !important;
+    top: -16mm !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 14mm !important;
+    overflow: hidden !important;
+    background: white !important;
+    text-align: center !important;
+    z-index: 1000 !important;
+  }
+  .unit-report-page-heading h1 { margin: 0 !important; font-size: 12pt !important; }
+  .unit-report-page-heading .unit-report-subtitle { margin: 0 !important; font-size: 10pt !important; }
+}
