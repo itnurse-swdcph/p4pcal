@@ -657,7 +657,7 @@ const statusLabel = (st: any) => {
   return parts.length === 1 ? parts[0][1] : parts.map(([k, l]) => `${l} ${st[k]}/${total}`).join(' · ')
 }
 // ใบสรุปผลงาน P4P รายบุคคล (A4) แสดงเป็นหน้าตัวอย่างก่อนพิมพ์ ผ่าน portal เพื่อให้สั่งพิมพ์เฉพาะใบนี้
-function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose }: any) {
+function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose, rateOverride }: any) {
   const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status !== 'draft'), [rowsIn])
   const [head, setHead] = useState<any>(null)
   const [unitRate, setUnitRate] = useState(0)
@@ -744,10 +744,11 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       }
     }
     loadSigner()
-    if (person.unit_id && month) sb.from('unit_settings').select('baht_per_point').eq('unit_id', person.unit_id).eq('month', month + '-01').maybeSingle().then(({ data, error }: any) => { if (alive) setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0) })
+    if (rateOverride != null) setUnitRate(Number(rateOverride) || 0)
+    else if (person.unit_id && month) sb.from('unit_settings').select('baht_per_point').eq('unit_id', person.unit_id).eq('month', month + '-01').maybeSingle().then(({ data, error }: any) => { if (alive) setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0) })
     else setUnitRate(0)
     return () => { alive = false }
-  }, [sb, person.id, person.unit_id, month, units])
+  }, [sb, person.id, person.unit_id, month, units, rateOverride])
   const unit = units.find((u: any) => u.id === person.unit_id)
   const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
   const monthText = new Date(month + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
@@ -1283,7 +1284,7 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
     <div className="flex flex-wrap gap-2"><button type="button" className="btn" onClick={openPrintReport} disabled={loading || !sum.length}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์รายงานกลุ่มงาน</button></div>
     {loading ? <p className="text-sm text-stone-500">กำลังโหลดรายชื่อ…</p> : sum.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th className="p-2">ลำดับ</th><th className="p-2 text-left">ชื่อ-สกุล</th><th className="p-2 text-left">ตำแหน่ง</th><th className="p-2">แต้มประกัน/เดือน</th><th className="p-2">แต้มการปฏิบัติงาน</th><th className="p-2">แต้มส่วนต่าง</th><th className="p-2">อัตราเงินเพิ่ม</th><th className="p-2">รวมจำนวนเงินที่ได้รับ</th></tr></thead><tbody>{sum.map((x: any) => <tr key={x.p.id} className="border-t"><td className="p-2 text-center">{x.order}</td><td className="p-2"><b>{x.p.displayName}</b><div><button type="button" className="btn sec !py-0.5 !px-2 !text-xs no-print" onClick={() => setPrintFor(x.p)}>ดูตัวอย่าง/พิมพ์รายบุคคล</button></div></td><td className="p-2">{x.p.position || '—'}</td><td className="p-2 text-center">{nf(x.g, 0)}</td><td className="p-2 text-center">{nf(x.workPoints)}</td><td className="p-2 text-center">{nf(x.excess)}</td><td className="p-2 text-center">{nf(x.rate)} บาท/แต้ม</td><td className="p-2 text-center font-semibold">{nf(x.payout)} บาท</td></tr>)}<tr className="border-t font-bold"><td colSpan={3} className="p-2">รวมกลุ่มงาน</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.g, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.workPoints, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.excess, 0))}</td><td className="p-2 text-center">—</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.payout, 0))} บาท</td></tr></tbody></table></div> : <p className="text-sm text-stone-600">ไม่พบรายชื่อหัวหน้ากลุ่มงานในกลุ่มงานนี้</p>}
     {printReport && createPortal(<div className="unit-report-print"><div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์</span><button type="button" className="btn" onClick={startPrintReport}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={closePrintReport}>ปิด</button></div><table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">กลุ่มงาน {groupName}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead><tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td>{x.p.displayName}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}<tr className="unit-report-total"><td colSpan={3}>รวมกลุ่มงาน</td><td>{nf(sum.reduce((a: number, x: any) => a + x.g, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.workPoints, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((a: number, x: any) => a + x.payout, 0))} บาท</td></tr></tbody></table></div>, document.body)}
-    {printFor && <PrintSheet sb={sb} person={printFor} rows={rowsAll.filter((r: any) => r.person_id === printFor.id || (printFor.person_id && r.person_id === printFor.person_id))} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
+    {printFor && <PrintSheet sb={sb} person={printFor} rows={rowsAll.filter((r: any) => r.person_id === printFor.id || (printFor.person_id && r.person_id === printFor.person_id))} month={month} units={units} positions={positions} rateOverride={sum.find((x: any) => x.p.id === printFor.id)?.rate} onClose={() => setPrintFor(null)} />}
   </div>
 }
 
