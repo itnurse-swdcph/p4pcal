@@ -936,7 +936,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
   const [signaturePeople, setSignaturePeople] = useState<any[]>([])
   const [unitRate, setUnitRate] = useState(0)
-  const [actingChiefName, setActingChiefName] = useState('')
+  const [actingChiefName, setActingChiefName] = useState('นางสาวมัณฑนา เพชรคำ')
   const [printReport, setPrintReport] = useState(false)
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
