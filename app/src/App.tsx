@@ -309,7 +309,7 @@ function GroupOverview({ sb, people, units, groupName, month, positions }: any) 
       {selectionMode === 'selected' && <div className="max-h-56 overflow-auto grid sm:grid-cols-2 gap-2">{summary.map((x: any) => <label key={x.p.id} className="flex gap-2 items-center"><input type="checkbox" checked={selected.includes(String(x.p.id))} onChange={e => setSelected(prev => e.target.checked ? [...prev, String(x.p.id)] : prev.filter(id => id !== String(x.p.id)))} />{x.p.name}<span className="text-xs text-stone-500">({x.p.unit_name || groupUnits.find((u: any) => Number(u.id) === Number(x.p.unit_id))?.name || '—'})</span></label>)}</div>}
       <p className="text-xs text-stone-500">ยอดรวมในรายงานที่พิมพ์จะคำนวณจากรายชื่อที่เลือก หากเลือกโหมดเฉพาะรายชื่อ</p>
     </div>
-    <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>หน่วยงาน</th><th>แต้มประกัน</th><th>แต้มรับรองแล้ว</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมเงิน</th></tr></thead><tbody>{summary.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td>{x.p.name}</td><td>{x.p.unit_name || groupUnits.find((u: any) => Number(u.id) === Number(x.p.unit_id))?.name || '—'}</td><td>{nf(x.guarantee, 0)}</td><td>{nf(x.points)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}<tr className="font-bold"><td colSpan={3}>รวมภาพรวมกลุ่มงาน</td><td>{nf(total('guarantee'), 0)}</td><td>{nf(total('points'))}</td><td>{nf(total('excess'))}</td><td>—</td><td>{nf(total('payout'))} บาท</td></tr></tbody></table></div>
+    <div className="card overflow-x-auto p-0 no-print"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>หน่วยงาน</th><th>แต้มประกัน</th><th>แต้มรับรองแล้ว</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมเงิน</th></tr></thead><tbody>{summary.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td>{x.p.name}</td><td>{x.p.unit_name || groupUnits.find((u: any) => Number(u.id) === Number(x.p.unit_id))?.name || '—'}</td><td>{nf(x.guarantee, 0)}</td><td>{nf(x.points)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}<tr className="font-bold"><td colSpan={3}>รวมภาพรวมกลุ่มงาน</td><td>{nf(total('guarantee'), 0)}</td><td>{nf(total('points'))}</td><td>{nf(total('excess'))}</td><td>—</td><td>{nf(total('payout'))} บาท</td></tr></tbody></table></div>
     <div className="hidden print:block"><h2>รายงานภาพรวมกลุ่มงาน {groupName} ประจำเดือน {month}</h2><table className="w-full border-collapse"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>หน่วยงาน</th><th>แต้มประกัน</th><th>แต้มรับรองแล้ว</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมเงิน</th></tr></thead><tbody>{printRows.map((x: any, i: number) => <tr key={x.p.id}><td>{i + 1}</td><td>{x.p.name}</td><td>{x.p.unit_name || groupUnits.find((u: any) => Number(u.id) === Number(x.p.unit_id))?.name || '—'}</td><td>{nf(x.guarantee, 0)}</td><td>{nf(x.points)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)}</td><td>{nf(x.payout)}</td></tr>)}<tr><td colSpan={3}>รวมตามรายชื่อที่พิมพ์</td><td>{total('guarantee')}</td><td>{total('points')}</td><td>{total('excess')}</td><td>—</td><td>{total('payout')}</td></tr></tbody></table></div>
   </div>
 }
@@ -437,7 +437,7 @@ async function fetchPages(mk: (from: number, to: number) => any) {
   }
   return out
 }
-function useLogs(sb: any, month: string, personIds: string[] | null, unit?: number | null) {
+function useLogs(sb: any, month: string, personIds: string[] | null, unit?: number | number[] | null) {
   const [rows, setRows] = useState<any[]>([]); const [n, setN] = useState(0)
   useEffect(() => {
     let alive = true
@@ -445,7 +445,7 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
     ;(async () => {
       const baseRows = await fetchPages((x, y) => {
         let q = sb.from('v_logs').select('*').gte('work_date', a).lte('work_date', b).order('work_date', { ascending: true }).order('id', { ascending: true })
-        if (unit) q = q.eq('unit_id', unit)
+        if (Array.isArray(unit)) { if (unit.length) q = q.in('unit_id', unit); else q = q.eq('unit_id', -1) } else if (unit) q = q.eq('unit_id', unit)
         if (personIds) q = q.in('person_id', personIds)
         return q.range(x, y)
       })
@@ -459,7 +459,7 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
       if (alive) setRows(baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) })))
     })()
     return () => { alive = false }
-  }, [month, n, unit, personIds?.join(',')])
+  }, [month, n, Array.isArray(unit) ? unit.join(',') : unit, personIds?.join(',')])
   return [rows, () => setN(x => x + 1)] as const
 }
 
