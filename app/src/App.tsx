@@ -1000,7 +1000,7 @@ function PayGroupsCard({ sb }: any) {
   const [gs, setGs] = useState<any[]>([]); const [pos, setPos] = useState<any[]>([]); const [msg, setMsg] = useState('')
   const load = () => { sb.from('pay_groups').select('*').order('id').then((r: any) => setGs(r.data || [])); sb.from('positions').select('name,pay_group,grp,rate,guarantee').order('pay_group').then((r: any) => setPos(r.data || [])) }
   useEffect(load, [])
-  const fields: [string, string][] = [['rate', 'แต้ม/นาที'], ['guarantee', 'แต้มประกัน'], ['cap_mult', 'เพดาน (เท่า)'], ['full_amount', 'ยอดต่อคน'], ['quality_pct', 'คุณภาพ %'], ['reserve_pct', 'เงินกัน %'], ['fixed_pay', 'จ่ายคงที่'], ['quality_fail_pct', 'ไม่ผ่าน ได้ %']]
+  const fields: [string, string][] = [['rate', 'แต้ม/นาที'], ['guarantee', 'แต้มประกัน'], ['cap_mult', 'เพดาน (เท่า)'], ['full_amount', 'ยอดต่อคน'], ['quality_pct', 'ส่วนพื้นฐาน %'], ['reserve_pct', 'เงินกัน %'], ['fixed_pay', 'จ่ายคงที่']]
   const set = (id: number, k: string, v: string) => setGs(x => x.map(g => g.id === id ? { ...g, [k]: v } : g))
   const save = async (g: any) => {
     const body: any = {}; for (const [k] of fields) { const v = Number(g[k]); if (!(v > 0)) { setMsg(`กลุ่ม ${g.id}: ค่า "${fields.find(f => f[0] === k)![1]}" ต้องมากกว่า 0`); return } body[k] = v }
@@ -1011,8 +1011,8 @@ function PayGroupsCard({ sb }: any) {
   const setPosGroup = async (name: string, id: number) => { const { error } = await sb.from('positions').update({ pay_group: id }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `ย้าย "${name}" ไปกลุ่ม ${id} แล้ว`); load() }
   const derived = (g: any) => { const F = Number(g.full_amount), q = Math.round(F * Number(g.quality_pct)) / 100, a = F - Math.round(q * 100) / 100, r = Math.round(a * Number(g.reserve_pct)) / 100; return { q: Math.round(q * 100) / 100, a, r: Math.round(r * 100) / 100, s: a - Math.round(r * 100) / 100 } }
   return <div className="card xl:col-span-2 space-y-3">
-    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ตามตารางที่ 1 ของหลักเกณฑ์ (ใช้ค่าในวงเล็บ [ ] ไปก่อน) เงินคำนวณรายกลุ่มทั้งโรงพยาบาลที่เมนู "จ่ายเงิน P4P" การแก้ค่านี้มีผลกับแต้มและเงินของเดือนที่ยังไม่ปิดงวด</p></div>
-    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่ม</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>คุณภาพ / ส่วนกิจกรรม / เงินกัน / ส่วนตามคะแนน</th><th></th></tr></thead>
+    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ตั้งค่าส่วนพื้นฐานและค่าตอบแทนตามกลุ่มวิชาชีพ การแก้ค่านี้มีผลกับแต้มและเงินของเดือนที่ยังไม่ปิดงวด</p></div>
+    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่ม</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>ส่วนพื้นฐาน / ส่วนกิจกรรม / เงินกัน / ส่วนตามคะแนน</th><th></th></tr></thead>
       <tbody>{gs.map(g => { const d = derived(g); return <tr key={g.id}><td className="min-w-[14rem]"><b>{g.name}</b></td>
         {fields.map(([k]) => <td key={k}><input className="inp !w-24" inputMode="decimal" value={g[k]} onChange={e => set(g.id, k, e.target.value)} /></td>)}
         <td className="text-xs whitespace-nowrap">{nf(d.q)} / {nf(d.a)} / {nf(d.r)} / {nf(d.s)}</td><td><button className="btn" onClick={() => save(g)}>บันทึก</button></td></tr> })}</tbody></table></div>
@@ -1027,24 +1027,17 @@ function PayGroupsCard({ sb }: any) {
 // จ่ายเงิน P4P (กรรมการ/แอดมิน): คำนวณรายกลุ่มวิชาชีพทั้งโรงพยาบาล ตามข้อ 3–5 ของหลักเกณฑ์
 function PayoutPage({ sb, month, isAdmin }: any) {
   const [data, setData] = useState<any>(null); const [err, setErr] = useState(''); const [n, setN] = useState(0); const [grp, setGrp] = useState(0); const [busy, setBusy] = useState(false)
-  const [qual, setQual] = useState<any>({})
   const m1 = month + '-01'
   useEffect(() => {
     let alive = true; setErr('')
-    Promise.all([sb.rpc('p4p_calc', { p_month: m1 }), sb.from('unit_quality').select('unit_id,passed').eq('month', m1)]).then(([r, q]: any) => {
+    sb.rpc('p4p_calc', { p_month: m1 }).then((r: any) => {
       if (!alive) return
       if (r.error) { setErr(r.error.message); setData(null) } else setData(r.data)
-      setQual(Object.fromEntries((q.data || []).map((x: any) => [x.unit_id, x.passed])))
     })
     return () => { alive = false }
   }, [month, n])
   const refresh = () => setN(x => x + 1)
   const closed = !!data?.closed; const lines: any[] = data?.lines || []
-  const unitsIn = useMemo(() => [...new Map(lines.map(l => [l.unit_id, l.unit_name])).entries()], [data])
-  const setQuality = async (unit_id: number, v: string) => {
-    const { error } = v === '' ? await sb.from('unit_quality').delete().eq('unit_id', unit_id).eq('month', m1) : await sb.from('unit_quality').upsert({ unit_id, month: m1, passed: v === 'pass' })
-    if (error) setErr(error.message); else refresh()
-  }
   const setElig = async (person_id: string, eligible: boolean) => {
     const { error } = await sb.from('person_eligibility').upsert({ person_id, month: m1, eligible })
     if (error) setErr(error.message); else refresh()
@@ -1055,7 +1048,7 @@ function PayoutPage({ sb, month, isAdmin }: any) {
     if (error) setErr(error.message); else refresh()
   }
   const csv = () => {
-    const h = ['กลุ่ม', 'หน่วยงาน', 'ชื่อ', 'ตำแหน่ง', 'มีสิทธิ์', 'คะแนนที่รับรอง', 'คะแนนที่นับ', 'ส่วนคุณภาพ', 'ส่วนกิจกรรม', 'เงินเพิ่ม', 'รวม']
+    const h = ['กลุ่ม', 'หน่วยงาน', 'ชื่อ', 'ตำแหน่ง', 'มีสิทธิ์', 'คะแนนที่รับรอง', 'คะแนนที่นับ', 'ส่วนพื้นฐาน', 'ส่วนกิจกรรม', 'เงินเพิ่ม', 'รวม']
     const b = lines.map(l => [l.pay_group, l.unit_name, l.name, l.position, l.eligible ? 'ใช่' : 'ไม่', l.points, l.counted, l.quality, l.activity, l.extra, l.total])
     const blob = new Blob(['\ufeff' + [h, ...b].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')], { type: 'text/csv' }); const a = document.createElement('a')
     a.href = URL.createObjectURL(blob); a.download = `p4p_payout_${month}.csv`; a.click()
@@ -1071,23 +1064,18 @@ function PayoutPage({ sb, month, isAdmin }: any) {
       {err && <p role="alert" className="text-sm text-red-700">{err}</p>}
       {!closed && w && <ul className="text-sm space-y-1">
         {w.pending_rows > 0 && <li className="text-amber-800">! ยังมีรายการรอรับรอง {w.pending_rows} รายการ ซึ่งยังไม่นับคะแนน (นับเฉพาะที่รับรองแล้ว)</li>}
-        {w.quality_missing_units?.length > 0 && <li className="text-amber-800">! ยังไม่ได้บันทึกผลคุณภาพของ {w.quality_missing_units.length} หน่วยงาน (คิดเป็น "ผ่าน" ไปก่อน และปิดงวดไม่ได้จนกว่าจะบันทึกครบ)</li>}
         {w.any_closed && !w.prev_closed && <li className="text-amber-800">! เดือนก่อนหน้ายังไม่ปิดงวด เศษเงินที่ยกมาจึงยังเป็น 0 และปิดงวดเดือนนี้ไม่ได้</li>}</ul>}
     </div>
-    {data && <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ</th><th>ผู้มีสิทธิ์ / ไม่มีสิทธิ์</th><th>กองเงินเพิ่ม</th><th>คะแนนส่วนเกินรวม</th><th>บาท/คะแนนส่วนเกิน</th><th>เศษยกไป เงินเพิ่ม</th><th>เศษยกไป เฉลี่ยคืน</th></tr></thead>
-      <tbody>{data.groups.map((g: any) => <tr key={g.pay_group}><td><b>{g.name}</b></td><td>{g.n_eligible} / {g.n_ineligible}</td><td>{nf(g.pool_extra)}</td><td>{nf(g.sum_excess)}</td><td>{nf(g.rate_per_point, 4)}</td><td>{nf(g.carry_extra_out)}</td><td>{nf(g.carry_quality_out)}</td></tr>)}</tbody></table></div>}
-    {data && !closed && <div className="card space-y-2"><h3 className="font-bold">ผลตัวชี้วัดด้านคุณภาพรายหน่วยงาน (ข้อ 3)</h3>
-      <p className="text-xs text-stone-600">ผ่านครบทุกตัวชี้วัด = ได้ส่วนคุณภาพ 100% ไม่ผ่าน = ได้ 70% ส่วนที่หักเฉลี่ยคืนให้หน่วยที่ผ่านในกลุ่มเดียวกัน</p>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">{unitsIn.map(([id, name]: any) => <label key={id} className="flex items-center gap-2 text-sm"><span className="flex-1">{name}</span>
-        <select className="inp !w-32" value={qual[id] === undefined ? '' : qual[id] ? 'pass' : 'fail'} onChange={e => setQuality(id, e.target.value)}><option value="">ยังไม่บันทึก</option><option value="pass">ผ่าน</option><option value="fail">ไม่ผ่าน</option></select></label>)}</div></div>}
+    {data && <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ</th><th>ผู้มีสิทธิ์ / ไม่มีสิทธิ์</th><th>กองเงินเพิ่ม</th><th>คะแนนส่วนเกินรวม</th><th>บาท/คะแนนส่วนเกิน</th><th>เศษยกไป เงินเพิ่ม</th></tr></thead>
+      <tbody>{data.groups.map((g: any) => <tr key={g.pay_group}><td><b>{g.name}</b></td><td>{g.n_eligible} / {g.n_ineligible}</td><td>{nf(g.pool_extra)}</td><td>{nf(g.sum_excess)}</td><td>{nf(g.rate_per_point, 4)}</td><td>{nf(g.carry_extra_out)}</td></tr>)}</tbody></table></div>}
     {data && <div className="flex items-center gap-2"><label className="field-label">กรองกลุ่ม</label>
       <select className="inp !w-72" value={grp} onChange={e => setGrp(+e.target.value)}><option value={0}>ทุกกลุ่ม</option>{data.groups.map((g: any) => <option key={g.pay_group} value={g.pay_group}>{g.name}</option>)}</select>
       <span className="text-sm text-stone-600">รวมจ่าย {nf(shown.reduce((t, l) => t + Number(l.total), 0))} บาท · {shown.length} คน</span></div>}
-    {data && <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>กลุ่ม</th><th>ชื่อ</th><th>หน่วยงาน</th><th>มีสิทธิ์</th><th>คะแนนที่รับรอง</th><th>คะแนนที่นับ</th><th>ส่วนคุณภาพ</th><th>ส่วนกิจกรรม</th><th>เงินเพิ่ม</th><th>รวม (บาท)</th></tr></thead>
+    {data && <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>กลุ่ม</th><th>ชื่อ</th><th>หน่วยงาน</th><th>มีสิทธิ์</th><th>คะแนนที่รับรอง</th><th>คะแนนที่นับ</th><th>ส่วนพื้นฐาน</th><th>ส่วนกิจกรรม</th><th>เงินเพิ่ม</th><th>รวม (บาท)</th></tr></thead>
       <tbody>{shown.map(l => <tr key={l.id} className={l.eligible ? '' : 'bg-stone-100 text-stone-500'}><td>{l.pay_group}</td><td><b>{l.name}</b><div className="text-xs">{l.position}</div></td><td className="text-xs">{l.unit_name}</td>
         <td><input type="checkbox" aria-label="มีสิทธิ์" checked={l.eligible} disabled={closed} onChange={e => setElig(l.id, e.target.checked)} /></td>
         <td>{nf(l.points)}</td><td>{nf(l.counted)}</td><td>{nf(l.quality)}</td><td>{nf(l.activity)}</td><td>{nf(l.extra)}</td><td><b>{nf(l.total)}</b></td></tr>)}
-        {!shown.length && <tr><td colSpan={10} className="text-center text-stone-500 py-6">ยังไม่มีบุคลากร</td></tr>}</tbody></table></div>}
+        {!shown.length && <tr><td colSpan={9} className="text-center text-stone-500 py-6">ยังไม่มีบุคลากร</td></tr>}</tbody></table></div>}
   </div>
 }
 
