@@ -390,10 +390,13 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
     font-size: 10pt !important;
     line-height: 1.25 !important;
   }
-  .unit-report-print h1 { margin: 0 0 4mm; text-align: center; font-size: 16pt; font-weight: 700; }
-  .unit-report-subtitle { text-align: center; font-size: 11pt; margin-bottom: 5mm; }
+  .unit-report-print, .unit-report-print * { color: #000 !important; }
+   .unit-report-print h1 { margin: 0 0 4mm; text-align: center; font-size: 16pt; font-weight: 700; color: #000 !important; }
+   .unit-report-subtitle { text-align: center; font-size: 16pt; font-weight: 700; color: #000 !important; margin-bottom: 5mm; }
   .unit-report-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .unit-report-table th, .unit-report-table td { border: 1px solid #444 !important; padding: 2.2mm 1.2mm !important; text-align: center !important; vertical-align: middle; overflow-wrap: anywhere; }
+  .unit-report-table th, .unit-report-table td { border: 1px solid #000 !important; color: #000 !important; padding: 2.2mm 1.2mm !important; text-align: center !important; vertical-align: middle; overflow-wrap: anywhere; }
+   .unit-report-table th:nth-child(1), .unit-report-table td:nth-child(1) { width: 4% !important; padding-left: 0.5mm !important; padding-right: 0.5mm !important; }
+   .unit-report-table th:nth-child(2), .unit-report-table td:nth-child(2) { width: 22% !important; }
   .unit-report-table th { font-weight: 700; background: #eee !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .unit-report-table .unit-report-name { text-align: left !important; }
   .unit-report-total { font-weight: 700; }
