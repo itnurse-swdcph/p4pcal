@@ -1233,7 +1233,8 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   }, [printReport])
   const printUnitReport = () => {
     if (!unit || !sum.length) { alert('ไม่พบข้อมูลรายงานของหน่วยงาน กรุณาเลือกหน่วยงานและตรวจสอบข้อมูลก่อน'); return }
-    document.body.classList.remove('print-unit-report')
+    // เปิดหน้าตัวอย่างโดยล้างคลาสพิมพ์เก่าทุกโหมดก่อน ป้องกัน CSS รายงานรายบุคคลมาบังรายงานหน่วยงาน
+    document.body.classList.remove('print-unit-report', 'print-individual-report', 'unit-report-preview-open')
     document.body.classList.add('unit-report-preview-open')
     setPrintReport(true)
   }
