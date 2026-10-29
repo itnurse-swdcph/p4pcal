@@ -550,12 +550,27 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const groups = useMemo(() => {
     const m = new Map<string, any>()
     rows.forEach((r: any) => {
-      const g = m.get(r.activity_code) || { code: r.activity_code, title: r.title, uom: r.uom, domain: r.domain, qty: 0, min: 0, pts: 0, st: { approved: 0, pending: 0, rejected: 0 } }
-      g.qty += Number(r.qty); g.min += Number(r.total_min); g.pts += Number(r.counted_points); g.st[r.status] += 1
-      m.set(r.activity_code, g)
+      const key = `${r.domain || 'อื่น ๆ'}::${r.activity_code}`
+      const g = m.get(key) || { code: r.activity_code, title: r.title, uom: r.uom, domain: r.domain || 'อื่น ๆ', qty: 0, pts: 0 }
+      g.qty += Number(r.qty || 0)
+      g.pts += Number(r.counted_points || 0)
+      m.set(key, g)
     })
-    return [...m.values()].sort((a, b) => a.code.localeCompare(b.code))
+    const domainOrder: Record<string, number> = { 'บริหาร': 0, 'บริการ': 1, 'วิชาการ': 2 }
+    return [...m.values()].sort((a, b) => (domainOrder[a.domain] ?? 99) - (domainOrder[b.domain] ?? 99) || a.code.localeCompare(b.code, 'th'))
   }, [rows])
+  const activityRows = useMemo(() => {
+    const out: any[] = []
+    let currentDomain = ''
+    groups.forEach((g: any) => {
+      if (g.domain !== currentDomain) {
+        currentDomain = g.domain
+        out.push({ type: 'domain', key: `domain-${currentDomain}`, domain: currentDomain })
+      }
+      out.push({ type: 'activity', key: `${g.domain}-${g.code}`, ...g })
+    })
+    return out
+  }, [groups])
   const sign = (title: string, name?: string, pos?: string) => <div className="sign-box">
     <div>ลงชื่อ ........................................ {title}</div>
     <div className="sign-name">( {name || <span className="sign-blank" />} )</div>
@@ -569,7 +584,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
     </div>
     <div className="print-sheet">
       <div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div>
-      <h1 className="ps-title">ใบสรุปผลงาน P4P รายบุคคล</h1>
+      <h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1>
       <div className="ps-top">
         <div className="ps-info">
           <div><b>ชื่อ-สกุล</b> {person.name}</div>
@@ -585,12 +600,14 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
           <tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{nf(payout)} บาท</td></tr>
         </tbody></table>
       </div>
-      <table className="pt ps-acts"><thead><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>นาทีรวม</th><th>แต้มที่นับ</th><th>สถานะ</th><th>ด้าน</th></tr></thead>
-        <tbody>{groups.map(g => <tr key={g.code}><td className="nw">{g.code}</td><td>{g.title}</td><td className="c">{g.uom}</td><td className="r">{n2(g.qty)}</td><td className="r">{n2(g.min)}</td><td className="r">{nf(g.pts)}</td><td className="c sm">{statusLabel(g.st)}</td><td className="c">{g.domain}</td></tr>)}
-          {!groups.length && <tr><td colSpan={8} className="c">ไม่มีกิจกรรมที่บันทึกในเดือนนี้</td></tr>}
-          {groups.length > 0 && <tr className="b"><td colSpan={4} className="r">รวม</td><td className="r">{n2(groups.reduce((a, g) => a + g.min, 0))}</td><td className="r">{nf(groups.reduce((a, g) => a + g.pts, 0))}</td><td colSpan={2}></td></tr>}
+      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
+        <tbody>{activityRows.map((item: any) => item.type === 'domain'
+          ? <tr key={item.key} className="ps-domain-row"><th colSpan={5}>{item.domain}</th></tr>
+          : <tr key={item.key}><td className="nw">{item.code}</td><td className="ps-activity-name">{item.title}</td><td className="c">{item.uom || '—'}</td><td className="r">{n2(item.qty)}</td><td className="r">{nf(item.pts)}</td></tr>)}
+          {!groups.length && <tr><td colSpan={5} className="c">ไม่มีกิจกรรมที่บันทึกในเดือนนี้</td></tr>}
+          {groups.length > 0 && <tr className="b"><td colSpan={4} className="r">รวมคะแนน</td><td className="r">{nf(groups.reduce((a, g) => a + g.pts, 0))}</td></tr>}
         </tbody></table>
-      <div className="sign-row">{sign('ผู้บันทึก')}{sign(`${approverLabel(ap?.personLevel?.[person.id] ?? 0)} (รับรอง)`, head?.approver_name, head?.approver_position)}{sign('ผู้ตรวจสอบ (คกก. P4P)')}</div>
+      <div className="sign-row ps-sign-row">{sign('ผู้บันทึก', person.name, person.position)}{sign('หัวหน้างานรับรอง', head?.approver_name, head?.approver_position)}</div>
       <div className="ps-foot">พิมพ์เมื่อ {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} · ระบบ P4P กลุ่มการพยาบาล</div>
     </div>
   </div>, document.body)
