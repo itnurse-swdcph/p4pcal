@@ -330,7 +330,7 @@ function Main({ sb, session }: any) {
     {cur === 'personal' && role !== 'admin' && <PersonalProfilePage sb={sb} profile={profile} role={role} units={directoryUnits} positions={positions} session={session} reload={loadPeople} />}
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
-      : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} />)}
+      : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} currentUserId={session.user.id} />)}
     {(cur === 'certify' || cur === 'review') && (role === 'admin' || role === 'head') && <div className="space-y-3">
       <div className="card space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -402,9 +402,11 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
   return [rows, () => setN(x => x + 1)] as const
 }
 
-function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole }: any) {
+function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId }: any) {
   const picker = !!canApprove
   const me = useContext(MeCtx)
+  const ownPerson = (allPeople || []).find((p: any) => p.user_id === currentUserId) || (peopleProp || []).find((p: any) => p.user_id === currentUserId)
+  const [entryMode, setEntryMode] = useState<'self' | 'other'>(picker ? 'other' : 'self')
   const approver = useContext(ApproverCtx)
   const [printing, setPrinting] = useState(false) // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
   const [uSel, setUSel] = useState<number | null>(defaultUnit ?? unitOptions?.[0]?.id ?? null)
@@ -415,14 +417,15 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const [peopleLoadError, setPeopleLoadError] = useState('')
   const people = useMemo(() => {
     if (!picker) return peopleProp
+    if (entryMode === 'self') return ownPerson ? [ownPerson] : []
     const directoryIds = new Set(directoryStaff.map((d: any) => Number(d.source_row)))
     return [...(allPeople || []), ...locallyAddedPeople].filter((p: any, i: number, arr: any[]) =>
       arr.findIndex((x: any) => x.id === p.id) === i && (uSel ? Number(p.unit_id) === Number(uSel) : p.unit_id == null && directoryIds.has(Number(p.staff_directory_id)))
     )
-  }, [picker, allPeople, locallyAddedPeople, uSel, peopleProp, directoryStaff])
+  }, [picker, entryMode, ownPerson, allPeople, locallyAddedPeople, uSel, peopleProp, directoryStaff])
   const groupOptions = useMemo(() => [...new Set((unitOptions || []).map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')), [unitOptions])
   useEffect(() => {
-    if (!picker || !groupSel) { setDirectoryStaff([]); setPeopleLoadError(''); return }
+    if (!picker || entryMode !== 'other' || !groupSel) { setDirectoryStaff([]); setPeopleLoadError(''); return }
     let alive = true
     sb.rpc('directory_group_staff', { p_group_name: groupSel }).then(({ data, error }: any) => {
       if (!alive) return
@@ -432,7 +435,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       setDirectoryStaff(uSel ? list.filter((d: any) => String(d.unit_name || '').trim() === String((unitOptions || []).find((u: any) => u.id === uSel)?.name || '').trim()) : list.filter((d: any) => !String(d.unit_name || '').trim()))
     })
     return () => { alive = false }
-  }, [picker, groupSel, uSel, sb, unitOptions])
+  }, [picker, entryMode, groupSel, uSel, sb, unitOptions])
   const pickerPeople = useMemo(() => {
     if (!picker) return people
     const result = [...people]
@@ -443,9 +446,9 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       if (match) { match.org_role = match.org_role || d.org_role; match.staff_directory_id = match.staff_directory_id || d.source_row } else result.push({ id: 'dir:' + d.source_row, directory_source_row: d.source_row, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, name: fullName, position: d.position, org_role: d.org_role, unit_id: uSel, active: true, fromDirectory: true })
     }
     return result.sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), 'th'))
-  }, [picker, people, directoryStaff, uSel])
+  }, [picker, entryMode, people, directoryStaff, uSel])
   const ids = useMemo(() => pickerPeople.filter((p: any) => !String(p.id).startsWith('dir:')).map((p: any) => p.id), [pickerPeople])
-  const [rows, reload] = useLogs(sb, month, ids.length ? ids : (picker ? [] : null), uSel)
+  const [rows, reload] = useLogs(sb, month, ids.length ? ids : (picker ? [] : null), picker && entryMode === 'self' ? null : uSel)
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
   const [q, setQ] = useState(''); const [categoryFilter, setCategoryFilter] = useState(''); const [activityDropdownOpen, setActivityDropdownOpen] = useState(false); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null)
   const [notice, setNotice] = useState('')
@@ -455,6 +458,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const [shift, setShift] = useState('เช้า'); const [caps, setCaps] = useState<any>({ cap_shift_points: 90, cap_day_points: 180 })
   useEffect(() => { sb.from('app_settings').select('key,value').in('key', ['cap_shift_points', 'cap_day_points']).then((r: any) => setCaps(Object.fromEntries([['cap_shift_points', 90], ['cap_day_points', 180], ...(r.data || []).map((x: any) => [x.key, Number(x.value)])]))) }, [])
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
+  useEffect(() => { if (picker && entryMode === 'self') setPid(ownPerson?.id || ''); else if (picker && entryMode === 'other') setPid('') }, [picker, entryMode, ownPerson?.id])
   useEffect(() => { setCategoryFilter(''); setQ('') }, [pid])
   const person = pickerPeople.find((p: any) => p.id === pid); const pos = positions.find((x: any) => x.name === person?.position)
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
@@ -571,6 +575,13 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     <div className="card activity-entry-card w-full max-w-5xl mx-auto space-y-4">
       <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">P4P · ACTIVITY ENTRY</p><h2 className="text-lg font-bold text-slate-900">เพิ่มรายการกิจกรรม</h2><p className="mt-1 text-sm text-slate-600">กรอกข้อมูลตามลำดับ แล้วตรวจสอบก่อนบันทึก</p></div><span className="hidden sm:inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">แบบฟอร์มบันทึก</span></div>
       {picker && <>
+        <label className="field-label">รูปแบบการบันทึกกิจกรรม</label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button type="button" className={'rounded-xl border p-3 text-left ' + (entryMode === 'self' ? 'border-teal-600 bg-teal-50 text-teal-900 ring-1 ring-teal-600' : 'border-slate-200 bg-white')} onClick={() => { setEntryMode('self'); setErr(''); setGroupSel(''); setUSel(null) }}><span className="block font-semibold">บันทึกกิจกรรมของตนเอง</span><span className="mt-1 block text-xs">ดึงข้อมูลบุคลากรของบัญชีที่เข้าสู่ระบบอัตโนมัติ</span></button>
+          <button type="button" className={'rounded-xl border p-3 text-left ' + (entryMode === 'other' ? 'border-teal-600 bg-teal-50 text-teal-900 ring-1 ring-teal-600' : 'border-slate-200 bg-white')} onClick={() => { setEntryMode('other'); setErr(''); setUSel(defaultUnit ?? unitOptions?.[0]?.id ?? null); setGroupSel((unitOptions || []).find((u: any) => u.id === (defaultUnit ?? unitOptions?.[0]?.id))?.parent_group || '') }}><span className="block font-semibold">บันทึกกิจกรรมให้คนอื่น</span><span className="mt-1 block text-xs">เลือกกลุ่มงาน หน่วยงาน และบุคลากรเป้าหมาย</span></button>
+        </div>
+        {entryMode === 'self' && !ownPerson && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">ยังไม่พบระเบียนบุคลากรที่เชื่อมกับบัญชีนี้ จึงยังบันทึกกิจกรรมของตนเองไม่ได้ กรุณาให้ผู้ดูแลระบบผูกบัญชีกับทะเบียนบุคลากรก่อน</p>}
+        {entryMode === 'other' && <>
         <label className="field-label">1. เลือกกลุ่มงาน</label>
         <select className="inp" value={groupSel} onChange={e => { setGroupSel(e.target.value); setUSel(null); setPid(''); setErr('') }}><option value="">— เลือกกลุ่มงาน —</option>{groupOptions.map((g: string) => <option key={g} value={g}>{g}</option>)}</select>
         <label className="field-label">2. เลือกหน่วยงาน <span className="text-xs font-normal text-stone-500">(หากเป็นหัวหน้ากลุ่มงานที่ไม่มีหน่วยงาน ให้เว้นว่าง)</span></label>
@@ -594,6 +605,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         {selectingStaff && <p className="text-xs text-teal-700">กำลังเตรียมระเบียนบุคลากร…</p>}
         {peopleLoadError && <p className="text-xs text-red-700">{peopleLoadError}</p>}
         {!pickerPeople.length && <p className="text-xs text-red-700">ไม่พบรายชื่อบุคลากรในกลุ่มงาน/หน่วยงานที่เลือกในทะเบียนบุคลากร</p>}
+        </>}
       </>}
       {!picker && people.length > 1 && <select className="inp" value={pid} onChange={e => setPid(e.target.value)}>{people.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}</select>}
       <div className="grid grid-cols-2 gap-3">
