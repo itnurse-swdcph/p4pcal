@@ -241,7 +241,7 @@ function Main({ sb, session }: any) {
     {tabs.length === 0 && <p>บัญชีนี้ยังไม่มีสิทธิ์ใช้งาน</p>}
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
-      : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} reloadPeople={loadPeople} />)}
+      : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} />)}
     {cur === 'review' && role === 'admin' && <div className="space-y-3">
       <div className="card space-y-2"><label className="field-label" htmlFor="admin-review-unit">หน่วยงานที่ต้องการตรวจ/รับรอง</label><select id="admin-review-unit" className="inp w-full" value={unit ?? ''} onChange={e => setUnit(e.target.value ? Number(e.target.value) : null)}><option value="">เลือกหน่วยงาน</option>{unitOptions.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select><p className="text-xs text-stone-600">เลือกรายการหน่วยงานในหน้านี้เพื่อกรองตาราง ไม่ต้องเลือกจากแถบด้านบน</p></div>
       {unit ? <ReviewPage units={units} canPrint sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกหน่วยงานเพื่อแสดงรายการตรวจ/รับรอง</div>}
@@ -298,7 +298,7 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
   return [rows, () => setN(x => x + 1)] as const
 }
 
-function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, canApprove, reloadPeople }: any) {
+function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, canApprove, reloadPeople, profileOrgRole }: any) {
   const picker = !!canApprove
   const me = useContext(MeCtx)
   const approver = useContext(ApproverCtx)
@@ -326,7 +326,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       // จับคู่กับระเบียนเดิมด้วย person_id จากฐานข้อมูล (ชื่อรูปแบบเดียวกับตอนลงทะเบียน) เพื่อไม่สร้างซ้ำ
       const fullName = d.full_name
       const match = result.find((p: any) => p.id === d.person_id) || result.find((p: any) => p.unit_id === uSel && String(p.name || '').trim() === fullName)
-      if (!match) result.push({ id: 'dir:' + d.source_row, directory_source_row: d.source_row, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, name: fullName, position: d.position, unit_id: uSel, active: true, fromDirectory: true })
+      if (match) { match.org_role = match.org_role || d.org_role; match.staff_directory_id = match.staff_directory_id || d.source_row } else result.push({ id: 'dir:' + d.source_row, directory_source_row: d.source_row, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, name: fullName, position: d.position, org_role: d.org_role, unit_id: uSel, active: true, fromDirectory: true })
     }
     return result.sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), 'th'))
   }, [picker, people, directoryStaff, uSel])
@@ -440,7 +440,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       {printing && person && <PrintSheet sb={sb} person={person} rows={shown} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
       {myDrafts.length > 0 && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-stone-300 bg-white p-3 text-sm"><span>แบบร่างที่ยังไม่ส่ง <b>{myDrafts.length}</b> รายการ (ยังไม่นับคะแนน)</span>
         <button type="button" className="btn" onClick={async () => { if (!confirm(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรอง? เมื่อส่งแล้วจะแก้ไขหรือลบไม่ได้`)) return; const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', myDrafts.map((r: any) => r.id)); if (error) alert('ส่งรายการไม่สำเร็จ: ' + error.message); else { setNotice(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรองแล้ว`); reload() } }}>ส่งทั้งหมด ({myDrafts.length})</button></div>}
-      <Totals rows={shown} people={person ? [person] : []} positions={positions} />
+      <Totals rows={shown} people={person ? [{ ...person, org_role: person.org_role || profileOrgRole }] : []} positions={positions} />
     </div>
     <div className="card activity-entry-card w-full max-w-5xl mx-auto space-y-4">
       <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">P4P · ACTIVITY ENTRY</p><h2 className="text-lg font-bold text-slate-900">เพิ่มรายการกิจกรรม</h2><p className="mt-1 text-sm text-slate-600">กรอกข้อมูลตามลำดับ แล้วตรวจสอบก่อนบันทึก</p></div><span className="hidden sm:inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">แบบฟอร์มบันทึก</span></div>
@@ -574,9 +574,12 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   </div>, document.body)
 }
 
-function guaranteeForPosition(position: any, positions: any[] = []) {
+function guaranteeForPosition(position: any, positions: any[] = [], orgRole?: any) {
+  // แต้มประกันกลุ่มพยาบาลต้องแยกตามบทบาทองค์กร ไม่ใช่ตำแหน่งวิชาชีพที่แสดงในทะเบียน
+  const role = String(orgRole || '').replace(/\\s+/g, '').trim()
+  if (role.includes('หัวหน้ากลุ่มงาน')) return 960
+  if (role.includes('หัวหน้างาน')) return 1080
   const name = String(position || '').replace(/\\s+/g, '').trim()
-  // เกณฑ์แต้มประกันเฉพาะตำแหน่งหัวหน้ากลุ่มงานและหัวหน้างาน
   if (name.includes('หัวหน้ากลุ่มงาน')) return 960
   if (name.includes('หัวหน้างาน')) return 1080
   return Number(positions.find((x: any) => String(x.name || '').replace(/\\s+/g, '').trim() === name)?.guarantee || 0)
@@ -584,7 +587,7 @@ function guaranteeForPosition(position: any, positions: any[] = []) {
 
 function Totals({ rows, people, positions }: any) {
   if (people.length !== 1) return null
-  const g = guaranteeForPosition(people[0].position, positions)
+  const g = guaranteeForPosition(people[0].position, positions, people[0].org_role)
   const t = rows.reduce((s: number, r: any) => s + Number(r.counted_points), 0)
   return <div className="grid grid-cols-3 gap-2 text-center">
     {[['แต้มที่นับเดือนนี้', t], ['แต้มประกัน', g], ['ส่วนที่เกินประกัน', Math.max(0, t - g)]].map(([l, v]: any) => <div key={l} className="card"><div className="text-xs text-stone-600">{l}</div><div className="text-2xl font-bold">{nf(v)}</div></div>)}
@@ -920,17 +923,48 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
 
 function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, canPrint }: any) {
   const [printFor, setPrintFor] = useState<any>(null)
+  const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
+  const [unitRate, setUnitRate] = useState(0)
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
+  useEffect(() => {
+    let alive = true
+    const unitName = (units || []).find((u: any) => Number(u.id) === Number(unit))?.name
+    if (!unit || !unitName) { setDirectoryPeople([]); setUnitRate(0); return }
+    sb.rpc('directory_staff', { p_unit_name: unitName }).then(({ data, error }: any) => {
+      if (!alive) return
+      if (error) { console.error('โหลดทะเบียนบุคลากรสำหรับตารางหน่วยงานไม่สำเร็จ', error); setDirectoryPeople([]) }
+      else setDirectoryPeople(Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
+    })
+    const monthDate = month + '-01'
+    sb.from('unit_settings').select('baht_per_point').eq('unit_id', unit).eq('month', monthDate).maybeSingle().then(({ data, error }: any) => {
+      if (!alive) return
+      setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0)
+    })
+    return () => { alive = false }
+  }, [sb, unit, month, units])
+  const roster = useMemo(() => {
+    const result = (people || []).filter((p: any) => Number(p.unit_id) === Number(unit)).map((p: any) => ({ ...p }))
+    for (const d of directoryPeople) {
+      const fullName = String(d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`).trim()
+      const found = result.find((p: any) => (d.person_id && p.id === d.person_id) || (p.staff_directory_id && Number(p.staff_directory_id) === Number(d.source_row)) || String(p.name || '').trim() === fullName)
+      if (found) { found.org_role = found.org_role || d.org_role; found.staff_directory_id = found.staff_directory_id || d.source_row; if (!found.position) found.position = d.position }
+      else result.push({ id: d.person_id || `dir:${d.source_row}`, directory_source_row: d.source_row, staff_directory_id: d.source_row, name: fullName, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, position: d.position, org_role: d.org_role, unit_id: unit, active: true, fromDirectory: true })
+    }
+    return result.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
+  }, [people, directoryPeople, unit])
   const rows = useMemo(() => rowsAll.filter((r: any) => r.status !== 'draft'), [rowsAll])   // แบบร่างยังไม่ถึงหัวหน้า
   const [sel, setSel] = useState<string>('')
-  const sum = useMemo(() => people.map((p: any) => {
-    const rs = rows.filter((r: any) => r.person_id === p.id); const g = guaranteeForPosition(p.position, positions)
+  const sum = useMemo(() => roster.map((p: any, index: number) => {
+    const rs = rows.filter((r: any) => r.person_id === p.id); const g = guaranteeForPosition(p.position, positions, p.org_role)
+    const approved = rs.filter((r: any) => r.status === 'approved')
     const d = (x: string) => rs.filter((r: any) => r.domain === x).reduce((s: number, r: any) => s + Number(r.counted_points), 0)
     const tot = d('บริหาร') + d('บริการ') + d('วิชาการ')
-    return { p, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, g, appr: rs.filter((r: any) => r.status === 'approved').reduce((t: number, r: any) => t + Number(r.counted_points), 0), n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
+    const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
+    const excess = Math.max(0, workPoints - g)
+    return { p, order: index + 1, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, excess, rate: unitRate, payout: excess * unitRate, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
-  }), [rows, people, positions])
+  }), [rows, roster, positions, unitRate])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const bulk = async () => {
     const ids = rows.filter((r: any) => r.status === 'pending' && !r.errors.length && !r.warnings.length && canDecideRow(ap, me, r)).map((r: any) => r.id)
@@ -938,8 +972,8 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     if (confirm(`รับรอง ${ids.length} รายการที่ผ่านการตรวจอัตโนมัติ (✓) ทั้งหมด?`)) { await sb.from('logs').update({ status: 'approved' }).in('id', ids); reload() }
   }
   const csv = () => {
-    const h = ['ชื่อ', 'ตำแหน่ง', 'บริหาร', 'บริการ', 'วิชาการ', 'รวม', 'คะแนนที่รับรองแล้ว', 'แต้มประกัน']
-    const b = sum.map((x: any) => [x.p.name, x.p.position, x.adm, x.svc, x.acd, x.tot, x.appr, x.g])
+    const h = ['ลำดับ', 'ชื่อ-สกุล', 'ตำแหน่ง', 'แต้มประกัน/เดือน', 'แต้มการปฏิบัติงาน', 'แต้มส่วนต่าง', 'อัตราเงินเพิ่ม', 'รวมจำนวนเงินที่ได้รับ']
+    const b = sum.map((x: any) => [x.order, x.p.name, x.p.position, x.g, x.workPoints, x.excess, x.rate, x.payout])
     const blob = new Blob(['\ufeff' + [h, ...b].map(r => r.join(',')).join('\n')], { type: 'text/csv' }); const a = document.createElement('a')
     a.href = URL.createObjectURL(blob); a.download = `p4p_${month}.csv`; a.click()
   }
@@ -952,12 +986,11 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     <p className="text-sm text-stone-700">ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล · <b>คุณรับรองได้เฉพาะรายการของ{ap?.role === 'admin' ? 'ทุกคน (ยกเว้นของตนเอง)' : ap?.level === 1 ? 'เจ้าหน้าที่ในหน่วยงานที่ดูแล' : ap?.level === 2 ? 'หัวหน้างานในกลุ่มงานที่ดูแล' : ap?.level === 3 ? 'หัวหน้ากลุ่มงาน' : 'ผู้ที่อยู่ในลำดับถัดไปเท่านั้น (บัญชีของคุณยังไม่มีสิทธิ์รับรอง)'}</b></p>
     <p className="text-xs text-stone-600">เงินคำนวณรายกลุ่มวิชาชีพทั้งโรงพยาบาลที่เมนู "จ่ายเงิน P4P" โดยนับเฉพาะคะแนนที่หัวหน้ารับรองแล้ว (ไม่เกิน 1.5 เท่าของแต้มประกัน)</p>
     <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button></div>
-    <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ชื่อ</th><th>ตำแหน่ง</th><th>บริหาร</th><th>บริการ</th><th>วิชาการ</th><th>รวม</th><th>รับรองแล้ว</th><th>ประกัน</th><th>ข้อสังเกต</th>{canPrint && <th></th>}</tr></thead>
-      <tbody>{sum.map((x: any) => { const a = avg(x.p.position), ratio = a ? x.tot / a : 0
-        return <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
-          <td><b>{x.p.name}</b></td><td className="text-xs">{x.p.position}</td><td>{nf(x.adm)}</td><td>{nf(x.svc)}</td><td>{nf(x.acd)}</td><td><b>{nf(x.tot)}</b></td><td><b>{nf(x.appr)}</b></td><td>{nf(x.g, 0)}</td>
-          <td className="text-xs text-red-700">{x.err > 0 && `✗${x.err} `}{x.warn > 0 && `!${x.warn} `}{x.pend > 0 && `รอรับรอง${x.pend} `}{ratio > 1.5 && 'สูงกว่าเฉลี่ยมาก '}{x.tot > 0 && ratio < .5 && 'ต่ำกว่าเฉลี่ยมาก'}{!x.n && 'ไม่มีบันทึก'}</td>{canPrint && <td><button type="button" className="btn sec !py-0.5 whitespace-nowrap" onClick={e => { e.stopPropagation(); setPrintFor(x.p) }}>พิมพ์ใบสรุป</button></td>}</tr> })}
-        <tr className="font-bold"><td colSpan={5}>รวมทั้งหน่วย</td><td>{nf(sum.reduce((s: number, x: any) => s + x.tot, 0))}</td><td>{nf(sum.reduce((t: number, x: any) => t + x.appr, 0))}</td><td></td><td></td>{canPrint && <td></td>}</tr></tbody></table></div>
+    <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
+      <tbody>{sum.map((x: any) => <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
+          <td className="text-center">{x.order}</td><td><b>{x.p.name}</b>{x.p.fromDirectory && <div className="text-xs text-stone-500">ยังไม่ลงทะเบียนใช้งาน</div>}</td><td className="text-xs">{x.p.position || '—'}</td><td className="text-right">{nf(x.g, 0)}</td><td className="text-right">{nf(x.workPoints)}</td><td className="text-right">{nf(x.excess)}</td><td className="text-right">{nf(x.rate)} บาท/แต้ม</td><td className="text-right font-semibold">{nf(x.payout)} บาท</td>
+        </tr>)}
+        <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td>{nf(sum.reduce((s: number, x: any) => s + x.g, 0)}</td><td>{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td>{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
     <h2 className="font-bold">{sel ? 'รายการของ ' + people.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
     {printFor && <PrintSheet sb={sb} person={printFor} rows={rows.filter((r: any) => r.person_id === printFor.id)} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
     <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
