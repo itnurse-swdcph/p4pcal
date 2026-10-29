@@ -1152,13 +1152,14 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   </div>
 }
 
-function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, canPrint }: any) {
+function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, canPrint, reportOnly = false, certificationOnly = false }: any) {
   const [printFor, setPrintFor] = useState<any>(null)
   const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
   const [signaturePeople, setSignaturePeople] = useState<any[]>([])
   const [unitRate, setUnitRate] = useState(0)
   const [actingChief, setActingChief] = useState<any>({ name: 'นางสาวมัณฑนา เพชรคำ', position: 'พยาบาลวิชาชีพชำนาญการพิเศษ' })
   const [printReport, setPrintReport] = useState(false)
+  const [certificationSearch, setCertificationSearch] = useState('')
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
   useEffect(() => {
@@ -1282,19 +1283,27 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   }
   const shown = sel ? rows.filter((r: any) => r.person_id === sel) : rows
   const stat = (l: string, v: any) => <div className="card text-center"><div className="text-xs text-stone-600">{l}</div><div className="text-xl font-bold">{v}</div></div>
+  const certificationRows = useMemo(() => rows.filter((r: any) =>
+    r.status === 'pending' &&
+    canDecideRow(ap, me, r) &&
+    (!certificationSearch.trim() || String(r.person_name || roster.find((p: any) => p.id === r.person_id)?.name || '').toLocaleLowerCase('th').includes(certificationSearch.trim().toLocaleLowerCase('th')))
+  ), [rows, ap, me, roster, certificationSearch])
   return <div className="space-y-4">
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-      {stat('แถวทั้งหมด', rows.length)}{stat('✗ ไม่นับแต้ม', rows.filter((r: any) => r.errors.length).length)}{stat('! ต้องตรวจทาน', rows.filter((r: any) => r.warnings.length).length)}
-      {stat('รอรับรอง', rows.filter((r: any) => r.status === 'pending').length)}{stat('คะแนนที่รับรองแล้ว', nf(sum.reduce((t: number, x: any) => t + x.appr, 0)))}</div>
-    <p className="text-sm text-stone-700">ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล · <b>คุณรับรองได้เฉพาะรายการของ{ap?.role === 'admin' ? 'ทุกคน (ยกเว้นของตนเอง)' : ap?.level === 1 ? 'เจ้าหน้าที่ในหน่วยงานที่ดูแล' : ap?.level === 2 ? 'หัวหน้างานในกลุ่มงานที่ดูแล' : ap?.level === 3 ? 'หัวหน้ากลุ่มงาน' : 'ผู้ที่อยู่ในลำดับถัดไปเท่านั้น (บัญชีของคุณยังไม่มีสิทธิ์รับรอง)'}</b></p>
-    <p className="text-xs text-stone-600">เงินคำนวณรายกลุ่มวิชาชีพทั้งโรงพยาบาลที่เมนู "จ่ายเงิน P4P" โดยนับเฉพาะคะแนนที่หัวหน้ารับรองแล้ว (ไม่เกิน 1.5 เท่าของแต้มประกัน)</p>
-    <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button><button className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน</button></div>
-    <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
+    {!certificationOnly && <>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {stat('บุคลากร', roster.length)}{stat('รายการไม่นับแต้ม', rows.filter((r: any) => r.errors.length).length)}{stat('รายการต้องตรวจทาน', rows.filter((r: any) => r.warnings.length).length)}
+        {stat('รายการรอรับรอง', rows.filter((r: any) => r.status === 'pending').length)}{stat('คะแนนที่รับรองแล้ว', nf(sum.reduce((t: number, x: any) => t + x.appr, 0)))}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน</button>
+        <button type="button" className="btn sec" onClick={csv}>ส่งออก CSV</button>
+      </div>
+          <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
           <td className="text-center">{x.order}</td><td><b>{x.p.name}</b>{x.p.fromDirectory && <div className="text-xs text-stone-500">ยังไม่ลงทะเบียนใช้งาน</div>}<div><button type="button" className="btn sec !py-0.5 !px-2 !text-xs no-print" onClick={(e: any) => { e.stopPropagation(); setPrintFor(x.p) }}>ดูตัวอย่าง/พิมพ์รายบุคคล</button></div></td><td className="text-xs">{x.p.position || '—'}</td><td className="text-center">{nf(x.g, 0)}</td><td className="text-center">{nf(x.workPoints)}</td><td className="text-center">{nf(x.excess)}</td><td className="text-center">{nf(x.rate)} บาท/แต้ม</td><td className="text-center font-semibold">{nf(x.payout)} บาท</td>
         </tr>)}
         <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td className="text-center">—</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
-    {printReport && createPortal(<div className="unit-report-print">
+          {printReport && createPortal(<div className="unit-report-print">
       <div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์</span><button type="button" className="btn" onClick={startUnitReportPrint}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={closeUnitReportPreview}>ปิด</button></div>
       <table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">{unitName}　 {groupName || '................................'}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
@@ -1305,9 +1314,38 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         <div>ลงชื่อ ........................................................<br/>({actingChief.name})<div>{actingChief.position || 'พยาบาลวิชาชีพชำนาญการพิเศษ'}</div><div><b>รักษาการหัวหน้าภารกิจด้านการพยาบาล</b></div></div>
       </div>
     </div>, document.body)}
-        <h2 className="font-bold">{sel ? 'รายการของ ' + roster.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
+    </>}
+    {certificationOnly && <>
+      <div className="card space-y-3">
+        <div><h2 className="font-bold text-lg">รายการกิจกรรมที่รอรับรอง</h2><p className="text-sm text-stone-600">แสดงรายการที่อยู่ในขอบเขตสิทธิ์การรับรองของคุณในหน่วยงานที่เลือก</p></div>
+        <label className="block space-y-1"><span className="field-label">ค้นหาชื่อเจ้าหน้าที่</span><input className="inp w-full" type="search" value={certificationSearch} onChange={e => setCertificationSearch(e.target.value)} placeholder="พิมพ์ชื่อ-สกุลเจ้าหน้าที่ที่ต้องการค้นหา" /></label>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span>รายการที่รับรองได้ {certificationRows.length.toLocaleString('th-TH')} รายการ</span><button type="button" className="btn sec" onClick={() => setCertificationSearch('')}>ล้างคำค้นหา</button></div>
+      </div>
+      <LogTable sb={sb} rows={certificationRows} reload={reload} canApprove={!audit} readOnly={!!audit} acts={acts} month={month} />
+    </>}
+    {!reportOnly && !certificationOnly && <>
+      <p className="text-sm text-stone-700">ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล · <b>คุณรับรองได้เฉพาะรายการในขอบเขตสิทธิ์ของคุณ</b></p>
+      <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button><button className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน</button></div>
+          <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
+      <tbody>{sum.map((x: any) => <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
+          <td className="text-center">{x.order}</td><td><b>{x.p.name}</b>{x.p.fromDirectory && <div className="text-xs text-stone-500">ยังไม่ลงทะเบียนใช้งาน</div>}<div><button type="button" className="btn sec !py-0.5 !px-2 !text-xs no-print" onClick={(e: any) => { e.stopPropagation(); setPrintFor(x.p) }}>ดูตัวอย่าง/พิมพ์รายบุคคล</button></div></td><td className="text-xs">{x.p.position || '—'}</td><td className="text-center">{nf(x.g, 0)}</td><td className="text-center">{nf(x.workPoints)}</td><td className="text-center">{nf(x.excess)}</td><td className="text-center">{nf(x.rate)} บาท/แต้ม</td><td className="text-center font-semibold">{nf(x.payout)} บาท</td>
+        </tr>)}
+        <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td className="text-center">—</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
+          {printReport && createPortal(<div className="unit-report-print">
+      <div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์</span><button type="button" className="btn" onClick={startUnitReportPrint}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={closeUnitReportPreview}>ปิด</button></div>
+      <table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">{unitName}　 {groupName || '................................'}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
+      <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
+      <tr className="unit-report-total"><td colSpan={3}>รวมทั้งหน่วยงาน</td><td>{nf(sum.reduce((v: number, x: any) => v + x.g, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.workPoints, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((v: number, x: any) => v + x.payout, 0))} บาท</td></tr></tbody></table>
+      <div className="unit-report-signatures">
+        <div>ลงชื่อ ........................................................<br/>({unitHeadName || '........................................................'})<div>{unitHead?.position || ''}</div><div><b>{'หัวหน้างาน' + String(unitName || '').replace(/^งาน/, '')}</b></div></div>
+        <div>ลงชื่อ ........................................................<br/>({groupHeadName || '........................................................'})<div>{groupHead?.position || ''}</div><div><b>{'หัวหน้ากลุ่มงาน' + String(groupName || '').replace(/^กลุ่มงาน/, '')}</b></div></div>
+        <div>ลงชื่อ ........................................................<br/>({actingChief.name})<div>{actingChief.position || 'พยาบาลวิชาชีพชำนาญการพิเศษ'}</div><div><b>รักษาการหัวหน้าภารกิจด้านการพยาบาล</b></div></div>
+      </div>
+    </div>, document.body)}
+      <h2 className="font-bold">{sel ? 'รายการของ ' + roster.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
+      <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
+    </>}
     {printFor && <PrintSheet sb={sb} person={printFor} rows={rows.filter((r: any) => r.person_id === printFor.id)} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
-    <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
   </div>
 }
 
