@@ -295,7 +295,7 @@ function Main({ sb, session }: any) {
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'
-  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['review', 'ตรวจ/รับรองหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ'], ['payout', 'จ่ายเงิน P4P']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [['personal', 'แก้ไขข้อมูลส่วนตัว']])]
+  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'head' || role === 'admin' ? [['certify', 'รับรองกิจกรรม'], ['review', 'สรุปรายงานหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ'], ['payout', 'จ่ายเงิน P4P']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [['personal', 'แก้ไขข้อมูลส่วนตัว']])]
   const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
   // แสดงเฉพาะหน่วยงานที่มีอยู่ใน staff_directory ล่าสุด และจับคู่ชื่อแบบตรงตัวกับ units
   // ไม่สร้าง/เปลี่ยน unit_id และไม่แก้หรือรวมข้อมูลในฐานข้อมูล
@@ -307,7 +307,7 @@ function Main({ sb, session }: any) {
     .slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
   const unitOptions = role === 'head' ? directoryUnits.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id || (!!profile.nursing_group && u.parent_group === profile.nursing_group)) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
-  const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings, personal: Users }
+  const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
   return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
@@ -331,23 +331,26 @@ function Main({ sb, session }: any) {
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
       : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} />)}
-    {cur === 'review' && role === 'admin' && <div className="space-y-3">
-      <div className="card space-y-2">
-        <label className="field-label" htmlFor="admin-review-group">กลุ่มงานที่ต้องการตรวจ/รับรอง</label>
-        <select id="admin-review-group" className="inp w-full" value={reviewGroup} onChange={e => { setReviewGroup(e.target.value); setUnit(null) }}>
-          <option value="">เลือกกลุ่มงานก่อน</option>
-          {[...new Set(directoryUnits.map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')).map((g: string) => <option key={g} value={g}>{g}</option>)}
-        </select>
-        <label className="field-label" htmlFor="admin-review-unit">หน่วยงานที่ต้องการตรวจ/รับรอง</label>
-        <select id="admin-review-unit" className="inp w-full" value={unit ?? ''} disabled={!reviewGroup} onChange={e => setUnit(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">{reviewGroup ? 'เลือกหน่วยงาน' : 'กรุณาเลือกกลุ่มงานก่อน'}</option>
-          {unitOptions.filter((u: any) => String(u.parent_group || '').trim() === reviewGroup).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
-        </select>
-        <p className="text-xs text-stone-600">เลือกกลุ่มงานก่อน แล้วจึงเลือกหน่วยงานเพื่อกรองรายการในตารางตรวจ/รับรอง</p>
+    {(cur === 'certify' || cur === 'review') && (role === 'admin' || role === 'head') && <div className="space-y-3">
+      <div className="card space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1"><span className="field-label">กลุ่มงาน</span>
+            <select className="inp w-full" value={reviewGroup} onChange={e => { const g = e.target.value; setReviewGroup(g); const matches = unitOptions.filter((u: any) => String(u.parent_group || '').trim() === g); setUnit(matches.length === 1 ? Number(matches[0].id) : null) }}>
+              <option value="">เลือกกลุ่มงาน</option>
+              {[...new Set(unitOptions.map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')).map((g: string) => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </label>
+          <label className="block space-y-1"><span className="field-label">หน่วยงาน</span>
+            <select className="inp w-full" value={unit ?? ''} disabled={!reviewGroup} onChange={e => setUnit(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">{reviewGroup ? 'เลือกหน่วยงาน' : 'กรุณาเลือกกลุ่มงานก่อน'}</option>
+              {unitOptions.filter((u: any) => String(u.parent_group || '').trim() === reviewGroup).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="text-xs text-stone-600">{role === 'admin' ? 'ผู้ดูแลระบบสามารถเลือกหน่วยงานได้ทั้งหมด' : 'แสดงเฉพาะหน่วยงานที่บัญชีของคุณได้รับมอบหมายให้รับผิดชอบ'}</p>
       </div>
-      {unit && reviewGroup ? <ReviewPage units={units} canPrint sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานและหน่วยงานเพื่อแสดงรายการตรวจ/รับรอง</div>}
+      {unit && reviewGroup ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานและหน่วยงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
     </div>}
-    {cur === 'review' && role !== 'admin' && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
     {cur === 'payout' && <PayoutPage sb={sb} month={month} isAdmin={role === 'admin'} />}
