@@ -54,7 +54,7 @@ Deno.serve(async (req: Request) => {
     .select("source_row,prefix,first_name,last_name,position,org_role,staff_group,staff_type,unit_name,extra_unit_names,nursing_group,extra_nursing_group_names,active")
     .eq("source_row", staffId).eq("active", true).maybeSingle();
   if (staffError) return json(500, { error: "ตรวจสอบข้อมูลบุคลากรไม่สำเร็จ" });
-  if (!staff) return json(400, { error: "ไม่พบรายชื่อบุคลากรที่เลือก กรุณาค้นหาและเลือกชื่อใหม่" });
+  if (!staff) { console.warn("p4p-register: staff directory record not found", { staffId }); return json(400, { error: "ไม่พบรายชื่อบุคลากรที่เลือกในฐานข้อมูล กรุณาค้นหาและเลือกชื่อใหม่" }); }
 
   const { data: linked, error: linkedError } = await admin.from("profiles")
     .select("user_id").eq("staff_directory_id", staffId).maybeSingle();
@@ -81,7 +81,21 @@ Deno.serve(async (req: Request) => {
   if (!unit) unit = units.find((u: any) => u.name === "กลุ่มการพยาบาล");
   if (!unit) return json(500, { error: "ไม่สามารถจับคู่หน่วยงานของบุคลากรกับระบบได้ กรุณาติดต่อผู้ดูแล" });
 
+  // The acting chief nurse may still be listed as a group-work head in staff_directory.
+  // Resolve the authoritative designation before creating the account so the profile update
+  // below does not overwrite the admin role assigned by the auth trigger.
+  const { data: designations, error: designationError } = await admin
+    .from("position_designations")
+    .select("full_name,position")
+    .in("position", ["หัวหน้าพยาบาล", "รักษาการหัวหน้าพยาบาล"]);
+  if (designationError) return json(500, { error: "ตรวจสอบตำแหน่งผู้ดูแลระบบไม่สำเร็จ กรุณาลองใหม่" });
+  const normalizeName = (value: string) => value.normalize("NFC").toLowerCase().replace(/\\s+/g, "");
+  const selectedFullName = [staff.prefix, staff.first_name, staff.last_name].filter(Boolean).join(" ");
+  const isChiefNurse = (designations || []).some((d: any) =>
+    normalizeName(String(d.full_name || "")) === normalizeName(selectedFullName)
+  );
   const isLeader = staff.org_role === "หัวหน้างาน" || staff.org_role === "หัวหน้ากลุ่มงาน";
+  const assignedRole = isChiefNurse ? "admin" : isLeader ? "head" : "staff";
   const email = username + "@p4p.invalid";
   const { data, error } = await admin.auth.admin.createUser({
     email,
@@ -94,15 +108,16 @@ Deno.serve(async (req: Request) => {
   });
   if (error || !data.user) {
     const message = error?.message ?? "";
+    console.error("p4p-register auth.createUser failed", { code: error?.code, status: error?.status, message });
     if (/already|registered|exists/i.test(message)) return json(409, { error: "ชื่อผู้ใช้นี้ถูกใช้แล้ว กรุณาเลือกชื่ออื่น" });
-    return json(400, { error: "สร้างบัญชีไม่สำเร็จ กรุณาตรวจสอบข้อมูลและลองใหม่" });
+    return json(400, { error: "Supabase Auth ปฏิเสธการสร้างบัญชี: " + (message || "ไม่ทราบสาเหตุ") });
   }
 
   const profileUpdate = await admin.from("profiles").update({
     username, staff_directory_id: staff.source_row,
     full_name: staff.prefix + staff.first_name + " " + staff.last_name,
     prefix: staff.prefix, first_name: staff.first_name, last_name: staff.last_name,
-    position: staff.position, unit_id: unit.id, role: isLeader ? "head" : "staff",
+    position: staff.position, unit_id: unit.id, role: assignedRole,
     org_role: staff.org_role, staff_group: staff.staff_group, staff_type: staff.staff_type,
     nursing_group: staff.nursing_group, extra_unit_names: staff.extra_unit_names,
     extra_nursing_group_names: staff.extra_nursing_group_names
