@@ -77,8 +77,7 @@ export default function PersonnelPage({ sb, positions = [], units = [], reload }
     setBusy(true); setMessage('')
     let error: any = null
     if (isNew) {
-      const nextId = Math.max(0, ...rows.map(r => Number(r.source_row) || 0)) + 1
-      const result = await sb.from('staff_directory').insert({ ...payload, source_row: nextId }).select().single()
+      const result = await sb.from('staff_directory').insert(payload).select().single()
       error = result.error
     } else {
       const result = await sb.from('staff_directory').update(payload).eq('source_row', editing.source_row)
