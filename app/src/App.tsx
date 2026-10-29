@@ -980,7 +980,18 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   }, [people, directoryPeople, unit])
   const rows = useMemo(() => rowsAll.filter((r: any) => r.status !== 'draft'), [rowsAll])   // แบบร่างยังไม่ถึงหัวหน้า
   const [sel, setSel] = useState<string>('')
-  const sum = useMemo(() => roster.map((p: any, index: number) => {
+  const sum = useMemo(() => {
+    const positionRank = (p: any) => {
+      const role = String(p.org_role || '').replaceAll(' ', '')
+      const pos = String(p.position || '').replaceAll(' ', '')
+      if (role.includes('หัวหน้ากลุ่มงาน')) return 0
+      if (role.includes('หัวหน้างาน')) return 1
+      const ordered = ['พยาบาลวิชาชีพชำนาญการพิเศษ','พยาบาลวิชาชีพชำนาญการ','พยาบาลวิชาชีพปฏิบัติการ','พยาบาลวิชาชีพ','พนักงานช่วยเหลือคนไข้','พนักงานประจำตึก','พนักงานเปล','ผู้ช่วยช่างทั่วไป','พนักงานธุรการ','พนักงานบริการ']
+      const idx = ordered.findIndex((title) => pos.includes(title))
+      return idx < 0 ? 99 : idx + 2
+    }
+    const sortedRoster = [...roster].sort((a: any, b: any) => positionRank(a) - positionRank(b) || String(a.name || '').localeCompare(String(b.name || ''), 'th'))
+    return sortedRoster.map((p: any, index: number) => {
     const rs = rows.filter((r: any) => r.person_id === p.id); const g = guaranteeForPosition(p.position, positions, p.org_role)
     const approved = rs.filter((r: any) => r.status === 'approved')
     const d = (x: string) => rs.filter((r: any) => r.domain === x).reduce((s: number, r: any) => s + Number(r.counted_points), 0)
@@ -989,7 +1000,8 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     const excess = Math.max(0, workPoints - g)
     return { p, order: index + 1, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, excess, rate: unitRate, payout: excess * unitRate, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
-  }), [rows, roster, positions, unitRate])
+    })
+  }, [rows, roster, positions, unitRate])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const selectedUnit = (units || []).find((u: any) => Number(u.id) === Number(unit))
   const unitName = selectedUnit?.name || ''
