@@ -195,14 +195,10 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
     if (![form.prefix,form.first_name,form.last_name,form.position,form.staff_group,form.staff_type,form.unit_name,form.nursing_group].every(x => String(x ?? '').trim())) { setMessage('กรุณากรอกชื่อ ตำแหน่ง กลุ่มบุคลากร ประเภทบุคลากร หน่วยงาน และกลุ่มงานให้ครบ'); return }
     setBusy(true); setMessage('')
     const payload = { prefix: String(form.prefix).trim(), first_name: String(form.first_name).trim(), last_name: String(form.last_name).trim(), position: String(form.position).trim(), staff_group: String(form.staff_group).trim(), staff_type: String(form.staff_type).trim(), unit_name: String(form.unit_name).trim(), extra_unit_names: String(form.extra_unit_names ?? '').trim() || null, nursing_group: String(form.nursing_group).trim(), extra_nursing_group_names: String(form.extra_nursing_group_names ?? '').trim() || null }
-    const { error } = await sb.from('staff_directory').update(payload).eq('source_row', profile.staff_directory_id)
-    if (!error) {
-      const fullName = payload.prefix + payload.first_name + ' ' + payload.last_name
-      await sb.from('profiles').update({ prefix: payload.prefix, first_name: payload.first_name, last_name: payload.last_name, full_name: fullName, position: payload.position, staff_group: payload.staff_group, staff_type: payload.staff_type, nursing_group: payload.nursing_group, extra_unit_names: payload.extra_unit_names, extra_nursing_group_names: payload.extra_nursing_group_names }).eq('user_id', session.user.id)
-      const unitMatch = units.find((u: any) => String(u.name).trim() === payload.unit_name)
-      if (unitMatch) await sb.from('people').update({ prefix: payload.prefix, first_name: payload.first_name, last_name: payload.last_name, name: fullName, position: payload.position, unit_id: unitMatch.id }).eq('staff_directory_id', profile.staff_directory_id)
+    const { data, error } = await sb.rpc('update_my_staff_directory', { p_payload: payload })
+    if (!error && data?.success) {
       setMessage('บันทึกข้อมูลบุคลากรเรียบร้อยแล้ว'); reload?.()
-    } else setMessage('บันทึกไม่สำเร็จ: ' + error.message)
+    } else setMessage('บันทึกไม่สำเร็จ: ' + (error?.message || 'ระบบไม่ยืนยันการบันทึก'))
     setBusy(false)
   }
   if (!form) return <div className="card space-y-2"><h2 className="text-lg font-bold">แก้ไขข้อมูลส่วนตัว</h2><p>{message || 'กำลังโหลดข้อมูล…'}</p></div>
