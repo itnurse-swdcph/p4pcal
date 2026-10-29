@@ -749,8 +749,11 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet">
-      <div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div>
-      <h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1>
+      <div className="ps-page-heading">
+        <div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div>
+        <h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1>
+        <div className="ps-page-person">ชื่อ-สกุล: {person.name}　|　ตำแหน่ง: {person.position || '-'}　|　หน่วยงาน: {unit?.name || '-'}{person.sub_unit ? ` / ${person.sub_unit}` : ''}　|　เดือน: {monthText}</div>
+      </div>
       <div className="ps-top">
         <div className="ps-info">
           <div><b>ชื่อ-สกุล</b> {person.name}</div>
@@ -766,7 +769,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
           <tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{nf(payout)} บาท</td></tr>
         </tbody></table>
       </div>
-      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr className="ps-repeat-title"><th colSpan={5}>กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน — ใบสรุปผลการปฏิบัติงานรายบุคคล (P4P)</th></tr><tr className="ps-repeat-person"><th colSpan={5}>ชื่อ-สกุล: {person.name}　|　ตำแหน่ง: {person.position || '-'}　|　หน่วยงาน: {unit?.name || '-'}{person.sub_unit ? ` / ${person.sub_unit}` : ''}　|　เดือน: {monthText}</th></tr><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
+      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
         <tbody>{activityRows.map((item: any) => item.type === 'domain'
           ? <tr key={item.key} className="ps-domain-row"><th colSpan={5}>{item.domain}</th></tr>
           : <tr key={item.key}><td className="nw">{item.code}</td><td className="ps-activity-name">{item.title}</td><td className="c">{item.uom || '—'}</td><td className="r">{n2(item.qty)}</td><td className="r">{nf(item.pts)}</td></tr>)}
@@ -1263,9 +1266,11 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         </tr>)}
         <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td className="text-center">—</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
     {printReport && createPortal(<div className="unit-report-print">
-      <h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1>
-       <div className="unit-report-subtitle">{unitName}　 {groupName || '................................'}　 ประจำเดือน {monthText}</div>
-      <table className="unit-report-table"><thead><tr className="unit-report-repeat-title"><th colSpan={8}>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</th></tr><tr className="unit-report-repeat-unit"><th colSpan={8}>{unitName}　{groupName || '................................'}　ประจำเดือน {monthText}</th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
+      <div className="unit-report-page-heading">
+        <h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1>
+        <div className="unit-report-subtitle">{unitName}　 {groupName || '................................'}　 ประจำเดือน {monthText}</div>
+      </div>
+      <table className="unit-report-table"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
       <tr className="unit-report-total"><td colSpan={3}>รวมทั้งหน่วยงาน</td><td>{nf(sum.reduce((v: number, x: any) => v + x.g, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.workPoints, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((v: number, x: any) => v + x.payout, 0))} บาท</td></tr></tbody></table>
       <div className="unit-report-signatures">
