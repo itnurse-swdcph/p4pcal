@@ -155,7 +155,7 @@ function Login({ sb }: any) {
       </>}
       <label className="field-label">ชื่อผู้ใช้ (Username)</label>
         <input className="inp" type="text" autoComplete="username" placeholder="เช่น nurse.somchai" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && mode === 'in' && ok && go()} />
-        <p className="field-hint">ใช้ตัวอักษรภาษาอังกฤษ a–z ตัวเลข จุด ขีดกลาง หรือขีดล่าง 3–30 ตัว</p>{mode === 'up' && <p className="hrm-account-hint">แนะนำให้ตั้งชื่อผู้ใช้ (Username) และรหัสผ่านเดียวกันกับที่ใช้เข้าสู่โปรแกรม HRM</p>}
+        <p className="field-hint">ใช้ตัวอักษรภาษาอังกฤษ a–z ตัวเลข จุด ขีดกลาง หรือขีดล่าง 3–30 ตัว</p>{mode === 'up' && <p className="hrm-account-hint">คำแนะนำ: ตั้งชื่อผู้ใช้ (Username) และรหัสผ่านให้เหมือนกับที่ใช้เข้าสู่โปรแกรม HRM เพื่อให้จดจำได้ง่าย</p>}
       {passwordField('รหัสผ่าน', pw, setPw, showPw, () => setShowPw(v => !v), 'อย่างน้อย 6 ตัวอักษร', true)}
       {mode === 'up' && <>
         {passwordField('ยืนยันรหัสผ่าน', confirmPw, setConfirmPw, showConfirmPw, () => setShowConfirmPw(v => !v), 'กรอกรหัสผ่านอีกครั้ง', true)}
