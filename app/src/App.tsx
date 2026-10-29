@@ -179,6 +179,7 @@ function Main({ sb, session }: any) {
   const reloadActs = () => setActsVersion(v => v + 1)
   const [month, setMonth] = useState(today().slice(0, 7)); const [tab, setTab] = useState('')
   const [unit, setUnit] = useState<number | null>(null)
+  const [reviewGroup, setReviewGroup] = useState('')
   const [myUnits, setMyUnits] = useState<number[]>([])
   // Hooks must run in the same order before any conditional return.
   const [mobileNav, setMobileNav] = useState(false)
@@ -243,8 +244,20 @@ function Main({ sb, session }: any) {
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
       : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} />)}
     {cur === 'review' && role === 'admin' && <div className="space-y-3">
-      <div className="card space-y-2"><label className="field-label" htmlFor="admin-review-unit">หน่วยงานที่ต้องการตรวจ/รับรอง</label><select id="admin-review-unit" className="inp w-full" value={unit ?? ''} onChange={e => setUnit(e.target.value ? Number(e.target.value) : null)}><option value="">เลือกหน่วยงาน</option>{unitOptions.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select><p className="text-xs text-stone-600">เลือกรายการหน่วยงานในหน้านี้เพื่อกรองตาราง ไม่ต้องเลือกจากแถบด้านบน</p></div>
-      {unit ? <ReviewPage units={units} canPrint sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกหน่วยงานเพื่อแสดงรายการตรวจ/รับรอง</div>}
+      <div className="card space-y-2">
+        <label className="field-label" htmlFor="admin-review-group">กลุ่มงานที่ต้องการตรวจ/รับรอง</label>
+        <select id="admin-review-group" className="inp w-full" value={reviewGroup} onChange={e => { setReviewGroup(e.target.value); setUnit(null) }}>
+          <option value="">เลือกกลุ่มงานก่อน</option>
+          {[...new Set(directoryUnits.map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')).map((g: string) => <option key={g} value={g}>{g}</option>)}
+        </select>
+        <label className="field-label" htmlFor="admin-review-unit">หน่วยงานที่ต้องการตรวจ/รับรอง</label>
+        <select id="admin-review-unit" className="inp w-full" value={unit ?? ''} disabled={!reviewGroup} onChange={e => setUnit(e.target.value ? Number(e.target.value) : null)}>
+          <option value="">{reviewGroup ? 'เลือกหน่วยงาน' : 'กรุณาเลือกกลุ่มงานก่อน'}</option>
+          {unitOptions.filter((u: any) => String(u.parent_group || '').trim() === reviewGroup).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+        <p className="text-xs text-stone-600">เลือกกลุ่มงานก่อน แล้วจึงเลือกหน่วยงานเพื่อกรองรายการในตารางตรวจ/รับรอง</p>
+      </div>
+      {unit && reviewGroup ? <ReviewPage units={units} canPrint sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานและหน่วยงานเพื่อแสดงรายการตรวจ/รับรอง</div>}
     </div>}
     {cur === 'review' && role !== 'admin' && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
