@@ -875,3 +875,13 @@ body.unit-report-preview-open .unit-report-toolbar {
   body.print-individual-report .no-print { display: none !important; }
   body.print-individual-report .ps-acts thead { display: table-header-group !important; }
 }
+
+/* Unit report column widths: narrow order number, wider staff name. */
+.unit-report-table th:nth-child(1), .unit-report-table td:nth-child(1) { width: 3% !important; }
+.unit-report-table th:nth-child(2), .unit-report-table td:nth-child(2) { width: 26% !important; }
+.unit-report-table th:nth-child(3), .unit-report-table td:nth-child(3) { width: 15% !important; }
+.unit-report-table th:nth-child(4), .unit-report-table td:nth-child(4) { width: 12% !important; }
+.unit-report-table th:nth-child(5), .unit-report-table td:nth-child(5) { width: 15% !important; }
+.unit-report-table th:nth-child(6), .unit-report-table td:nth-child(6) { width: 10% !important; }
+.unit-report-table th:nth-child(7), .unit-report-table td:nth-child(7) { width: 9% !important; }
+.unit-report-table th:nth-child(8), .unit-report-table td:nth-child(8) { width: 10% !important; }
