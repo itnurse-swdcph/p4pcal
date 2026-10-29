@@ -1048,7 +1048,7 @@ function PayoutPage({ sb, month, isAdmin }: any) {
   }
   const csv = () => {
     const h = ['กลุ่ม', 'หน่วยงาน', 'ชื่อ', 'ตำแหน่ง', 'มีสิทธิ์', 'คะแนนที่รับรอง', 'คะแนนที่นับ', 'เงินจ่ายพื้นฐาน', 'เงินกันเฉลี่ยคืน', 'เงินเพิ่ม', 'รวม']
-    const b = lines.map(l => [l.pay_group, l.unit_name, l.name, l.position, l.eligible ? 'ใช่' : 'ไม่', l.points, l.counted, l.activity, '', l.extra, l.total])
+    const b = lines.map(l => [l.pay_group, l.unit_name, l.name, l.position, l.eligible ? 'ใช่' : 'ไม่', l.points, l.counted, l.activity, data.groups.find((g: any) => g.pay_group === l.pay_group)?.reserve || 0, l.extra, l.total])
     const blob = new Blob(['\ufeff' + [h, ...b].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')], { type: 'text/csv' }); const a = document.createElement('a')
     a.href = URL.createObjectURL(blob); a.download = `p4p_payout_${month}.csv`; a.click()
   }
@@ -1073,7 +1073,7 @@ function PayoutPage({ sb, month, isAdmin }: any) {
     {data && <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>กลุ่ม</th><th>ชื่อ</th><th>หน่วยงาน</th><th>มีสิทธิ์</th><th>คะแนนที่รับรอง</th><th>คะแนนที่นับ</th><th>เงินจ่ายพื้นฐาน</th><th>เงินกันเฉลี่ยคืน</th><th>เงินเพิ่ม</th><th>รวม (บาท)</th></tr></thead>
       <tbody>{shown.map(l => <tr key={l.id} className={l.eligible ? '' : 'bg-stone-100 text-stone-500'}><td>{l.pay_group}</td><td><b>{l.name}</b><div className="text-xs">{l.position}</div></td><td className="text-xs">{l.unit_name}</td>
         <td><input type="checkbox" aria-label="มีสิทธิ์" checked={l.eligible} disabled={closed} onChange={e => setElig(l.id, e.target.checked)} /></td>
-        <td>{nf(l.points)}</td><td>{nf(l.counted)}</td><td>{nf(l.activity)}</td><td>{nf(Number(l.activity) * 3 / 97)}</td><td>{nf(l.extra)}</td><td><b>{nf(l.total)}</b></td></tr>)}
+        <td>{nf(l.points)}</td><td>{nf(l.counted)}</td><td>{nf(l.activity)}</td><td>{nf(data.groups.find((g: any) => g.pay_group === l.pay_group)?.reserve || 0)}</td><td>{nf(l.extra)}</td><td><b>{nf(l.total)}</b></td></tr>)}
         {!shown.length && <tr><td colSpan={10} className="text-center text-stone-500 py-6">ยังไม่มีบุคลากร</td></tr>}</tbody></table></div>}
   </div>
 }
