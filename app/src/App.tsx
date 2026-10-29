@@ -1043,7 +1043,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
           <td className="text-center">{x.order}</td><td><b>{x.p.name}</b>{x.p.fromDirectory && <div className="text-xs text-stone-500">ยังไม่ลงทะเบียนใช้งาน</div>}<div><button type="button" className="btn sec !py-0.5 !px-2 !text-xs no-print" onClick={(e: any) => { e.stopPropagation(); setPrintFor(x.p); window.setTimeout(() => window.print(), 500) }}>พิมพ์รายบุคคล</button></div></td><td className="text-xs">{x.p.position || '—'}</td><td className="text-center">{nf(x.g, 0)}</td><td className="text-center">{nf(x.workPoints)}</td><td className="text-center">{nf(x.excess)}</td><td className="text-center">{nf(x.rate)} บาท/แต้ม</td><td className="text-center font-semibold">{nf(x.payout)} บาท</td>
         </tr>)}
         <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td className="text-center">—</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
-    {printReport && <div className="unit-report-print">
+    {printReport && createPortal(<div className="unit-report-print">
       <h1>แบบสรุปผลปฏิบัติงาน</h1>
       <div className="unit-report-subtitle">งาน {unitName}　 กลุ่มงาน {groupName || '................................'}　 ประจำเดือน {monthText}</div>
       <table className="unit-report-table"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
@@ -1054,7 +1054,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         <div>ลงชื่อ ........................................................<br/>({groupHeadName || '........................................................'})<br/><b>หัวหน้ากลุ่มงาน</b></div>
         <div>ลงชื่อ ........................................................<br/>({actingChiefName})<br/><b>รักษาการหัวหน้าภารกิจด้านการพยาบาล</b></div>
       </div>
-    </div>}
+    </div>, document.body)}
         <h2 className="font-bold">{sel ? 'รายการของ ' + roster.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
     {printFor && <PrintSheet sb={sb} person={printFor} rows={rows.filter((r: any) => r.person_id === printFor.id)} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
     <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
