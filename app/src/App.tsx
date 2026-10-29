@@ -925,6 +925,8 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [printFor, setPrintFor] = useState<any>(null)
   const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
   const [unitRate, setUnitRate] = useState(0)
+  const [actingChiefName, setActingChiefName] = useState('นางสาวมัณฑนา เพชรคำ')
+  const [printReport, setPrintReport] = useState(false)
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
   useEffect(() => {
@@ -936,6 +938,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       if (error) { console.error('โหลดทะเบียนบุคลากรสำหรับตารางหน่วยงานไม่สำเร็จ', error); setDirectoryPeople([]) }
       else setDirectoryPeople(Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
     })
+    sb.from('people').select('name').eq('name', 'นางสาวมัณฑนา เพชรคำ').maybeSingle().then(({ data }: any) => { if (alive && data?.name) setActingChiefName(data.name) })
     const monthDate = month + '-01'
     sb.from('unit_settings').select('baht_per_point').eq('unit_id', unit).eq('month', monthDate).maybeSingle().then(({ data, error }: any) => {
       if (!alive) return
@@ -966,6 +969,11 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
   }), [rows, roster, positions, unitRate])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
+  const unitName = (units || []).find((u: any) => Number(u.id) === Number(unit))?.name || ''
+  const monthText = month ? new Date(month + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : ''
+  const unitHeadName = directoryPeople.find((d: any) => String(d.org_role || '').replace(/\\s+/g, '').includes('หัวหน้างาน'))?.full_name || ''
+  const groupHeadName = directoryPeople.find((d: any) => String(d.org_role || '').replace(/\\s+/g, '').includes('หัวหน้ากลุ่มงาน'))?.full_name || ''
+  const printUnitReport = () => { setPrintReport(true); setTimeout(() => window.print(), 150) }
   const bulk = async () => {
     const ids = rows.filter((r: any) => r.status === 'pending' && !r.errors.length && !r.warnings.length && canDecideRow(ap, me, r)).map((r: any) => r.id)
     if (!ids.length) return alert('ไม่มีรายการ ✓ ที่รอรับรอง')
@@ -985,13 +993,25 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       {stat('รอรับรอง', rows.filter((r: any) => r.status === 'pending').length)}{stat('คะแนนที่รับรองแล้ว', nf(sum.reduce((t: number, x: any) => t + x.appr, 0)))}</div>
     <p className="text-sm text-stone-700">ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล · <b>คุณรับรองได้เฉพาะรายการของ{ap?.role === 'admin' ? 'ทุกคน (ยกเว้นของตนเอง)' : ap?.level === 1 ? 'เจ้าหน้าที่ในหน่วยงานที่ดูแล' : ap?.level === 2 ? 'หัวหน้างานในกลุ่มงานที่ดูแล' : ap?.level === 3 ? 'หัวหน้ากลุ่มงาน' : 'ผู้ที่อยู่ในลำดับถัดไปเท่านั้น (บัญชีของคุณยังไม่มีสิทธิ์รับรอง)'}</b></p>
     <p className="text-xs text-stone-600">เงินคำนวณรายกลุ่มวิชาชีพทั้งโรงพยาบาลที่เมนู "จ่ายเงิน P4P" โดยนับเฉพาะคะแนนที่หัวหน้ารับรองแล้ว (ไม่เกิน 1.5 เท่าของแต้มประกัน)</p>
-    <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button></div>
+    <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button><button className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน (A4 แนวนอน)</button></div>
     <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
-          <td className="text-center">{x.order}</td><td><b>{x.p.name}</b>{x.p.fromDirectory && <div className="text-xs text-stone-500">ยังไม่ลงทะเบียนใช้งาน</div>}</td><td className="text-xs">{x.p.position || '—'}</td><td className="text-right">{nf(x.g, 0)}</td><td className="text-right">{nf(x.workPoints)}</td><td className="text-right">{nf(x.excess)}</td><td className="text-right">{nf(x.rate)} บาท/แต้ม</td><td className="text-right font-semibold">{nf(x.payout)} บาท</td>
+          <td className="text-center">{x.order}</td><td><b>{x.p.name}</b>{x.p.fromDirectory && <div className="text-xs text-stone-500">ยังไม่ลงทะเบียนใช้งาน</div>}</td><td className="text-xs">{x.p.position || '—'}</td><td className="text-center">{nf(x.g, 0)}</td><td className="text-center">{nf(x.workPoints)}</td><td className="text-center">{nf(x.excess)}</td><td className="text-center">{nf(x.rate)} บาท/แต้ม</td><td className="text-center font-semibold">{nf(x.payout)} บาท</td>
         </tr>)}
-        <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td>{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td>{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td>{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
-    <h2 className="font-bold">{sel ? 'รายการของ ' + roster.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
+        <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td className="text-center">—</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
+    {printReport && <div className="unit-report-print">
+      <h1>แบบสรุปผลปฏิบัติงาน</h1>
+      <div className="unit-report-subtitle">งาน {unitName}　 กลุ่มงาน {groupHeadName ? unitName : '................................'}　 ประจำเดือน {monthText}</div>
+      <table className="unit-report-table"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
+      <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
+      <tr className="unit-report-total"><td colSpan={3}>รวมทั้งหน่วยงาน</td><td>{nf(sum.reduce((v: number, x: any) => v + x.g, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.workPoints, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((v: number, x: any) => v + x.payout, 0))} บาท</td></tr></tbody></table>
+      <div className="unit-report-signatures">
+        <div>ลงชื่อ ........................................................<br/>({unitHeadName || '........................................................'})<br/><b>หัวหน้างาน</b></div>
+        <div>ลงชื่อ ........................................................<br/>({groupHeadName || '........................................................'})<br/><b>หัวหน้ากลุ่มงาน</b></div>
+        <div>ลงชื่อ ........................................................<br/>({actingChiefName})<br/><b>รักษาการหัวหน้าภารกิจด้านการพยาบาล</b></div>
+      </div>
+    </div>}
+        <h2 className="font-bold">{sel ? 'รายการของ ' + roster.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
     {printFor && <PrintSheet sb={sb} person={printFor} rows={rows.filter((r: any) => r.person_id === printFor.id)} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
     <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
   </div>
