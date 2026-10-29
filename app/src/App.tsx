@@ -178,7 +178,16 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
   const [payGroups, setPayGroups] = useState<any[]>([])
   useEffect(() => { sb.from('pay_groups').select('id,name').order('id').then((r: any) => setPayGroups(r.data || [])) }, [sb])
   const groupNames = [...new Set((units || []).map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th'))
+  const splitNames = (value: any) => String(value || '').split('|').map(x => x.trim()).filter(Boolean)
+  const extraGroups = splitNames(form?.extra_nursing_group_names)
+  const extraUnits = splitNames(form?.extra_unit_names)
   const groupUnits = (units || []).filter((u: any) => String(u.parent_group || '').trim() === String(form?.nursing_group || '').trim())
+  const extraGroupUnits = (units || []).filter((u: any) => extraGroups.includes(String(u.parent_group || '').trim()))
+  const setExtraGroups = (values: string[]) => {
+    const validUnits = extraGroupUnits.filter((u: any) => values.includes(String(u.parent_group || '').trim())).map((u: any) => String(u.name || '').trim())
+    setForm((old: any) => ({ ...old, extra_nursing_group_names: values.join(' | '), extra_unit_names: splitNames(old?.extra_unit_names).filter((name: string) => validUnits.includes(name)).join(' | ') }))
+  }
+  const setExtraUnits = (values: string[]) => setForm((old: any) => ({ ...old, extra_unit_names: values.join(' | ') }))
   const changePosition = (position: string) => {
     const selected = (positions || []).find((p: any) => String(p.name || '').trim() === position)
     const pg = payGroups.find((g: any) => Number(g.id) === Number(selected?.pay_group))
@@ -239,8 +248,8 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
       {field('staff_type','ประเภทบุคลากร')}
       <label className="block space-y-1"><span className="field-label">กลุ่มงาน</span><select className="inp w-full" value={form.nursing_group || ''} disabled={locked} onChange={e => { const group = e.target.value; const available = (units || []).filter((u:any) => String(u.parent_group || '').trim() === group); setForm((old:any) => ({ ...old, nursing_group: group, unit_name: available.some((u:any) => u.name === old?.unit_name) ? old.unit_name : '' })) }}><option value="">เลือกกลุ่มงานก่อน</option>{groupNames.map((x:string) => <option key={x} value={x}>{x}</option>)}</select></label>
       <label className="block space-y-1"><span className="field-label">หน่วยงาน</span><select className="inp w-full" value={form.unit_name || ''} disabled={locked || !form.nursing_group} onChange={e => set('unit_name',e.target.value)}><option value="">{form.nursing_group ? 'เลือกหน่วยงานในกลุ่มงาน' : 'กรุณาเลือกกลุ่มงานก่อน'}</option>{[...new Set(groupUnits.map((u:any)=>String(u.name||'').trim()).filter(Boolean))].sort((a:string,b:string)=>a.localeCompare(b,'th')).map((x:string) => <option key={x} value={x}>{x}</option>)}</select></label>
-      {field('extra_unit_names','หน่วยงานเพิ่มเติม (คั่นด้วย |)')}
-      {field('extra_nursing_group_names','กลุ่มงานเพิ่มเติม (คั่นด้วย |)')}
+      <label className="block space-y-1"><span className="field-label">กลุ่มงานเพิ่มเติม</span><select className="inp w-full min-h-24" multiple value={extraGroups} disabled={locked} onChange={e => setExtraGroups(Array.from(e.target.selectedOptions, o => o.value))}>{groupNames.filter((x:string) => x !== form.nursing_group).map((x:string) => <option key={x} value={x}>{x}</option>)}</select><span className="field-hint">เลือกได้หลายกลุ่มงาน (กด Ctrl หรือ Cmd ค้างไว้เพื่อเลือกหลายรายการ)</span></label>
+      <label className="block space-y-1"><span className="field-label">หน่วยงานเพิ่มเติม</span><select className="inp w-full min-h-24" multiple value={extraUnits} disabled={locked || extraGroups.length === 0} onChange={e => setExtraUnits(Array.from(e.target.selectedOptions, o => o.value))}><option value="" disabled>{extraGroups.length ? 'เลือกหน่วยงานในกลุ่มงานเพิ่มเติม' : 'กรุณาเลือกกลุ่มงานเพิ่มเติมก่อน'}</option>{[...new Set(extraGroupUnits.map((u:any) => String(u.name || '').trim()).filter(Boolean))].sort((a:string,b:string) => a.localeCompare(b,'th')).map((x:string) => <option key={x} value={x}>{x}</option>)}</select><span className="field-hint">แสดงเฉพาะหน่วยงานในกลุ่มงานเพิ่มเติมที่เลือกไว้</span></label>
     </div>
     <p className="text-xs text-stone-500">บทบาทการอนุมัติไม่สามารถเปลี่ยนจากหน้านี้ได้ เพื่อป้องกันการเปลี่ยนสิทธิ์ด้วยตนเอง</p>
     {message && <p role="status" className="text-sm">{message}</p>}
