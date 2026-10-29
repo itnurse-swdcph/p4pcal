@@ -576,13 +576,13 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
 
 function guaranteeForPosition(position: any, positions: any[] = [], orgRole?: any) {
   // แต้มประกันกลุ่มพยาบาลต้องแยกตามบทบาทองค์กร ไม่ใช่ตำแหน่งวิชาชีพที่แสดงในทะเบียน
-  const role = String(orgRole || '').replace(/\\s+/g, '').trim()
+  const role = String(orgRole || '').replace(/\s+/g, '').trim()
   if (role.includes('หัวหน้ากลุ่มงาน')) return 960
   if (role.includes('หัวหน้างาน')) return 1080
-  const name = String(position || '').replace(/\\s+/g, '').trim()
+  const name = String(position || '').replace(/\s+/g, '').trim()
   if (name.includes('หัวหน้ากลุ่มงาน')) return 960
   if (name.includes('หัวหน้างาน')) return 1080
-  return Number(positions.find((x: any) => String(x.name || '').replace(/\\s+/g, '').trim() === name)?.guarantee || 0)
+  return Number(positions.find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === name)?.guarantee || 0)
 }
 
 function Totals({ rows, people, positions }: any) {
