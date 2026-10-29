@@ -999,7 +999,7 @@ function PayGroupsCard({ sb }: any) {
   const [gs, setGs] = useState<any[]>([]); const [pos, setPos] = useState<any[]>([]); const [msg, setMsg] = useState('')
   const load = () => { sb.from('pay_groups').select('*').order('id').then((r: any) => setGs(r.data || [])); sb.from('positions').select('name,pay_group,grp,rate,guarantee').order('pay_group').then((r: any) => setPos(r.data || [])) }
   useEffect(load, [])
-  const fields: [string, string][] = [['rate', 'แต้ม/นาที'], ['guarantee', 'แต้มประกัน'], ['cap_mult', 'เพดาน (เท่า)'], ['full_amount', 'ยอดต่อคน'], ['quality_pct', 'ส่วนพื้นฐาน %'], ['reserve_pct', 'เงินกัน %'], ['fixed_pay', 'จ่ายคงที่']]
+  const fields: [string, string][] = [['rate', 'แต้ม/นาที'], ['guarantee', 'แต้มประกันกลุ่ม'], ['cap_mult', 'เพดาน (เท่า)'], ['full_amount', 'ยอดต่อคน (บาท)'], ['reserve_pct', 'เงินกันเฉลี่ยคืน %']]
   const set = (id: number, k: string, v: string) => setGs(x => x.map(g => g.id === id ? { ...g, [k]: v } : g))
   const save = async (g: any) => {
     const body: any = {}; for (const [k] of fields) { const v = Number(g[k]); if (!(v > 0)) { setMsg(`กลุ่ม ${g.id}: ค่า "${fields.find(f => f[0] === k)![1]}" ต้องมากกว่า 0`); return } body[k] = v }
@@ -1010,7 +1010,7 @@ function PayGroupsCard({ sb }: any) {
   const setPosGroup = async (name: string, id: number) => { const { error } = await sb.from('positions').update({ pay_group: id }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `ย้าย "${name}" ไปกลุ่ม ${id} แล้ว`); load() }
   const derived = (g: any) => { const F = Number(g.full_amount), q = 0, a = F, r = Math.round(a * Number(g.reserve_pct)) / 100; return { q, a, r: Math.round(r * 100) / 100, s: a - Math.round(r * 100) / 100 } }
   return <div className="card xl:col-span-2 space-y-3">
-    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ตั้งค่าส่วนพื้นฐานและค่าตอบแทนตามกลุ่มวิชาชีพ การแก้ค่านี้มีผลกับแต้มและเงินของเดือนที่ยังไม่ปิดงวด</p></div>
+    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">กำหนดยอดต่อคนและเกณฑ์แต้มประกันของกลุ่ม เงินจ่ายพื้นฐาน 77% เมื่อแต้มต่ำกว่าเกณฑ์ และ 97% เมื่อแต้มถึงเกณฑ์ หัวหน้ากลุ่มงานใช้เกณฑ์ 960 แต้ม และหัวหน้างาน 1,080 แต้ม</p></div>
     <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่ม</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>ส่วนกิจกรรม / เงินกัน / ส่วนตามคะแนน</th><th></th></tr></thead>
       <tbody>{gs.map(g => { const d = derived(g); return <tr key={g.id}><td className="min-w-[14rem]"><b>{g.name}</b></td>
         {fields.map(([k]) => <td key={k}><input className="inp !w-24" inputMode="decimal" value={g[k]} onChange={e => set(g.id, k, e.target.value)} /></td>)}
@@ -1048,7 +1048,7 @@ function PayoutPage({ sb, month, isAdmin }: any) {
   }
   const csv = () => {
     const h = ['กลุ่ม', 'หน่วยงาน', 'ชื่อ', 'ตำแหน่ง', 'มีสิทธิ์', 'คะแนนที่รับรอง', 'คะแนนที่นับ', 'เงินจ่ายพื้นฐาน', 'เงินกันเฉลี่ยคืน', 'เงินเพิ่ม', 'รวม']
-    const b = lines.map(l => [l.pay_group, l.unit_name, l.name, l.position, l.eligible ? 'ใช่' : 'ไม่', l.points, l.counted, l.activity, Number(l.activity) * 3 / 97, l.extra, l.total])
+    const b = lines.map(l => [l.pay_group, l.unit_name, l.name, l.position, l.eligible ? 'ใช่' : 'ไม่', l.points, l.counted, l.activity, '', l.extra, l.total])
     const blob = new Blob(['\ufeff' + [h, ...b].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')], { type: 'text/csv' }); const a = document.createElement('a')
     a.href = URL.createObjectURL(blob); a.download = `p4p_payout_${month}.csv`; a.click()
   }
