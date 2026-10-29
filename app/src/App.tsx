@@ -171,7 +171,7 @@ function Login({ sb }: any) {
 }
 
 function PersonalProfilePage({ sb, profile, role, units, positions, session, reload }: any) {
-  const locked = role === 'staff' || role === 'head'
+  const locked = role === 'admin'
   const [form, setForm] = useState<any>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -179,7 +179,7 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
     let alive = true
     const load = async () => {
       if (locked) {
-        setMessage('บัญชีบทบาทเจ้าหน้าที่หรือหัวหน้างานไม่สามารถแก้ไขทะเบียนบุคลากรของตนเองผ่านเมนูนี้ได้ กรุณาติดต่อผู้ดูแลระบบเพื่อขอแก้ไข')
+        setMessage('บัญชีผู้ดูแลระบบไม่สามารถแก้ไขทะเบียนบุคลากรผ่านเมนูนี้ได้')
         return
       }
       const sourceRow = profile.staff_directory_id
@@ -208,7 +208,7 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
   }
   if (!form) return <div className="card space-y-2"><h2 className="text-lg font-bold">แก้ไขข้อมูลส่วนตัว</h2><p>{message || 'กำลังโหลดข้อมูล…'}</p></div>
   return <div className="card space-y-4"><div><h2 className="text-lg font-bold">แก้ไขข้อมูลส่วนตัว</h2><p className="text-sm text-stone-600">ข้อมูลนี้เชื่อมกับทะเบียนบุคลากรของระบบ P4P</p></div>
-    {locked && <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">บทบาทหัวหน้างานและผู้ปฏิบัติไม่สามารถแก้ไขข้อมูลบุคลากรของตนเองผ่านเมนูนี้ได้ กรุณาติดต่อผู้ดูแลระบบเพื่อขอแก้ไข</p>}
+    {locked && <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">บัญชีผู้ดูแลระบบไม่สามารถแก้ไขข้อมูลบุคลากรผ่านเมนูนี้ได้</p>}
     <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
       {field('prefix','คำนำหน้า', ['นาย','นาง','นางสาว','ว่าที่ร้อยตรี','ว่าที่ร้อยตรีหญิง'])}
       {field('first_name','ชื่อ')}{field('last_name','นามสกุล')}
