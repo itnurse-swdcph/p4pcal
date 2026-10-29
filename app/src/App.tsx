@@ -1022,7 +1022,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const groupName = selectedUnit?.parent_group || ''
   const signers = [...signaturePeople, ...directoryPeople]
   const monthText = month ? new Date(month + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : ''
-  const unitHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้างาน') && String(d.unit_name || '').trim() === unitName)
+  const unitHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้างาน') && (String(d.unit_name || '').trim() === unitName || String(d.extra_unit_names || '').split(/[,;|]/).some((n: string) => n.trim() === unitName)))
   const groupHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้ากลุ่มงาน') && (String(d.nursing_group || '').trim() === groupName || String(d.unit_name || '').trim() === groupName))
   const signerName = (d: any) => d?.full_name || ((d?.prefix || '') + (d?.first_name || '') + ' ' + (d?.last_name || '')).trim()
   const unitHeadName = signerName(unitHead)
