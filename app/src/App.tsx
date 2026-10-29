@@ -936,7 +936,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
   const [signaturePeople, setSignaturePeople] = useState<any[]>([])
   const [unitRate, setUnitRate] = useState(0)
-  const [actingChief, setActingChief] = useState<any>({ name: 'นางสาวมัณฑนา เพชรคำ', position: '' })
+  const [actingChief, setActingChief] = useState<any>({ name: 'นางสาวมัณฑนา เพชรคำ', position: 'พยาบาลวิชาชีพชำนาญการพิเศษ' })
   const [printReport, setPrintReport] = useState(false)
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
@@ -1047,15 +1047,15 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         </tr>)}
         <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td className="text-center">—</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
     {printReport && createPortal(<div className="unit-report-print">
-      <h1>แบบสรุปผลปฏิบัติงาน</h1>
+      <h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1>
        <div className="unit-report-subtitle">{unitName}　 {groupName || '................................'}　 ประจำเดือน {monthText}</div>
       <table className="unit-report-table"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
       <tr className="unit-report-total"><td colSpan={3}>รวมทั้งหน่วยงาน</td><td>{nf(sum.reduce((v: number, x: any) => v + x.g, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.workPoints, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((v: number, x: any) => v + x.payout, 0))} บาท</td></tr></tbody></table>
       <div className="unit-report-signatures">
-        <div>ลงชื่อ ........................................................<br/>({unitHeadName || '........................................................'})<br/>{unitHead?.position && <span>{unitHead.position} </span>}<b>{'หัวหน้างาน' + String(unitName || '').replace(/^งาน/, '')}</b></div>
-        <div>ลงชื่อ ........................................................<br/>({groupHeadName || '........................................................'})<br/>{groupHead?.position && <span>{groupHead.position} </span>}<b>{'หัวหน้ากลุ่มงาน' + String(groupName || '').replace(/^กลุ่มงาน/, '')}</b></div>
-        <div>ลงชื่อ ........................................................<br/>({actingChief.name})<br/>{actingChief.position && <span>{actingChief.position} </span>}<b>รักษาการหัวหน้าภารกิจด้านการพยาบาล</b></div>
+        <div>ลงชื่อ ........................................................<br/>({unitHeadName || '........................................................'})<div>{unitHead?.position || ''}</div><div><b>{'หัวหน้างาน' + String(unitName || '').replace(/^งาน/, '')}</b></div></div>
+        <div>ลงชื่อ ........................................................<br/>({groupHeadName || '........................................................'})<div>{groupHead?.position || ''}</div><div><b>{'หัวหน้ากลุ่มงาน' + String(groupName || '').replace(/^กลุ่มงาน/, '')}</b></div></div>
+        <div>ลงชื่อ ........................................................<br/>({actingChief.name})<div>{actingChief.position || 'พยาบาลวิชาชีพชำนาญการพิเศษ'}</div><div><b>รักษาการหัวหน้าภารกิจด้านการพยาบาล</b></div></div>
       </div>
     </div>, document.body)}
         <h2 className="font-bold">{sel ? 'รายการของ ' + roster.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
