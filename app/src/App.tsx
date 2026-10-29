@@ -335,7 +335,7 @@ function Main({ sb, session }: any) {
       <div className="card space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1"><span className="field-label">กลุ่มงาน</span>
-            <select className="inp w-full" value={reviewGroup} onChange={e => { const g = e.target.value; setReviewGroup(g); const matches = unitOptions.filter((u: any) => String(u.parent_group || '').trim() === g); setUnit(matches.length === 1 ? Number(matches[0].id) : null) }}>
+            <select className="inp w-full" value={reviewGroup} onChange={e => { const g = e.target.value; setReviewGroup(g); setUnit(null) }}>
               <option value="">เลือกกลุ่มงาน</option>
               {[...new Set(unitOptions.map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')).map((g: string) => <option key={g} value={g}>{g}</option>)}
             </select>
