@@ -508,3 +508,209 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
     flex-wrap: wrap;
   }
 }
+
+
+/* ===== Unified, clean P4P print layout (single source of print rules) ===== */
+@page individualReport {
+  size: A4 portrait;
+  margin: 9mm 9mm 14mm;
+  @bottom-center {
+    content: "หน้า " counter(page) " / " counter(pages);
+    font-family: "Sarabun", "Noto Sans Thai", sans-serif;
+    font-size: 8pt;
+    color: #333;
+  }
+}
+@page unitReport {
+  size: A4 landscape;
+  margin: 8mm 9mm 13mm;
+  @bottom-center {
+    content: "หน้า " counter(page) " / " counter(pages);
+    font-family: "Sarabun", "Noto Sans Thai", sans-serif;
+    font-size: 8pt;
+    color: #333;
+  }
+}
+@media print {
+  html, body {
+    background: #fff !important;
+    color: #111 !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #root { display: none !important; }
+  .no-print, .print-toolbar { display: none !important; }
+
+  /* Individual report: one title/person block at the beginning, no fixed/repeated overlay. */
+  body:not(.print-unit-report) .print-overlay {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    page: individualReport;
+  }
+  body:not(.print-unit-report) .print-sheet {
+    display: block !important;
+    position: static !important;
+    box-sizing: border-box !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #111 !important;
+    font-family: "Sarabun", "Noto Sans Thai", sans-serif !important;
+    font-size: 9pt !important;
+    line-height: 1.3 !important;
+    page: individualReport;
+  }
+  .print-sheet .ps-hospital,
+  .print-sheet .ps-title {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    overflow: visible !important;
+    text-align: center !important;
+    color: #111 !important;
+  }
+  .print-sheet .ps-hospital { font-size: 10pt !important; margin: 0 0 1mm !important; }
+  .print-sheet .ps-title { font-size: 13pt !important; line-height: 1.3 !important; margin: 0 0 4mm !important; }
+  .print-sheet .ps-top {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 5mm !important;
+    margin: 0 0 3mm !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-sheet .ps-info { display: grid !important; flex: 1 1 auto !important; min-width: 0 !important; font-size: 9pt !important; }
+  .print-sheet .ps-sum { display: table !important; width: 61mm !important; flex: 0 0 61mm !important; }
+  .print-sheet .pt { width: 100% !important; border-collapse: collapse !important; border-spacing: 0 !important; table-layout: auto; }
+  .print-sheet .pt th, .print-sheet .pt td {
+    border: .5pt solid #222 !important;
+    padding: 1.2mm 1.4mm !important;
+    color: #111 !important;
+    font-size: 8.5pt !important;
+    vertical-align: middle !important;
+    overflow-wrap: anywhere;
+  }
+  .print-sheet .pt thead { display: table-header-group !important; }
+  .print-sheet .pt tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .print-sheet .ps-acts { width: 100% !important; table-layout: fixed !important; margin: 2mm 0 4mm !important; }
+  .print-sheet .ps-acts .ps-col-code { width: 17% !important; }
+  .print-sheet .ps-acts .ps-col-activity { width: 43% !important; }
+  .print-sheet .ps-acts .ps-col-uom { width: 13% !important; }
+  .print-sheet .ps-acts .ps-col-qty { width: 12% !important; }
+  .print-sheet .ps-acts .ps-col-points { width: 15% !important; }
+  .print-sheet .ps-acts .ps-activity-name { text-align: left !important; white-space: normal !important; }
+  .print-sheet .ps-acts .ps-domain-row { break-after: avoid !important; page-break-after: avoid !important; }
+  .print-sheet .ps-sign-row {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8mm !important;
+    margin-top: 7mm !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .print-sheet .ps-sign-row .sign-box { flex: 1 1 0 !important; }
+  .print-sheet .ps-foot { margin-top: 5mm !important; font-size: 7.5pt !important; }
+
+  /* Unit report: isolated A4 landscape page, no inherited portrait dimensions. */
+  body.print-unit-report * { visibility: hidden !important; }
+  body.print-unit-report .unit-report-print,
+  body.print-unit-report .unit-report-print * { visibility: visible !important; }
+  body.print-unit-report .unit-report-print {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    box-sizing: border-box !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #111 !important;
+    font-family: "Sarabun", "Noto Sans Thai", sans-serif !important;
+    font-size: 9pt !important;
+    line-height: 1.25 !important;
+    page: unitReport;
+  }
+  body.print-unit-report .unit-report-print h1 {
+    position: static !important;
+    display: block !important;
+    margin: 0 0 1.5mm !important;
+    padding: 0 !important;
+    text-align: center !important;
+    font-size: 14pt !important;
+    line-height: 1.25 !important;
+    font-weight: 700 !important;
+    color: #111 !important;
+  }
+  body.print-unit-report .unit-report-subtitle {
+    display: block !important;
+    margin: 0 0 4mm !important;
+    text-align: center !important;
+    font-size: 10pt !important;
+    color: #111 !important;
+  }
+  .unit-report-table {
+    display: table !important;
+    width: 100% !important;
+    max-width: none !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    margin: 0 !important;
+  }
+  .unit-report-table thead { display: table-header-group !important; }
+  .unit-report-table tfoot { display: table-footer-group !important; }
+  .unit-report-table tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .unit-report-table th, .unit-report-table td {
+    border: .5pt solid #222 !important;
+    padding: 1.4mm 1mm !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    color: #111 !important;
+    font-size: 8.5pt !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+  }
+  .unit-report-table th { font-weight: 700 !important; background: #eee !important; }
+  .unit-report-table th:nth-child(1), .unit-report-table td:nth-child(1) { width: 5% !important; }
+  .unit-report-table th:nth-child(2), .unit-report-table td:nth-child(2) { width: 21% !important; }
+  .unit-report-table th:nth-child(3), .unit-report-table td:nth-child(3) { width: 15% !important; }
+  .unit-report-table th:nth-child(4), .unit-report-table td:nth-child(4) { width: 12% !important; }
+  .unit-report-table th:nth-child(5), .unit-report-table td:nth-child(5) { width: 15% !important; }
+  .unit-report-table th:nth-child(6), .unit-report-table td:nth-child(6) { width: 10% !important; }
+  .unit-report-table th:nth-child(7), .unit-report-table td:nth-child(7) { width: 10% !important; }
+  .unit-report-table th:nth-child(8), .unit-report-table td:nth-child(8) { width: 12% !important; }
+  .unit-report-table .unit-report-name { text-align: left !important; }
+  .unit-report-total { font-weight: 700 !important; }
+  .unit-report-signatures {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6mm !important;
+    margin-top: 8mm !important;
+    text-align: center !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .unit-report-signatures > div { line-height: 1.45 !important; font-size: 8.5pt !important; }
+}
