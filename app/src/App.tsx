@@ -155,7 +155,7 @@ function Login({ sb }: any) {
       </>}
       <label className="field-label">ชื่อผู้ใช้ (Username)</label>
         <input className="inp" type="text" autoComplete="username" placeholder="เช่น nurse.somchai" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && mode === 'in' && ok && go()} />
-        <p className="field-hint">ใช้ตัวอักษรภาษาอังกฤษ a–z ตัวเลข จุด ขีดกลาง หรือขีดล่าง 3–30 ตัว</p>
+        <p className="field-hint">ใช้ตัวอักษรภาษาอังกฤษ a–z ตัวเลข จุด ขีดกลาง หรือขีดล่าง 3–30 ตัว</p>{mode === 'up' && <p className="hrm-account-hint">แนะนำให้ตั้งชื่อผู้ใช้ (Username) และรหัสผ่านเดียวกันกับที่ใช้เข้าสู่โปรแกรม HRM</p>}
       {passwordField('รหัสผ่าน', pw, setPw, showPw, () => setShowPw(v => !v), 'อย่างน้อย 6 ตัวอักษร', true)}
       {mode === 'up' && <>
         {passwordField('ยืนยันรหัสผ่าน', confirmPw, setConfirmPw, showConfirmPw, () => setShowConfirmPw(v => !v), 'กรอกรหัสผ่านอีกครั้ง', true)}
@@ -865,8 +865,9 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       evidence: String(form.evidence || '').trim() || ((editEvidenceFile || editing.evidence_image_path) ? 'แนบรูปถ่าย' : null),
       sub_activity: String(form.sub_activity || '').trim() || null
     }
-    const { error } = await sb.from('logs').update(payload).eq('id', editing.id).eq('status', 'pending')
+    const { data: updatedRow, error } = await sb.from('logs').update(payload).eq('id', editing.id).eq('status', 'pending').select('id,work_date,activity_code,qty').maybeSingle()
     if (error) { setSaving(false); setEditError('บันทึกการแก้ไขไม่สำเร็จ: ' + error.message); return }
+    if (!updatedRow) { setSaving(false); setEditError('ระบบไม่พบรายการที่แก้ไขได้ อาจมีการรับรองรายการไปแล้ว กรุณาปิดหน้าต่างแล้วโหลดรายการใหม่'); return }
     if (editEvidenceFile) {
       const safeName = editEvidenceFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
       const path = editing.person_id + '/' + editing.id + '/' + crypto.randomUUID() + '-' + safeName
