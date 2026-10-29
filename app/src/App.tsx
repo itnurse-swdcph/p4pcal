@@ -948,7 +948,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       evidence: String(form.evidence || '').trim() || ((editEvidenceFile || editing.evidence_image_path) ? 'แนบรูปถ่าย' : null),
       sub_activity: String(form.sub_activity || '').trim() || null
     }
-    const { data: updatedRow, error } = await sb.from('logs').update(payload).eq('id', editing.id).eq('status', 'pending').select('id,work_date,activity_code,qty').maybeSingle()
+    const { data: updatedRow, error } = await sb.from('logs').update(payload).eq('id', editing.id).eq('status', editing.status).select('id,work_date,activity_code,qty').maybeSingle()
     if (error) { setSaving(false); setEditError('บันทึกการแก้ไขไม่สำเร็จ: ' + error.message); return }
     if (!updatedRow) { setSaving(false); setEditError('ระบบไม่พบรายการที่แก้ไขได้ อาจมีการรับรองรายการไปแล้ว กรุณาปิดหน้าต่างแล้วโหลดรายการใหม่'); return }
     if (editEvidenceFile) {
@@ -956,7 +956,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       const path = editing.person_id + '/' + editing.id + '/' + crypto.randomUUID() + '-' + safeName
       const { error: uploadError } = await sb.storage.from('p4p-evidence').upload(path, editEvidenceFile, { contentType: editEvidenceFile.type, upsert: false })
       if (uploadError) { setSaving(false); setEditError('บันทึกข้อความแล้ว แต่แนบรูปไม่สำเร็จ: ' + uploadError.message); reload(); return }
-      const { error: pathError } = await sb.from('logs').update({ evidence_image_path: path }).eq('id', editing.id).eq('status', 'pending')
+      const { error: pathError } = await sb.from('logs').update({ evidence_image_path: path }).eq('id', editing.id).eq('status', editing.status)
       if (pathError) { setSaving(false); setEditError('อัปโหลดรูปแล้ว แต่เชื่อมโยงรูปกับรายการไม่สำเร็จ: ' + pathError.message); reload(); return }
     }
     setSaving(false)
