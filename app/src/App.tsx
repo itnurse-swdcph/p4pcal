@@ -193,9 +193,9 @@ function Main({ sb, session }: any) {
     sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
     // ใช้ชื่อหน่วยงานจาก staff_directory ที่ active เป็นแหล่งอ้างอิงของ dropdown
     // แล้วจับคู่กับ units.name เพื่อคง unit_id/foreign keys เดิมโดยไม่แก้ข้อมูลฐานข้อมูล
-    sb.from('staff_directory').select('unit_name').eq('active', true).not('unit_name', 'is', null).then((r: any) => {
+    sb.rpc('directory_unit_names').then((r: any) => {
       if (r.error || !Array.isArray(r.data)) { console.error('โหลดรายชื่อหน่วยงานจาก staff_directory ไม่สำเร็จ', r.error); setDirectoryUnitNames(null); return }
-      setDirectoryUnitNames([...new Set(r.data.map((x: any) => String(x.unit_name || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')))
+      setDirectoryUnitNames([...new Set(r.data.map((x: any) => String(typeof x === 'string' ? x : x?.unit_name ?? Object.values(x || {})[0] ?? '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')))
     })
     sb.from('positions').select('*').then((r: any) => setPositions(r.data || []))
     sb.rpc('my_approval_level').then((r: any) => setMyLevel(Number(r.data || 0)))
@@ -305,7 +305,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     if (!picker || !uSel) { setDirectoryStaff([]); return }
     const unitName = (unitOptions || []).find((u: any) => u.id === uSel)?.name
     if (!unitName) { setDirectoryStaff([]); return }
-    sb.from('staff_directory').select('source_row,prefix,first_name,last_name,position,unit_name,active').eq('active', true).eq('unit_name', unitName).order('first_name').then(({ data, error }: any) => {
+    sb.rpc('directory_staff', { p_unit_name: unitName }).then(({ data, error }: any) => {
       if (error) { console.error('โหลดทะเบียนบุคลากรไม่สำเร็จ', error); setPeopleLoadError('โหลดทะเบียนบุคลากรไม่สำเร็จ กรุณาตรวจสอบสิทธิ์การเข้าถึง'); setDirectoryStaff([]); return }
       setPeopleLoadError('')
       setDirectoryStaff(data || [])
@@ -315,8 +315,9 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     if (!picker) return people
     const result = [...people]
     for (const d of directoryStaff) {
-      const fullName = [d.prefix, d.first_name, d.last_name].filter(Boolean).join(' ').trim()
-      const match = result.find((p: any) => p.unit_id === uSel && String(p.name || '').trim() === fullName && p.position === d.position)
+      // จับคู่กับระเบียนเดิมด้วย person_id จากฐานข้อมูล (ชื่อรูปแบบเดียวกับตอนลงทะเบียน) เพื่อไม่สร้างซ้ำ
+      const fullName = d.full_name
+      const match = result.find((p: any) => p.id === d.person_id) || result.find((p: any) => p.unit_id === uSel && String(p.name || '').trim() === fullName)
       if (!match) result.push({ id: 'dir:' + d.source_row, directory_source_row: d.source_row, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, name: fullName, position: d.position, unit_id: uSel, active: true, fromDirectory: true })
     }
     return result.sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), 'th'))
@@ -432,14 +433,12 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
           if (!value.startsWith('dir:')) return
           const d = directoryStaff.find((x: any) => String(x.source_row) === value.slice(4))
           if (!d) { setErr('ไม่พบข้อมูลบุคลากรในทะเบียน'); setPid(''); return }
-          const matchedUnit = (unitOptions || []).find((u: any) => u.id === uSel && u.name === d.unit_name)
-          if (!matchedUnit) { setErr('หน่วยงานในทะเบียนไม่ตรงกับหน่วยงานที่เลือก กรุณาแจ้งผู้ดูแลระบบ'); setPid(''); return }
-          if (!positions.some((p: any) => p.name === d.position)) { setErr('ตำแหน่งของบุคลากรรายนี้ยังไม่มีในตารางตำแหน่ง P4P จึงยังสร้างระเบียนเพื่อบันทึกไม่ได้: ' + d.position); setPid(''); return }
           setSelectingStaff(true)
-          const fullName = [d.prefix, d.first_name, d.last_name].filter(Boolean).join(' ').trim()
-          const { data: inserted, error } = await sb.from('people').insert({ prefix: d.prefix || null, first_name: d.first_name, last_name: d.last_name, name: fullName, position: d.position, unit_id: matchedUnit.id, active: true }).select('*').single()
+          const { data: newId, error } = await sb.rpc('ensure_person_from_directory', { p_source_row: d.source_row })
+          if (error || !newId) { setSelectingStaff(false); setErr('เตรียมระเบียนบุคลากรเพื่อบันทึกกิจกรรมไม่สำเร็จ: ' + (error?.message || 'ไม่ทราบสาเหตุ')); setPid(''); return }
+          const { data: inserted, error: readErr } = await sb.from('people').select('*').eq('id', newId).single()
           setSelectingStaff(false)
-          if (error) { setErr('เพิ่มระเบียนบุคลากรเพื่อบันทึกกิจกรรมไม่สำเร็จ: ' + error.message); setPid(''); return }
+          if (readErr || !inserted) { setErr('อ่านระเบียนบุคลากรไม่สำเร็จ: ' + (readErr?.message || '')); setPid(''); return }
           setLocallyAddedPeople((prev: any[]) => [...prev, inserted])
           setPid(inserted.id)
         }}><option value="">— เลือกบุคลากรในหน่วยงานนี้ —</option>{pickerPeople.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position}){p.fromDirectory ? ' · จากทะเบียนบุคลากร' : ''}</option>)}</select>
