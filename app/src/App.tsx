@@ -809,6 +809,13 @@ function guaranteeForPosition(position: any, positions: any[] = [], orgRole?: an
 
 function ActivitySummary({ sb, rows, person, positions, month, units }: any) {
   const [unitRate, setUnitRate] = useState(0)
+  const [payGroups, setPayGroups] = useState<any[]>([])
+  useEffect(() => {
+    let alive = true
+    sb.from('pay_groups').select('id,name,full_amount,fixed_pay,guarantee,rate,reserve_pct').order('id')
+      .then(({ data, error }: any) => { if (alive) setPayGroups(!error && Array.isArray(data) ? data : []) })
+    return () => { alive = false }
+  }, [sb])
   useEffect(() => {
     let alive = true
     if (!person?.unit_id) { setUnitRate(0); return }
@@ -818,18 +825,30 @@ function ActivitySummary({ sb, rows, person, positions, month, units }: any) {
     return () => { alive = false }
   }, [sb, person?.unit_id, month])
   if (!person) return null
+  const position = (positions || []).find((x: any) => String(x.name || '').trim() === String(person.position || '').trim())
+  const payGroupId = Number(position?.pay_group || 0)
+  const payGroup = payGroups.find((g: any) => Number(g.id) === payGroupId)
+  const allocation = Number(payGroup?.full_amount || 0)
   const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
   const earned = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const difference = earned - guarantee
-  const payout = Math.max(0, difference) * unitRate
+  const basePercent = earned >= guarantee ? 0.97 : 0.77
+  const basePay = allocation > 0 ? allocation * basePercent : 0
+  const extraPay = Math.max(0, difference) * unitRate
+  const payout = basePay + extraPay
   const cards = [
     { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
     { label: 'แต้มปฏิบัติงานที่ได้', value: nf(earned), color: 'text-slate-900' },
     { label: 'แต้มส่วนต่าง', value: (difference > 0 ? '+' : '') + nf(difference), color: difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-slate-700' },
-    { label: 'ประมาณเงินที่ได้', value: nf(payout) + ' บาท', color: 'text-slate-900' }
+    { label: 'ประมาณเงินที่ได้', value: allocation > 0 ? nf(payout) + ' บาท' : 'รอตั้งค่ากลุ่มวิชาชีพ', color: 'text-slate-900' }
   ]
-  return <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" aria-label="สรุปแต้มและประมาณเงินประจำเดือน">
-    {cards.map((item) => <div key={item.label} className="card !p-3 sm:!p-4 min-w-0"><div className="text-xs sm:text-sm text-stone-600">{item.label}</div><div className={'mt-1 text-xl sm:text-2xl font-bold tabular-nums ' + item.color}>{item.value}</div>{item.label === 'ประมาณเงินที่ได้' && <div className="mt-1 text-xs text-stone-500">อัตรา {nf(unitRate)} บาท/แต้ม</div>}</div>)}
+  return <div className="space-y-1" aria-label="สรุปแต้มและประมาณเงินประจำเดือน">
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      {cards.map((item) => <div key={item.label} className="card !p-3 sm:!p-4 min-w-0"><div className="text-xs sm:text-sm text-stone-600">{item.label}</div><div className={'mt-1 text-xl sm:text-2xl font-bold tabular-nums ' + item.color}>{item.value}</div>
+        {item.label === 'ประมาณเงินที่ได้' && <div className="mt-1 text-xs text-stone-500">{allocation > 0 ? <>เงินพื้นฐาน {nf(basePay)} บาท ({Math.round(basePercent * 100)}% ของยอดจัดสรร {nf(allocation)} บาท) + เงินเพิ่ม {nf(extraPay)} บาท{!position?.pay_group && <span className="block text-amber-700">ไม่พบการจับคู่กลุ่มวิชาชีพของตำแหน่งนี้</span>}</> : 'ไม่พบยอดจัดสรรของกลุ่มวิชาชีพ กรุณาตรวจสอบการจับคู่ตำแหน่ง'}</div>}
+      </div>)}
+    </div>
+    <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: ประมาณการจากค่าคะแนนและยอดจัดสรรตามกลุ่มวิชาชีพที่มีการบันทึกข้อมูลในปัจจุบัน</p>
   </div>
 }
 
