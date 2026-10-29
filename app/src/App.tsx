@@ -704,95 +704,24 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       const approvedSigner = rpcRows?.[0] || null
       if (!alive) return
       if (!approvedSigner?.approver_name) { setHead(null); return }
-      const directory: any[] = []
-      if (approvedSigner?.approver_name) {
-        const role = String(approvedSigner.approver_org_role || '').trim()
-        const unitName = String(approvedSigner.approver_unit_name || '').trim()
-        const groupName = String(approvedSigner.approver_nursing_group || '').trim()
-        const compactRole = role.replace(/\s+/g, '')
-        const managerial = role.includes('หัวหน้ากลุ่มงาน')
-          ? (compactRole === 'หัวหน้ากลุ่มงาน' ? `หัวหน้ากลุ่มงาน${groupName}` : role)
-          : role.includes('หัวหน้างาน')
-            ? (compactRole === 'หัวหน้างาน' ? `หัวหน้างาน${unitName.replace(/^งาน/, '')}` : role)
-            : role
-        const approvalRole = String(approvedSigner.approver_position || '')
-        const signerLabel = approvalRole.includes('กลุ่มงาน') ? 'หัวหน้ากลุ่มงานรับรอง'
-          : approvalRole.includes('หัวหน้าพยาบาล') || approvalRole.includes('ภารกิจด้านการพยาบาล') ? 'รักษาการหัวหน้าพยาบาลรับรอง'
-            : 'หัวหน้างานรับรอง'
-        setHead({
-          approver_name: approvedSigner.approver_name,
-          approver_position: [approvedSigner.approver_professional_position, managerial].filter(Boolean).join('\n'),
-          approver_label: signerLabel,
-        })
-        return
-      }
-      const fullName = (p: any) => `${[p?.prefix, p?.first_name].filter(Boolean).join('')}${p?.last_name ? ' ' + p.last_name : ''}`.replace(/\\s+/g, ' ').trim()
-      const roleText = (p: any) => String(p?.org_role || '').trim()
-      const professionalPosition = (p: any) => String(p?.position || '').trim()
-      const signerPosition = (p: any) => {
-        const role = roleText(p)
-        const rawUnit = String(p?.unit_name || p?.nursing_group || '').trim()
-        const managerial = role.includes('หัวหน้ากลุ่มงาน')
-          ? `หัวหน้ากลุ่มงาน${rawUnit}`
-          : role.includes('หัวหน้างาน')
-            ? `หัวหน้างาน${rawUnit.replace(/^งาน/, '')}`
-            : role
-        return [professionalPosition(p), managerial].filter(Boolean).join('\n')
-      }
-      const normalize = (v: any) => String(v || '').replace(/\\s+/g, '').trim()
-      const namesIn = (v: any) => String(v || '').split(/[,;|]/).map(normalize).filter(Boolean)
-      const unitName = normalize(units.find((u: any) => u.id === person.unit_id)?.name)
-      const groupName = normalize(units.find((u: any) => u.id === person.unit_id)?.parent_group)
-      const staff = (directory || []).filter((p: any) => p.active)
-      const personName = normalize(person.name)
-      const subject = staff.find((p: any) => normalize(fullName(p)) === personName)
-      const subjectRole = String(subject?.org_role || person.org_role || '').replace(/\\s+/g, '').trim()
-      const unitHeads = staff.filter((p: any) =>
-        roleText(p).includes('หัวหน้างาน') && !roleText(p).includes('หัวหน้ากลุ่มงาน') &&
-        [p.unit_name, ...namesIn(p.extra_unit_names)].some((n: any) => normalize(n) === unitName)
-      )
-      const groupHeads = staff.filter((p: any) =>
-        roleText(p).includes('หัวหน้ากลุ่มงาน') &&
-        [p.nursing_group, ...namesIn(p.extra_nursing_group_names)].some((n: any) => normalize(n) === groupName)
-      )
-      const chief = staff.find((p: any) => {
-        const role = roleText(p)
-        return role.includes('รักษาการหัวหน้าภารกิจด้านการพยาบาล') || role.includes('รักษาการหัวหน้าพยาบาล')
+      const role = String(approvedSigner.approver_org_role || '').trim()
+      const unitName = String(approvedSigner.approver_unit_name || '').trim()
+      const groupName = String(approvedSigner.approver_nursing_group || '').trim()
+      const compactRole = role.replace(/\s+/g, '')
+      const managerial = role.includes('หัวหน้ากลุ่มงาน')
+        ? (compactRole === 'หัวหน้ากลุ่มงาน' ? 'หัวหน้ากลุ่มงาน' + groupName : role)
+        : role.includes('หัวหน้างาน')
+          ? (compactRole === 'หัวหน้างาน' ? 'หัวหน้างาน' + unitName.replace(/^งาน/, '') : role)
+          : role
+      const approvalRole = String(approvedSigner.approver_position || '')
+      const signerLabel = approvalRole.includes('กลุ่มงาน') ? 'หัวหน้ากลุ่มงานรับรอง'
+        : approvalRole.includes('หัวหน้าพยาบาล') || approvalRole.includes('ภารกิจด้านการพยาบาล') ? 'รักษาการหัวหน้าพยาบาลรับรอง'
+          : 'หัวหน้างานรับรอง'
+      setHead({
+        approver_name: approvedSigner.approver_name,
+        approver_position: [approvedSigner.approver_professional_position, managerial].filter(Boolean).join(String.fromCharCode(10)),
+        approver_label: signerLabel,
       })
-      let signer: any = null
-      let signerLabel = 'หัวหน้างานรับรอง'
-      // ใช้ approver_of เป็นแหล่งหลัก เพราะคำนวณผู้รับรองลำดับถัดไปตามสิทธิ์/ขอบเขตหน่วยงานเดียวกับระบบรับรอง
-      // หากไม่พบข้อมูลจากระบบ จึงค่อยใช้ทะเบียนบุคลากรคำนวณลำดับสำรอง
-      if (approvedSigner?.approver_name) {
-        const rpcName = normalize(approvedSigner.approver_name)
-        signer = staff.find((p: any) => normalize(fullName(p)) === rpcName) || null
-        const approvalRole = String(approvedSigner.approver_position || '')
-        if (approvalRole.includes('กลุ่มงาน')) signerLabel = 'หัวหน้ากลุ่มงานรับรอง'
-        else if (approvalRole.includes('หัวหน้าพยาบาล') || approvalRole.includes('ภารกิจด้านการพยาบาล')) signerLabel = 'รักษาการหัวหน้าพยาบาลรับรอง'
-        else signerLabel = 'หัวหน้างานรับรอง'
-        if (signer) {
-          setHead({ approver_name: fullName(signer), approver_position: signerPosition(signer), approver_label: signerLabel })
-        } else {
-          setHead({ approver_name: approvedSigner.approver_name, approver_position: approvalRole, approver_label: signerLabel })
-        }
-        return
-      }
-      // ลำดับสำรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล
-      if (subjectRole.includes('รักษาการหัวหน้าภารกิจด้านการพยาบาล') || subjectRole.includes('รักษาการหัวหน้าพยาบาล')) {
-        signer = null
-      } else if (subjectRole.includes('หัวหน้ากลุ่มงาน')) {
-        signer = chief || null
-        signerLabel = 'รักษาการหัวหน้าพยาบาลรับรอง'
-      } else if (subjectRole.includes('หัวหน้างาน')) {
-        signer = groupHeads[0] || null
-        signerLabel = 'หัวหน้ากลุ่มงานรับรอง'
-      } else {
-        signer = unitHeads[0] || null
-        signerLabel = 'หัวหน้างานรับรอง'
-      }
-      if (signer) setHead({ approver_name: fullName(signer), approver_position: signerPosition(signer), approver_label: signerLabel })
-      else if (subjectRole.includes('หัวหน้ากลุ่มงาน') && chief) setHead({ approver_name: fullName(chief), approver_position: signerPosition(chief), approver_label: 'รักษาการหัวหน้าพยาบาลรับรอง' })
-      else setHead(null)
     }
     loadSigner()
     if (person.unit_id && month) sb.from('unit_settings').select('baht_per_point').eq('unit_id', person.unit_id).eq('month', month + '-01').maybeSingle().then(({ data, error }: any) => { if (alive) setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0) })
