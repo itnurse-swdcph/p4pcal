@@ -305,7 +305,7 @@ function Main({ sb, session }: any) {
     return name !== 'คลินิกโรคเรื้อรัง' && (directoryUnitNames === null || directoryUnitNames.includes(name))
   })
     .slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
-  const unitOptions = role === 'head' ? directoryUnits.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id || (!!profile.nursing_group && u.parent_group === profile.nursing_group)) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
+  const unitOptions = role === 'head' ? directoryUnits.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
@@ -1290,10 +1290,10 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   ), [rows, ap, me, roster, certificationSearch])
   return <div className="space-y-4">
     {!certificationOnly && <>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      {!reportOnly && <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         {stat('บุคลากร', roster.length)}{stat('รายการไม่นับแต้ม', rows.filter((r: any) => r.errors.length).length)}{stat('รายการต้องตรวจทาน', rows.filter((r: any) => r.warnings.length).length)}
         {stat('รายการรอรับรอง', rows.filter((r: any) => r.status === 'pending').length)}{stat('คะแนนที่รับรองแล้ว', nf(sum.reduce((t: number, x: any) => t + x.appr, 0)))}
-      </div>
+      </div>}
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน</button>
         <button type="button" className="btn sec" onClick={csv}>ส่งออก CSV</button>
