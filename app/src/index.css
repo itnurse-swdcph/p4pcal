@@ -714,3 +714,86 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
   }
   .unit-report-signatures > div { line-height: 1.45 !important; font-size: 8.5pt !important; }
 }
+
+
+/* ===== P4P print preview and pagination hardening ===== */
+/* Preview stays in-app until the user explicitly chooses Print. */
+body.print-unit-report .unit-report-print {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 16px;
+  background: #e8edf2;
+  color: #111;
+  font-family: 'Sarabun', 'Noto Sans Thai', sans-serif;
+}
+.unit-report-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .5rem;
+  max-width: 277mm;
+  margin: 0 auto 12px;
+  padding: 10px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.08);
+}
+.unit-report-toolbar span { margin-right: auto; color: #475569; font-size: .9rem; }
+body.print-unit-report .unit-report-table {
+  max-width: 277mm;
+  margin: 0 auto;
+  padding: 12mm;
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(0,0,0,.12);
+}
+.unit-report-heading-row th { padding: 2mm !important; background: #fff !important; white-space: normal !important; }
+.unit-report-heading-row h1 { margin: 0 0 1.5mm; text-align: center; font-size: 14pt; line-height: 1.25; }
+.unit-report-heading-row .unit-report-subtitle { margin: 0 0 2mm; text-align: center; font-size: 10pt; font-weight: 400; }
+.ps-repeat-heading { padding: 0 !important; border: 0 !important; background: #fff !important; white-space: normal !important; }
+.ps-repeat-heading .ps-hospital { font-weight: 400; text-align: center; }
+.ps-repeat-heading .ps-title { margin: 1mm 0 2mm; text-align: center; font-size: 12pt; }
+.ps-repeat-heading .ps-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 5mm; margin: 0 0 2mm; font-weight: 400; text-align: left; }
+.ps-repeat-heading .ps-info { display: grid; gap: 1px; flex: 1 1 auto; min-width: 0; font-size: 8.5pt; }
+.ps-repeat-heading .ps-info b { display: inline-block; min-width: 7.5em; }
+.ps-repeat-heading .ps-sum { width: 61mm; flex: 0 0 61mm; }
+.ps-repeat-heading .ps-sum th, .ps-repeat-heading .ps-sum td { font-size: 8pt !important; padding: .8mm 1mm !important; }
+
+@media print {
+  @page individualReport { size: A4 portrait; margin: 8mm 8mm 13mm; }
+  @page unitReport { size: A4 landscape; margin: 7mm 8mm 13mm; }
+  body.print-unit-report .unit-report-toolbar { display: none !important; }
+  body.print-unit-report .unit-report-print {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body.print-unit-report .unit-report-table {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    table-layout: fixed !important;
+    page: unitReport;
+  }
+  .unit-report-table thead { display: table-header-group !important; }
+  .unit-report-table .unit-report-heading-row th { border: 0 !important; padding: 0 0 2mm !important; }
+  .unit-report-heading-row h1 { font-size: 13pt !important; }
+  .unit-report-heading-row .unit-report-subtitle { margin-bottom: 2mm !important; }
+  .print-sheet .ps-acts { page: individualReport; }
+  .print-sheet .ps-acts thead { display: table-header-group !important; }
+  .print-sheet .ps-repeat-heading { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .print-sheet .ps-repeat-heading .ps-top { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .print-sheet .ps-repeat-heading .ps-sum { width: 61mm !important; }
+  .print-sheet .ps-repeat-heading .ps-sum thead { display: table-header-group !important; }
+}
