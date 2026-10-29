@@ -182,8 +182,21 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
   const changePosition = (position: string) => {
     const selected = (positions || []).find((p: any) => String(p.name || '').trim() === position)
     const pg = payGroups.find((g: any) => Number(g.id) === Number(selected?.pay_group))
-    setForm((old: any) => ({ ...old, position, staff_group: pg?.name || old?.staff_group || '' }))
+    setForm((old: any) => ({ ...old, position, staff_group: pg?.name || '' }))
   }
+  useEffect(() => {
+    if (!form || !positions?.length || !payGroups.length) return
+    const selected = positions.find((p: any) => String(p.name || '').trim() === String(form.position || '').trim())
+    const pg = payGroups.find((g: any) => Number(g.id) === Number(selected?.pay_group))
+    if (pg?.name && form.staff_group !== pg.name) setForm((old: any) => ({ ...old, staff_group: pg.name }))
+  }, [form?.position, form?.staff_group, positions, payGroups])
+  useEffect(() => {
+    if (!form || !units?.length) return
+    const currentUnit = units.find((u: any) => String(u.name || '').trim() === String(form.unit_name || '').trim())
+    if (currentUnit?.parent_group && form.nursing_group !== currentUnit.parent_group) {
+      setForm((old: any) => ({ ...old, nursing_group: currentUnit.parent_group }))
+    }
+  }, [form?.unit_name, form?.nursing_group, units])
   useEffect(() => {
     let alive = true
     const load = async () => {
@@ -225,7 +238,7 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
       <label className="block space-y-1"><span className="field-label">กลุ่มบุคลากร (กำหนดอัตโนมัติตามตำแหน่ง)</span><input className="inp w-full bg-stone-100" value={form.staff_group || ''} readOnly disabled /></label>
       {field('staff_type','ประเภทบุคลากร')}
       <label className="block space-y-1"><span className="field-label">กลุ่มงาน</span><select className="inp w-full" value={form.nursing_group || ''} disabled={locked} onChange={e => { const group = e.target.value; const available = (units || []).filter((u:any) => String(u.parent_group || '').trim() === group); setForm((old:any) => ({ ...old, nursing_group: group, unit_name: available.some((u:any) => u.name === old?.unit_name) ? old.unit_name : '' })) }}><option value="">เลือกกลุ่มงานก่อน</option>{groupNames.map((x:string) => <option key={x} value={x}>{x}</option>)}</select></label>
-      <label className="block space-y-1"><span className="field-label">หน่วยงาน</span><select className="inp w-full" value={form.unit_name || ''} disabled={locked || !form.nursing_group} onChange={e => set('unit_name',e.target.value)}><option value="">{form.nursing_group ? 'เลือกหน่วยงานในกลุ่มงาน' : 'กรุณาเลือกกลุ่มงานก่อน'}</option>{[...new Set([...groupUnits.map((u:any)=>String(u.name||'').trim()), ...(groupUnits.some((u:any)=>String(u.name||'').trim() === String(form.unit_name||'').trim()) ? [] : [String(form.unit_name||'').trim()])].filter(Boolean))].sort((a:string,b:string)=>a.localeCompare(b,'th')).map((x:string) => <option key={x} value={x}>{x}</option>)}</select></label>
+      <label className="block space-y-1"><span className="field-label">หน่วยงาน</span><select className="inp w-full" value={form.unit_name || ''} disabled={locked || !form.nursing_group} onChange={e => set('unit_name',e.target.value)}><option value="">{form.nursing_group ? 'เลือกหน่วยงานในกลุ่มงาน' : 'กรุณาเลือกกลุ่มงานก่อน'}</option>{[...new Set(groupUnits.map((u:any)=>String(u.name||'').trim()).filter(Boolean))].sort((a:string,b:string)=>a.localeCompare(b,'th')).map((x:string) => <option key={x} value={x}>{x}</option>)}</select></label>
       {field('extra_unit_names','หน่วยงานเพิ่มเติม (คั่นด้วย |)')}
       {field('extra_nursing_group_names','กลุ่มงานเพิ่มเติม (คั่นด้วย |)')}
     </div>
