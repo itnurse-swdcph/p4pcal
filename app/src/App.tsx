@@ -349,7 +349,7 @@ function Main({ sb, session }: any) {
         </div>
         <p className="text-xs text-stone-600">{role === 'admin' ? 'ผู้ดูแลระบบสามารถเลือกหน่วยงานได้ทั้งหมด' : 'แสดงเฉพาะหน่วยงานที่บัญชีของคุณได้รับมอบหมายให้รับผิดชอบ'}</p>
       </div>
-      {reviewGroup && (unit != null || cur === 'review') ? (unit != null ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'review' ? <GroupHeadsReport sb={sb} groupName={reviewGroup} /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกหน่วยงานเพื่อรับรองกิจกรรม</div>) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
+      {reviewGroup && (unit != null || cur === 'review') ? (unit != null ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'review' ? <GroupHeadsReport sb={sb} groupName={reviewGroup} people={scope} month={month} positions={positions} units={units} /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกหน่วยงานเพื่อรับรองกิจกรรม</div>) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
     </div>}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
