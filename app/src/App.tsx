@@ -217,7 +217,7 @@ function Main({ sb, session }: any) {
     return name !== 'คลินิกโรคเรื้อรัง' && (directoryUnitNames === null || directoryUnitNames.includes(name))
   })
     .slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
-  const unitOptions = role === 'head' ? directoryUnits.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
+  const unitOptions = role === 'head' ? directoryUnits.filter(u => myUnits.includes(u.id) || u.id === profile.unit_id || (!!profile.nursing_group && u.parent_group === profile.nursing_group)) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || role === 'head' ? p.unit_id === unit : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
@@ -304,21 +304,31 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const approver = useContext(ApproverCtx)
   const [printing, setPrinting] = useState(false) // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
   const [uSel, setUSel] = useState<number | null>(defaultUnit ?? unitOptions?.[0]?.id ?? null)
+  const [groupSel, setGroupSel] = useState<string>(() => (unitOptions || []).find((u: any) => u.id === (defaultUnit ?? unitOptions?.[0]?.id))?.parent_group || '')
   const [directoryStaff, setDirectoryStaff] = useState<any[]>([])
   const [locallyAddedPeople, setLocallyAddedPeople] = useState<any[]>([])
   const [selectingStaff, setSelectingStaff] = useState(false)
   const [peopleLoadError, setPeopleLoadError] = useState('')
-  const people = useMemo(() => (picker ? [...(allPeople || []), ...locallyAddedPeople].filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i && p.unit_id === uSel) : peopleProp), [picker, allPeople, locallyAddedPeople, uSel, peopleProp])
+  const people = useMemo(() => {
+    if (!picker) return peopleProp
+    const directoryIds = new Set(directoryStaff.map((d: any) => Number(d.source_row)))
+    return [...(allPeople || []), ...locallyAddedPeople].filter((p: any, i: number, arr: any[]) =>
+      arr.findIndex((x: any) => x.id === p.id) === i && (uSel ? Number(p.unit_id) === Number(uSel) : p.unit_id == null && directoryIds.has(Number(p.staff_directory_id)))
+    )
+  }, [picker, allPeople, locallyAddedPeople, uSel, peopleProp, directoryStaff])
+  const groupOptions = useMemo(() => [...new Set((unitOptions || []).map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')), [unitOptions])
   useEffect(() => {
-    if (!picker || !uSel) { setDirectoryStaff([]); return }
-    const unitName = (unitOptions || []).find((u: any) => u.id === uSel)?.name
-    if (!unitName) { setDirectoryStaff([]); return }
-    sb.rpc('directory_staff', { p_unit_name: unitName }).then(({ data, error }: any) => {
-      if (error) { console.error('โหลดทะเบียนบุคลากรไม่สำเร็จ', error); setPeopleLoadError('โหลดทะเบียนบุคลากรไม่สำเร็จ กรุณาตรวจสอบสิทธิ์การเข้าถึง'); setDirectoryStaff([]); return }
+    if (!picker || !groupSel) { setDirectoryStaff([]); setPeopleLoadError(''); return }
+    let alive = true
+    sb.rpc('directory_group_staff', { p_group_name: groupSel }).then(({ data, error }: any) => {
+      if (!alive) return
+      if (error) { console.error('โหลดทะเบียนบุคลากรตามกลุ่มงานไม่สำเร็จ', error); setPeopleLoadError('โหลดทะเบียนบุคลากรของกลุ่มงานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์'); setDirectoryStaff([]); return }
       setPeopleLoadError('')
-      setDirectoryStaff(data || [])
+      const list = Array.isArray(data) ? data : []
+      setDirectoryStaff(uSel ? list.filter((d: any) => String(d.unit_name || '').trim() === String((unitOptions || []).find((u: any) => u.id === uSel)?.name || '').trim()) : list.filter((d: any) => !String(d.unit_name || '').trim()))
     })
-  }, [picker, uSel, sb, unitOptions])
+    return () => { alive = false }
+  }, [picker, groupSel, uSel, sb, unitOptions])
   const pickerPeople = useMemo(() => {
     if (!picker) return people
     const result = [...people]
@@ -445,9 +455,11 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     <div className="card activity-entry-card w-full max-w-5xl mx-auto space-y-4">
       <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">P4P · ACTIVITY ENTRY</p><h2 className="text-lg font-bold text-slate-900">เพิ่มรายการกิจกรรม</h2><p className="mt-1 text-sm text-slate-600">กรอกข้อมูลตามลำดับ แล้วตรวจสอบก่อนบันทึก</p></div><span className="hidden sm:inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">แบบฟอร์มบันทึก</span></div>
       {picker && <>
-        <label className="field-label">หน่วยงานที่ต้องการบันทึก</label>
-        <select className="inp" value={uSel ?? ''} onChange={e => { setUSel(+e.target.value); setPid('') }}>{(unitOptions || []).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
-        <label className="field-label">บันทึกคะแนนให้ใคร</label>
+        <label className="field-label">1. เลือกกลุ่มงาน</label>
+        <select className="inp" value={groupSel} onChange={e => { setGroupSel(e.target.value); setUSel(null); setPid(''); setErr('') }}><option value="">— เลือกกลุ่มงาน —</option>{groupOptions.map((g: string) => <option key={g} value={g}>{g}</option>)}</select>
+        <label className="field-label">2. เลือกหน่วยงาน <span className="text-xs font-normal text-stone-500">(หากเป็นหัวหน้ากลุ่มงานที่ไม่มีหน่วยงาน ให้เว้นว่าง)</span></label>
+        <select className="inp" value={uSel ?? ''} disabled={!groupSel} onChange={e => { setUSel(e.target.value ? +e.target.value : null); setPid(''); setErr('') }}><option value="">— ไม่เลือกหน่วยงาน / หัวหน้ากลุ่มงาน —</option>{(unitOptions || []).filter((u: any) => String(u.parent_group || '').trim() === groupSel).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+        <label className="field-label">3. เลือกชื่อบุคลากร</label>
         <select className="inp" value={pid} disabled={selectingStaff} onChange={async e => {
           const value = e.target.value; setErr(''); setPid(value)
           if (!value.startsWith('dir:')) return
@@ -465,7 +477,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         }}><option value="">— เลือกบุคลากรในหน่วยงานนี้ —</option>{pickerPeople.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position}){p.fromDirectory ? ' · จากทะเบียนบุคลากร' : ''}</option>)}</select>
         {selectingStaff && <p className="text-xs text-teal-700">กำลังเตรียมระเบียนบุคลากร…</p>}
         {peopleLoadError && <p className="text-xs text-red-700">{peopleLoadError}</p>}
-        {!pickerPeople.length && <p className="text-xs text-red-700">ไม่พบรายชื่อบุคลากรในหน่วยงานนี้ในทะเบียนบุคลากร</p>}
+        {!pickerPeople.length && <p className="text-xs text-red-700">ไม่พบรายชื่อบุคลากรในกลุ่มงาน/หน่วยงานที่เลือกในทะเบียนบุคลากร</p>}
       </>}
       {!picker && people.length > 1 && <select className="inp" value={pid} onChange={e => setPid(e.target.value)}>{people.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}</select>}
       <div className="grid grid-cols-2 gap-3">
@@ -950,13 +962,14 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       if (error) { console.error('โหลดทะเบียนบุคลากรสำหรับตารางหน่วยงานไม่สำเร็จ', error); setDirectoryPeople([]) }
       else setDirectoryPeople(Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
     })
-    // Use the personnel directory directly for signatories; they do not need an app account.
-    sb.from('staff_directory').select('source_row,prefix,first_name,last_name,full_name,position,org_role,unit_name,active')
-      .eq('active', true).in('unit_name', [...new Set([unitName, parentGroup].filter(Boolean))])
-      .then(({ data, error }: any) => {
-        if (!alive) return
-        setSignaturePeople(!error && Array.isArray(data) ? data : [])
-      })
+    // ใช้ทะเบียนบุคลากรเป็นแหล่งข้อมูลผู้ลงนาม ไม่ต้องมีบัญชีผู้ใช้ และใช้ RPC กลุ่มงานเพื่อรวมหัวหน้ากลุ่มงานที่ unit_name เป็น NULL
+    const signerLookup = parentGroup
+      ? sb.rpc('directory_group_staff', { p_group_name: parentGroup })
+      : sb.rpc('directory_staff', { p_unit_name: unitName })
+    signerLookup.then(({ data, error }: any) => {
+      if (!alive) return
+      setSignaturePeople(!error && Array.isArray(data) ? data : [])
+    })
     sb.from('staff_directory').select('prefix,first_name,last_name,position,org_role,unit_name').eq('active', true).or('org_role.ilike.%รักษาการหัวหน้าภารกิจด้านการพยาบาล%,org_role.ilike.%รักษาการหัวหน้าพยาบาล%').limit(20).then(({ data, error }: any) => {
       if (!alive || error || !Array.isArray(data)) return
       const chief = data.find((d: any) => String(d.org_role || '').includes('รักษาการหัวหน้าภารกิจด้านการพยาบาล')) || data.find((d: any) => String(d.org_role || '').includes('รักษาการหัวหน้าพยาบาล'))
@@ -1010,7 +1023,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const signers = [...signaturePeople, ...directoryPeople]
   const monthText = month ? new Date(month + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : ''
   const unitHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้างาน') && String(d.unit_name || '').trim() === unitName)
-  const groupHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้ากลุ่มงาน') && String(d.unit_name || '').trim() === groupName)
+  const groupHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้ากลุ่มงาน') && (String(d.nursing_group || '').trim() === groupName || String(d.unit_name || '').trim() === groupName))
   const signerName = (d: any) => d?.full_name || ((d?.prefix || '') + (d?.first_name || '') + ' ' + (d?.last_name || '')).trim()
   const unitHeadName = signerName(unitHead)
   const groupHeadName = signerName(groupHead)
