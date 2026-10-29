@@ -910,6 +910,10 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
   const sortedRows = useMemo(() => [...(rows || [])].sort((a: any, b: any) => {
+    // เรียงตามวันที่ปฏิบัติงานล่าสุดก่อน ไม่ใช่เวลาที่กดบันทึก
+    const dateOrder = String(b.work_date || '').localeCompare(String(a.work_date || ''))
+    if (dateOrder !== 0) return dateOrder
+    // หากเป็นวันเดียวกัน ให้รายการที่บันทึกล่าสุดอยู่ก่อน
     const at = a.created_at ? new Date(a.created_at).getTime() : 0
     const bt = b.created_at ? new Date(b.created_at).getTime() : 0
     if (at !== bt) return bt - at
@@ -974,7 +978,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       <div><label className="field-label" htmlFor="log-filter-from">วันที่ตั้งแต่</label><input id="log-filter-from" type="date" lang="th-TH" className="inp mt-1 !w-auto" value={filterFrom} max={filterTo || undefined} onChange={e => setFilterFrom(e.target.value)} /></div>
       <div><label className="field-label" htmlFor="log-filter-to">ถึงวันที่</label><input id="log-filter-to" type="date" lang="th-TH" className="inp mt-1 !w-auto" value={filterTo} min={filterFrom || undefined} onChange={e => setFilterTo(e.target.value)} /></div>
       <button type="button" className="btn sec" onClick={() => { setFilterFrom(''); setFilterTo('') }}>ล้างตัวกรองวันที่</button>
-      <p className="ml-auto text-xs text-stone-600">แสดง {displayedRows.length.toLocaleString('th-TH')} จาก {rows.length.toLocaleString('th-TH')} รายการ · เรียงรายการบันทึกล่าสุดก่อน</p>
+      <p className="ml-auto text-xs text-stone-600">แสดง {displayedRows.length.toLocaleString('th-TH')} จาก {rows.length.toLocaleString('th-TH')} รายการ · เรียงตามวันที่ปฏิบัติงานล่าสุดก่อน</p>
     </div>
     <table className={`w-full log-table ${showName ? 'log-table-with-name' : ''}`}><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th>เหตุผลที่ไม่รับรอง</th><th></th></tr></thead>
       <tbody>{displayedRows.map((r: any) => {
