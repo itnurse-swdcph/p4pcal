@@ -700,13 +700,32 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   useEffect(() => {
     let alive = true
     const loadSigner = async () => {
-      const { data: rpcRows } = await sb.rpc('approver_of', { p_person: person.id })
+      const { data: rpcRows } = await sb.rpc('approver_print_details_of', { p_person: person.id })
       const approvedSigner = rpcRows?.[0] || null
-      // ใช้ทะเบียนบุคลากรเป็นแหล่งจริงของตำแหน่งวิชาชีพและบทบาทบริหาร
-      const { data: directory } = await sb.from('staff_directory')
-        .select('source_row,prefix,first_name,last_name,position,org_role,unit_name,extra_unit_names,nursing_group,extra_nursing_group_names,active')
-        .eq('active', true)
       if (!alive) return
+      if (!approvedSigner?.approver_name) { setHead(null); return }
+      const directory: any[] = []
+      if (approvedSigner?.approver_name) {
+        const role = String(approvedSigner.approver_org_role || '').trim()
+        const unitName = String(approvedSigner.approver_unit_name || '').trim()
+        const groupName = String(approvedSigner.approver_nursing_group || '').trim()
+        const compactRole = role.replace(/\s+/g, '')
+        const managerial = role.includes('หัวหน้ากลุ่มงาน')
+          ? (compactRole === 'หัวหน้ากลุ่มงาน' ? `หัวหน้ากลุ่มงาน${groupName}` : role)
+          : role.includes('หัวหน้างาน')
+            ? (compactRole === 'หัวหน้างาน' ? `หัวหน้างาน${unitName.replace(/^งาน/, '')}` : role)
+            : role
+        const approvalRole = String(approvedSigner.approver_position || '')
+        const signerLabel = approvalRole.includes('กลุ่มงาน') ? 'หัวหน้ากลุ่มงานรับรอง'
+          : approvalRole.includes('หัวหน้าพยาบาล') || approvalRole.includes('ภารกิจด้านการพยาบาล') ? 'รักษาการหัวหน้าพยาบาลรับรอง'
+            : 'หัวหน้างานรับรอง'
+        setHead({
+          approver_name: approvedSigner.approver_name,
+          approver_position: [approvedSigner.approver_professional_position, managerial].filter(Boolean).join('\n'),
+          approver_label: signerLabel,
+        })
+        return
+      }
       const fullName = (p: any) => `${[p?.prefix, p?.first_name].filter(Boolean).join('')}${p?.last_name ? ' ' + p.last_name : ''}`.replace(/\\s+/g, ' ').trim()
       const roleText = (p: any) => String(p?.org_role || '').trim()
       const professionalPosition = (p: any) => String(p?.position || '').trim()
