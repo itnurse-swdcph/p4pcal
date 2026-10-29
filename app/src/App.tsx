@@ -180,9 +180,10 @@ function PersonalProfilePage({ sb, profile, role, units, positions, session, rel
     const load = async () => {
       const sourceRow = profile.staff_directory_id
       if (!sourceRow) { setMessage('บัญชีนี้ยังไม่ได้เชื่อมกับทะเบียนบุคลากร กรุณาติดต่อผู้ดูแลระบบเพื่อผูกข้อมูลก่อน'); return }
-      const { data, error } = await sb.from('staff_directory').select('*').eq('source_row', sourceRow).maybeSingle()
+      const { data: result, error } = await sb.rpc('get_my_staff_directory')
       if (!alive) return
-      if (error || !data) { setMessage('โหลดข้อมูลทะเบียนบุคลากรไม่สำเร็จ กรุณาติดต่อผู้ดูแลระบบ'); return }
+      const data = result?.staff || result
+      if (error || !data || data.error) { setMessage(data?.error || 'โหลดข้อมูลทะเบียนบุคลากรไม่สำเร็จ กรุณาติดต่อผู้ดูแลระบบ'); return }
       setForm(data)
     }
     void load()
