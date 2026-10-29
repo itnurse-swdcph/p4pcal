@@ -295,6 +295,7 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
 function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, canApprove }: any) {
   const picker = !!canApprove
   const me = useContext(MeCtx)
+  const approver = useContext(ApproverCtx)
   const [printing, setPrinting] = useState(false) // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
   const [uSel, setUSel] = useState<number | null>(defaultUnit ?? unitOptions?.[0]?.id ?? null)
   const [directoryStaff, setDirectoryStaff] = useState<any[]>([])
@@ -328,6 +329,8 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
   const [q, setQ] = useState(''); const [categoryFilter, setCategoryFilter] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null)
   const [notice, setNotice] = useState('')
+  const [savingActivity, setSavingActivity] = useState(false)
+  const canApproveImmediately = !!picker && !!pid && canDecideRow(approver, me, { person_id: pid })
   const [shift, setShift] = useState('เช้า'); const [caps, setCaps] = useState<any>({ cap_shift_points: 90, cap_day_points: 180 })
   useEffect(() => { sb.from('app_settings').select('key,value').in('key', ['cap_shift_points', 'cap_day_points']).then((r: any) => setCaps(Object.fromEntries([['cap_shift_points', 90], ['cap_day_points', 180], ...(r.data || []).map((x: any) => [x.key, Number(x.value)])]))) }, [])
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
@@ -371,13 +374,15 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     setQty('1'); setEv(''); setSubActivity(''); setEvidenceFile(null)
     setModalOpen(true)
   }
-  const save = async () => {
+  const save = async (approveImmediately = false) => {
     setErr('')
-    if (!pid) { setErr('กรุณาเลือกบุคลากรก่อน'); return }
-    if (!code || !act) { setErr('กรุณาค้นหาและเลือกกิจกรรม'); return }
-    if (!qty || Number(qty) <= 0) { setErr('กรุณาระบุจำนวนให้มากกว่า 0'); return }
-    if (!subActivity.trim()) { setErr('กรุณากรอกกิจกรรมย่อย / รายละเอียดการดำเนินงานก่อนบันทึก'); return }
-    if (act.need_evidence && !ev.trim() && !evidenceFile) { setErr(`กิจกรรมนี้ต้องมีหลักฐาน: ${act.definition || 'กรุณาระบุเอกสารหรือแนบรูปถ่ายประกอบ'}`); return }
+    if (approveImmediately && !canApproveImmediately) { setErr('บัญชีนี้ไม่มีสิทธิ์รับรองกิจกรรมของบุคลากรที่เลือก'); return }
+    setSavingActivity(true)
+    if (!pid) { setSavingActivity(false); setErr('กรุณาเลือกบุคลากรก่อน'); return }
+    if (!code || !act) { setSavingActivity(false); setErr('กรุณาค้นหาและเลือกกิจกรรม'); return }
+    if (!qty || Number(qty) <= 0) { setSavingActivity(false); setErr('กรุณาระบุจำนวนให้มากกว่า 0'); return }
+    if (!subActivity.trim()) { setSavingActivity(false); setErr('กรุณากรอกกิจกรรมย่อย / รายละเอียดการดำเนินงานก่อนบันทึก'); return }
+    if (act.need_evidence && !ev.trim() && !evidenceFile) { setSavingActivity(false); setErr(`กิจกรรมนี้ต้องมีหลักฐาน: ${act.definition || 'กรุณาระบุเอกสารหรือแนบรูปถ่ายประกอบ'}`); return }
     // Check the total for this person, date and activity across all previously saved rows.
     // The database trigger performs the same validation as a final safeguard against concurrent requests.
     if (act.max_day !== null && act.max_day !== undefined && act.max_day !== '') {
@@ -386,18 +391,19 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         .eq('person_id', pid)
         .eq('work_date', date)
         .eq('activity_code', code)
-      if (limitQueryError) { setErr('ตรวจสอบจำนวนสะสมต่อวันไม่สำเร็จ จึงยังบันทึกรายการไม่ได้ กรุณาลองใหม่: ' + limitQueryError.message); return }
+      if (limitQueryError) { setSavingActivity(false); setErr('ตรวจสอบจำนวนสะสมต่อวันไม่สำเร็จ จึงยังบันทึกรายการไม่ได้ กรุณาลองใหม่: ' + limitQueryError.message); return }
       const alreadyLogged = (sameDayRows || []).reduce((sum: number, row: any) => sum + Number(row.qty || 0), 0)
       const requestedQty = Number(qty)
       const dailyLimit = Number(act.max_day)
       if (alreadyLogged + requestedQty > dailyLimit) {
         const remaining = Math.max(0, dailyLimit - alreadyLogged)
         setErr(`บันทึกไม่ได้: กิจกรรมนี้กำหนดไม่เกิน ${dailyLimit} ${act.uom || 'หน่วย'} ต่อวัน วันที่ ${formatThaiShortDate(date)} บันทึกสะสมไปแล้ว ${alreadyLogged} ${act.uom || 'หน่วย'} และกำลังเพิ่ม ${requestedQty} ${act.uom || 'หน่วย'} รวมเป็น ${alreadyLogged + requestedQty} เกินกำหนด เหลือบันทึกได้อีก ${remaining} ${act.uom || 'หน่วย'}`)
-        return
+        setSavingActivity(false); return
       }
     }
     const { data: inserted, error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: act?.use_role_mult ? role : null, qty: +qty, evidence: ev.trim() || (evidenceFile ? 'แนบรูปถ่าย' : null), sub_activity: subActivity.trim() || null, shift }).select('id').single()
     if (error) {
+      setSavingActivity(false);
       if (error.code === '23514' && /เกินจำนวนสูงสุดต่อวัน/.test(error.message || '')) {
         setErr('บันทึกไม่ได้: ' + error.message)
       } else {
@@ -409,11 +415,17 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       const safeName = evidenceFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
       const path = `${pid}/${inserted.id}/${crypto.randomUUID()}-${safeName}`
       const { error: uploadError } = await sb.storage.from('p4p-evidence').upload(path, evidenceFile, { contentType: evidenceFile.type, upsert: false })
-      if (uploadError) { setErr(`บันทึกรายการแล้ว แต่แนบรูปไม่สำเร็จ: ${uploadError.message}`); reload(); return }
+      if (uploadError) { setSavingActivity(false); setErr(`บันทึกรายการแล้ว แต่แนบรูปไม่สำเร็จ: ${uploadError.message}`); reload(); return }
       const { error: pathError } = await sb.from('logs').update({ evidence_image_path: path }).eq('id', inserted.id)
-      if (pathError) { setErr(`อัปโหลดรูปแล้ว แต่บันทึกการเชื่อมโยงรูปไม่สำเร็จ: ${pathError.message}`); reload(); return }
+      if (pathError) { setSavingActivity(false); setErr(`อัปโหลดรูปแล้ว แต่บันทึกการเชื่อมโยงรูปไม่สำเร็จ: ${pathError.message}`); reload(); return }
     }
-    setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); setModalOpen(false); setNotice('บันทึกเป็นแบบร่างแล้ว กดปุ่ม "ส่ง" ในตารางเมื่อพร้อมให้หัวหน้ารับรอง (แบบร่างแก้ไขหรือลบได้ แต่เมื่อส่งแล้วจะล็อก)'); reload()
+    if (approveImmediately && inserted?.id) {
+      const { error: pendingError } = await sb.from('logs').update({ status: 'pending' }).eq('id', inserted.id)
+      if (pendingError) { setSavingActivity(false); setErr('บันทึกกิจกรรมแล้ว แต่ส่งเข้าขั้นตอนรับรองไม่สำเร็จ: ' + pendingError.message); reload(); return }
+      const { error: approveError } = await sb.from('logs').update({ status: 'approved' }).eq('id', inserted.id)
+      if (approveError) { setSavingActivity(false); setErr('บันทึกกิจกรรมและส่งเข้าคิวแล้ว แต่รับรองทันทีไม่สำเร็จ กรุณาให้ผู้มีสิทธิ์รับรองตรวจรายการ: ' + approveError.message); reload(); return }
+    }
+    setSavingActivity(false); setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); setModalOpen(false); setNotice(approveImmediately ? 'บันทึกและรับรองกิจกรรมให้บุคลากรที่เลือกเรียบร้อยแล้ว' : picker ? 'บันทึกเป็นแบบร่างแล้ว กิจกรรมยังไม่ถูกนับจนกว่าจะส่งให้ผู้มีสิทธิ์รับรอง' : 'บันทึกเป็นแบบร่างแล้ว กดปุ่ม "ส่ง" ในตารางเมื่อพร้อมให้หัวหน้ารับรอง (แบบร่างแก้ไขหรือลบได้ แต่เมื่อส่งแล้วจะล็อก)'); reload()
   }
   return <div className="space-y-4">
     <div className="space-y-3">
@@ -479,7 +491,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       <div className="space-y-1"><label className="field-label">แนบรูปถ่ายหลักฐาน {act.need_evidence && <span className="text-slate-600">(หรือกรอกรายละเอียดหลักฐานด้านบน)</span>}</label><input className="inp" type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0] || null; if (f && (!f.type.startsWith('image/') || f.size > 5 * 1024 * 1024)) { setErr('กรุณาเลือกไฟล์รูปภาพ ขนาดไม่เกิน 5 MB'); e.target.value = ''; setEvidenceFile(null); return } setErr(''); setEvidenceFile(f) }} /><p className="field-hint">แนบรูปถ่ายได้ 1 รูปต่อรายการ ขนาดไม่เกิน 5 MB</p>{evidenceFile && <p className="text-xs text-teal-800">ไฟล์ที่เลือก: {evidenceFile.name}</p>}</div>
       <div className="rounded-lg bg-slate-50 p-3 text-sm">แต้มโดยประมาณ: <b>{nf(prev)}</b>{prev > room && <span className="text-amber-800"> · {shiftName} นับได้ไม่เกิน {nf(room)} คะแนน (ส่วนที่เกินเพดานไม่นับ)</span>}</div>
       {err && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{err}</p>}
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" className="btn" onClick={() => { setModalOpen(false); setErr('') }}>ยกเลิก</button><button type="button" className="btn" disabled={!pid || !code || !+qty} onClick={save}>บันทึกกิจกรรม</button></div></div></div>}
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" className="btn sec" disabled={savingActivity} onClick={() => { setModalOpen(false); setErr('') }}>ยกเลิก</button><button type="button" className="btn" disabled={savingActivity || !pid || !code || !+qty} onClick={() => save(false)}>{savingActivity ? 'กำลังบันทึก…' : 'บันทึก'}</button>{canApproveImmediately && <button type="button" className="btn" disabled={savingActivity || !pid || !code || !+qty} onClick={() => save(true)}>{savingActivity ? 'กำลังบันทึก…' : 'บันทึกและรับรองทันที'}</button>}</div></div></div>}
     </div>
     <div className="space-y-3">
       {notice && <p role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
