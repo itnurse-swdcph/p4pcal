@@ -797,3 +797,42 @@ body.print-unit-report .unit-report-table {
   .print-sheet .ps-repeat-heading .ps-sum { width: 61mm !important; }
   .print-sheet .ps-repeat-heading .ps-sum thead { display: table-header-group !important; }
 }
+
+
+/* Unit report preview is a screen-only overlay; print isolation starts only on Print click. */
+body.unit-report-preview-open .unit-report-print {
+  display: block !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 100dvh !important;
+  overflow: auto !important;
+  padding: 16px !important;
+  margin: 0 !important;
+  background: #e8edf2 !important;
+  color: #111 !important;
+  visibility: visible !important;
+}
+body.unit-report-preview-open .unit-report-print * {
+  visibility: visible !important;
+}
+body.unit-report-preview-open .unit-report-table {
+  display: table !important;
+  width: 100% !important;
+  max-width: 277mm !important;
+  margin: 0 auto !important;
+  padding: 12mm !important;
+  background: #fff !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,.12) !important;
+}
+body.unit-report-preview-open .unit-report-toolbar {
+  display: flex !important;
+  max-width: 277mm !important;
+  margin: 0 auto 12px !important;
+}
+@media print {
+  body.unit-report-preview-open .unit-report-print { display: none !important; }
+  body.print-unit-report .unit-report-print { display: block !important; }
+}
