@@ -300,7 +300,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const ids = useMemo(() => people.map((p: any) => p.id), [people])
   const [rows, reload] = useLogs(sb, month, ids)
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
-  const [q, setQ] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null)
+  const [q, setQ] = useState(''); const [categoryFilter, setCategoryFilter] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null)
   const [notice, setNotice] = useState('')
   const [shift, setShift] = useState('แสตนด์เช้า'); const [caps, setCaps] = useState<any>({ cap_shift_points: 90, cap_day_points: 180 })
   useEffect(() => { sb.from('app_settings').select('key,value').in('key', ['cap_shift_points', 'cap_day_points']).then((r: any) => setCaps(Object.fromEntries([['cap_shift_points', 90], ['cap_day_points', 180], ...(r.data || []).map((x: any) => [x.key, Number(x.value)])]))) }, [])
@@ -309,7 +309,10 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean)   // พิมพ์หลายคำได้ ต้องพบครบทุกคำ ในรหัส/หมวด/กิจกรรมหลัก/กิจกรรมย่อย
-  const list = acts.filter((a: any) => (!pos || a.eligible.includes(pos.grp)) && terms.every(t => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(t))).sort(byCode)
+  const eligibleActs = acts.filter((a: any) => !pos || a.eligible.includes(pos.grp))
+  const activityCategories = [...new Set(eligibleActs.map((a: any) => String(a.category || 'อื่นๆ')))].sort((a: string, b: string) => a.localeCompare(b, 'th'))
+  const showActivityChoices = !!categoryFilter || q.trim().length >= 2
+  const list = eligibleActs.filter((a: any) => (!categoryFilter || String(a.category || 'อื่นๆ') === categoryFilter) && terms.every(t => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(t))).sort(byCode)
   const catGroups: [string, any[]][] = (() => { const m = new Map<string, any[]>(); list.forEach((a: any) => { const k = a.category || 'อื่นๆ'; m.set(k, [...(m.get(k) || []), a]) }); return [...m.entries()] })()
   const act = acts.find((a: any) => a.code === code)
   const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate * (act.use_role_mult ? (role === ROLES[0] ? 2 : role === ROLES[1] ? 1.5 : 1) : 1) : 0
@@ -392,8 +395,8 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         <button type="button" className="btn" onClick={async () => { if (!confirm(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรอง? เมื่อส่งแล้วจะแก้ไขหรือลบไม่ได้`)) return; const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', myDrafts.map((r: any) => r.id)); if (error) alert('ส่งรายการไม่สำเร็จ: ' + error.message); else { setNotice(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรองแล้ว`); reload() } }}>ส่งทั้งหมด ({myDrafts.length})</button></div>}
       <Totals rows={shown} people={person ? [person] : []} positions={positions} />
     </div>
-    <div className="card space-y-2 self-start">
-      <h2 className="font-bold">เพิ่มรายการ</h2>
+    <div className="card activity-entry-card w-full max-w-5xl mx-auto space-y-4">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">P4P · ACTIVITY ENTRY</p><h2 className="text-lg font-bold text-slate-900">เพิ่มรายการกิจกรรม</h2><p className="mt-1 text-sm text-slate-600">กรอกข้อมูลตามลำดับ แล้วตรวจสอบก่อนบันทึก</p></div><span className="hidden sm:inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">แบบฟอร์มบันทึก</span></div>
       {picker && <>
         <label className="field-label">หน่วยงานที่ต้องการบันทึก</label>
         <select className="inp" value={uSel ?? ''} onChange={e => { setUSel(+e.target.value); setPid('') }}>{(unitOptions || []).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
@@ -406,14 +409,14 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       <label className="field-label">เวรที่ปฏิบัติ</label>
       <select className="inp" value={shift} onChange={e => setShift(e.target.value)}>{SHIFTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
       {pid && <p role="status" className={'text-xs ' + (room <= 0 ? 'text-amber-800 font-bold' : 'text-stone-600')}>{shiftName}วันนี้ใช้ {nf(usedShift)}/{nf(capS, 0)} คะแนน · รวมทั้งวัน {nf(dayUsed)}/{nf(capD, 0)}{room <= 0 && ' · เต็มเพดาน บันทึกเพิ่มได้แต่ไม่นับคะแนน'}</p>}
-      <input className="inp" placeholder="ค้นหา: รหัส หมวด กิจกรรมหลัก หรือกิจกรรมย่อย (พิมพ์หลายคำได้)" value={q} onChange={e => setQ(e.target.value)} />
-      <label className="field-label">รายการกิจกรรม</label>
+      <div className="activity-step-grid"><div className="space-y-1"><label className="field-label" htmlFor="activity-category">1. เลือกหมวดกิจกรรม <span className="required-mark">*</span></label><select id="activity-category" className="inp" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="">— เลือกหมวดกิจกรรมก่อน —</option>{activityCategories.map((cat: string) => <option key={cat} value={cat}>{cat}</option>)}</select></div><div className="space-y-1"><label className="field-label" htmlFor="activity-search">2. ค้นหากิจกรรม (ไม่บังคับ)</label><input id="activity-search" className="inp" placeholder="ค้นหารหัส ชื่อกิจกรรม หรือรายละเอียด" value={q} onChange={e => setQ(e.target.value)} /></div></div>
+      <div className="flex items-center justify-between gap-2"><label className="field-label">3. เลือกรายการกิจกรรม</label><span className="text-xs text-slate-500">{list.length} รายการ</span></div>
       <div className="act-list" role="listbox" aria-label="รายการกิจกรรม">
         {catGroups.map(([cat, items]) => <div key={cat}>
           <div className="act-head">{cat}</div>
           {items.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={[a.main_activity, a.title].filter(Boolean).join(' › ')} onClick={() => { void chooseActivity(a) }} className={'act-item' + (code === a.code ? ' on' : '')}>
             <span className="act-code">{a.code}</span><span className="act-body">{a.main_activity && <span className="act-main">{a.main_activity}</span>}<span className="act-title">{a.title}</span></span><span className="act-uom">{a.minutes} นาที/{a.uom}</span></button>)}</div>)}
-        {!list.length && <p className="p-3 text-sm text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหาหรือสิทธิ์ของตำแหน่งนี้</p>}
+        {!list.length && <p className="p-4 text-sm text-slate-500">{!showActivityChoices ? 'กรุณาเลือกหมวดกิจกรรม หรือพิมพ์คำค้นหาอย่างน้อย 2 ตัวอักษร เพื่อแสดงรายการที่เกี่ยวข้อง' : 'ไม่พบกิจกรรมที่ตรงกับคำค้นหาหรือสิทธิ์ของตำแหน่งนี้'}</p>}
       </div>
       {act && <div className="rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm"><b className="text-teal-900">เลือกแล้ว: {act.code} {[act.category, act.main_activity, act.title].filter(Boolean).join(' › ')}</b><p className="mt-1 text-xs text-teal-900">กดรายการกิจกรรมเพื่อเปิดแบบฟอร์มกรอกข้อมูล</p></div>}
       {duplicateOpen && act && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="duplicate-activity-title"><div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4">
