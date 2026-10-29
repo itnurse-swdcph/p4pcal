@@ -241,7 +241,7 @@ function Main({ sb, session }: any) {
     {tabs.length === 0 && <p>บัญชีนี้ยังไม่มีสิทธิ์ใช้งาน</p>}
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
-      : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} />)}
+      : <LogPage units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} canApprove={role !== 'staff'} reloadPeople={loadPeople} />)}
     {cur === 'review' && role === 'admin' && !unit && <div className="card text-center space-y-2"><h2 className="font-bold">เลือกหน่วยงานเพื่อเริ่มตรวจ/รับรอง</h2><p className="text-sm text-stone-600">กรุณาเลือกหน่วยงานจากรายการด้านบน ระบบจะแสดงรายการทั้งหมดของหน่วยงานที่เลือก</p></div>}
     {cur === 'review' && !(role === 'admin' && !unit) && <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} editable />}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
@@ -292,7 +292,7 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
   return [rows, () => setN(x => x + 1)] as const
 }
 
-function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, canApprove }: any) {
+function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, canApprove, reloadPeople }: any) {
   const picker = !!canApprove
   const me = useContext(MeCtx)
   const approver = useContext(ApproverCtx)
@@ -330,7 +330,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const [q, setQ] = useState(''); const [categoryFilter, setCategoryFilter] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null)
   const [notice, setNotice] = useState('')
   const [savingActivity, setSavingActivity] = useState(false)
-  const canApproveImmediately = !!picker && !!pid && canDecideRow(approver, me, { person_id: pid })
+  const canApproveImmediately = !!picker && !!pid && Object.prototype.hasOwnProperty.call(approver?.personLevel || {}, pid) && Object.prototype.hasOwnProperty.call(approver?.personUser || {}, pid) && canDecideRow(approver, me, { person_id: pid })
   const [shift, setShift] = useState('เช้า'); const [caps, setCaps] = useState<any>({ cap_shift_points: 90, cap_day_points: 180 })
   useEffect(() => { sb.from('app_settings').select('key,value').in('key', ['cap_shift_points', 'cap_day_points']).then((r: any) => setCaps(Object.fromEntries([['cap_shift_points', 90], ['cap_day_points', 180], ...(r.data || []).map((x: any) => [x.key, Number(x.value)])]))) }, [])
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
@@ -454,6 +454,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
           if (readErr || !inserted) { setErr('อ่านระเบียนบุคลากรไม่สำเร็จ: ' + (readErr?.message || '')); setPid(''); return }
           setLocallyAddedPeople((prev: any[]) => [...prev, inserted])
           setPid(inserted.id)
+          reloadPeople?.()
         }}><option value="">— เลือกบุคลากรในหน่วยงานนี้ —</option>{pickerPeople.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position}){p.fromDirectory ? ' · จากทะเบียนบุคลากร' : ''}</option>)}</select>
         {selectingStaff && <p className="text-xs text-teal-700">กำลังเตรียมระเบียนบุคลากร…</p>}
         {peopleLoadError && <p className="text-xs text-red-700">{peopleLoadError}</p>}
