@@ -356,7 +356,10 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean)   // พิมพ์หลายคำได้ ต้องพบครบทุกคำ ในรหัส/หมวด/กิจกรรมหลัก/กิจกรรมย่อย
-  const eligibleActs = acts.filter((a: any) => !pos || a.eligible.includes(pos.grp))
+  const selectedUnitName = String((unitOptions || []).find((u: any) => Number(u.id) === Number(person?.unit_id))?.name || '').trim()
+  const isMedicalCenterStaff = selectedUnitName === 'ศูนย์เครื่องมือแพทย์'
+  const isMedicalCenterOnly = (a: any) => String(a?.title || '').startsWith('[เฉพาะศูนย์เครื่องมือแพทย์]')
+  const eligibleActs = acts.filter((a: any) => (!pos || a.eligible.includes(pos.grp)) && (!isMedicalCenterOnly(a) || isMedicalCenterStaff))
   const activityCategories = [...new Set(eligibleActs.map((a: any) => String(a.category || 'อื่นๆ')))].sort((a: string, b: string) => a.localeCompare(b, 'th'))
   const showActivityChoices = !!categoryFilter || q.trim().length >= 2
   const list = eligibleActs.filter((a: any) => (!categoryFilter || String(a.category || 'อื่นๆ') === categoryFilter) && terms.every(t => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(t))).sort(byCode)
@@ -375,6 +378,10 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const shiftName = shift === 'แสตนด์เช้า' ? 'แสตนด์เช้า' : 'เวร' + shift
   const chooseActivity = async (activity: any) => {
     setCode(activity.code); setErr('')
+    if (String(activity?.title || '').startsWith('[เฉพาะศูนย์เครื่องมือแพทย์]') && !isMedicalCenterStaff) {
+      setErr('กิจกรรมนี้ใช้ได้เฉพาะบุคลากรหน่วยงานศูนย์เครื่องมือแพทย์เท่านั้น')
+      return
+    }
     if (!pid) { setErr('กรุณาเลือกบุคลากรก่อน'); return }
     const { data, error } = await sb.from('logs')
       .select('id, person_id, work_date, activity_code, qty, status, evidence, sub_activity, evidence_image_path')
@@ -397,6 +404,11 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     setSavingActivity(true)
     if (!pid) { setSavingActivity(false); setErr('กรุณาเลือกบุคลากรก่อน'); return }
     if (!code || !act) { setSavingActivity(false); setErr('กรุณาค้นหาและเลือกกิจกรรม'); return }
+    if (String(act?.title || '').startsWith('[เฉพาะศูนย์เครื่องมือแพทย์]') && !isMedicalCenterStaff) {
+      setSavingActivity(false)
+      setErr('บันทึกไม่ได้: กิจกรรมนี้ใช้ได้เฉพาะบุคลากรหน่วยงานศูนย์เครื่องมือแพทย์เท่านั้น')
+      return
+    }
     if (!qty || Number(qty) <= 0) { setSavingActivity(false); setErr('กรุณาระบุจำนวนให้มากกว่า 0'); return }
     if (!subActivity.trim()) { setSavingActivity(false); setErr('กรุณากรอกกิจกรรมย่อย / รายละเอียดการดำเนินงานก่อนบันทึก'); return }
     if (act.need_evidence && !ev.trim() && !evidenceFile) { setSavingActivity(false); setErr(`กิจกรรมนี้ต้องมีหลักฐาน: ${act.definition || 'กรุณาระบุเอกสารหรือแนบรูปถ่ายประกอบ'}`); return }
@@ -545,7 +557,16 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       const fullName = (p: any) => `${[p?.prefix, p?.first_name].filter(Boolean).join('')}${p?.last_name ? ' ' + p.last_name : ''}`.replace(/\\s+/g, ' ').trim()
       const roleText = (p: any) => String(p?.org_role || '').trim()
       const professionalPosition = (p: any) => String(p?.position || '').trim()
-      const signerPosition = (p: any) => [professionalPosition(p), roleText(p)].filter(Boolean).join(' · ')
+      const signerPosition = (p: any) => {
+        const role = roleText(p)
+        const rawUnit = String(p?.unit_name || p?.nursing_group || '').trim()
+        const managerial = role.includes('หัวหน้ากลุ่มงาน')
+          ? `หัวหน้ากลุ่มงาน${rawUnit}`
+          : role.includes('หัวหน้างาน')
+            ? `หัวหน้างาน${rawUnit.replace(/^งาน/, '')}`
+            : role
+        return [professionalPosition(p), managerial].filter(Boolean).join('\\n')
+      }
       const normalize = (v: any) => String(v || '').replace(/\\s+/g, '').trim()
       const namesIn = (v: any) => String(v || '').split(/[,;|]/).map(normalize).filter(Boolean)
       const unitName = normalize(units.find((u: any) => u.id === person.unit_id)?.name)
@@ -618,7 +639,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const sign = (title: string, name?: string, pos?: string) => <div className="sign-box">
     <div>ลงชื่อ ........................................ {title}</div>
     <div className="sign-name">( {name || <span className="sign-blank" />} )</div>
-    <div className="sign-pos">ตำแหน่ง {pos || <span className="sign-blank wide" />}</div>
+    <div className="sign-pos" style={{ whiteSpace: 'pre-line' }}>ตำแหน่ง {pos || <span className="sign-blank wide" />}</div>
   </div>
   return createPortal(<div className="print-overlay">
     <div className="print-toolbar no-print">
