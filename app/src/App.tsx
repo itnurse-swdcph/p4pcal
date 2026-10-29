@@ -826,7 +826,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
         <tbody>{activityRows.map((item: any) => item.type === 'domain'
           ? <tr key={item.key} className="ps-domain-row"><th colSpan={5}>{item.domain}</th></tr>
           : <tr key={item.key}><td className="nw">{item.code}</td><td className="ps-activity-name">{item.title}</td><td className="c">{item.uom || '—'}</td><td className="r">{n2(item.qty)}</td><td className="r">{nf(item.pts)}</td></tr>)}
-          {!groups.length && <tr><td colSpan={5} className="c">ไม่มีกิจกรรมที่บันทึกในเดือนนี้</td></tr>}
+          {!groups.length && <tr><td colSpan={5} className="c">ไม่มีกิจกรรมที่บันทึกในเดือนนี้ หรือ ยังไม่ได้รับการรับรองกิจกรรม กรุณาตรวจสอบ</td></tr>}
           {groups.length > 0 && <tr className="b"><td colSpan={4} className="r">รวมคะแนน</td><td className="r">{nf(groups.reduce((a, g) => a + g.pts, 0))}</td></tr>}
         </tbody></table>
       <div className="sign-row ps-sign-row">{sign('ผู้บันทึก', person.name, person.position)}{sign(head?.approver_label || 'หัวหน้างานรับรอง', head?.approver_name, head?.approver_position)}</div>
@@ -869,20 +869,24 @@ function ActivitySummary({ sb, rows, person, positions, month, units }: any) {
   const payGroup = payGroups.find((g: any) => Number(g.id) === payGroupId)
   const allocation = Number(payGroup?.full_amount || 0)
   const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
-  const earned = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
-  const difference = earned - guarantee
-  const basePercent = earned >= guarantee ? 0.97 : 0.77
+  // แต้มปฏิบัติงานที่ได้ = รายการที่ส่งแล้วและยังรอรับรองหรือรับรองแล้ว
+  // แต้มที่ยืนยัน = เฉพาะรายการที่หัวหน้ารับรองแล้ว
+  const earned = (rows || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
+  const confirmed = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
+  const difference = confirmed - guarantee
+  const basePercent = confirmed >= guarantee ? 0.97 : 0.77
   const basePay = allocation > 0 ? allocation * basePercent : 0
   const extraPay = Math.max(0, difference) * unitRate
   const payout = basePay + extraPay
   const cards = [
     { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
     { label: 'แต้มปฏิบัติงานที่ได้', value: nf(earned), color: 'text-slate-900' },
+    { label: 'แต้มที่ยืนยัน', value: nf(confirmed), color: 'text-emerald-700' },
     { label: 'แต้มส่วนต่าง', value: (difference > 0 ? '+' : '') + nf(difference), color: difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-slate-700' },
     { label: 'ประมาณเงินที่ได้', value: allocation > 0 ? nf(payout) + ' บาท' : 'รอตั้งค่ากลุ่มวิชาชีพ', color: 'text-slate-900' }
   ]
   return <div className="space-y-1" aria-label="สรุปแต้มและประมาณเงินประจำเดือน">
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
       {cards.map((item) => <div key={item.label} className="card !p-3 sm:!p-4 min-w-0"><div className="text-xs sm:text-sm text-stone-600">{item.label}</div><div className={'mt-1 text-xl sm:text-2xl font-bold tabular-nums ' + item.color}>{item.value}</div>
         {item.label === 'ประมาณเงินที่ได้' && <div className="mt-1 text-xs text-stone-500">{allocation > 0 ? <>เงินพื้นฐาน {nf(basePay)} บาท ({Math.round(basePercent * 100)}% ของยอดจัดสรร {nf(allocation)} บาท) + เงินเพิ่ม {nf(extraPay)} บาท{!position?.pay_group && <span className="block text-amber-700">ไม่พบการจับคู่กลุ่มวิชาชีพของตำแหน่งนี้</span>}</> : 'ไม่พบยอดจัดสรรของกลุ่มวิชาชีพ กรุณาตรวจสอบการจับคู่ตำแหน่ง'}</div>}
       </div>)}
