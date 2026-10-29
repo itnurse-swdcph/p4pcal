@@ -508,3 +508,61 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
     flex-wrap: wrap;
   }
 }
+
+
+/* Print pagination and repeatable table headings for both P4P reports. */
+@page individualReport {
+  size: A4 portrait;
+  margin: 6mm 7mm 12mm;
+  @bottom-center {
+    content: "หน้า " counter(page) " / " counter(pages);
+    font-family: "Sarabun", "TH Sarabun New", sans-serif;
+    font-size: 9pt;
+    color: #111;
+  }
+}
+@page unitReport {
+  size: A4 landscape;
+  margin: 7mm 8mm 12mm;
+  @bottom-center {
+    content: "หน้า " counter(page) " / " counter(pages);
+    font-family: "Sarabun", "TH Sarabun New", sans-serif;
+    font-size: 9pt;
+    color: #111;
+  }
+}
+@media print {
+  body:not(.print-unit-report) .print-overlay { page: individualReport; }
+  body.print-unit-report { page: unitReport; }
+  body.print-unit-report .unit-report-print { page: unitReport; }
+  /* Browser repeats table header groups when a table continues onto another page. */
+  .print-sheet .ps-acts thead,
+  .unit-report-table thead { display: table-header-group !important; }
+  .print-sheet .ps-acts tfoot,
+  .unit-report-table tfoot { display: table-footer-group !important; }
+  .print-sheet .ps-acts tr,
+  .unit-report-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .print-sheet .ps-acts .ps-repeat-title th,
+  .unit-report-table .unit-report-repeat-title th {
+    background: #fff !important;
+    font-size: 10pt !important;
+    text-align: center !important;
+    padding: 1mm !important;
+    border-bottom: 0 !important;
+  }
+  .print-sheet .ps-acts .ps-repeat-person th,
+  .unit-report-table .unit-report-repeat-unit th {
+    background: #fff !important;
+    font-size: 9pt !important;
+    font-weight: 400 !important;
+    text-align: left !important;
+    padding: 1mm !important;
+  }
+  /* Portrait individual form: narrower paper margins for a larger usable table. */
+  .print-sheet { page: individualReport; }
+  .print-sheet .ps-title { margin-bottom: 2mm !important; }
+  .print-sheet .ps-top { gap: 3mm !important; }
+  .print-sheet .ps-acts { margin-top: 2mm !important; }
+  .unit-report-print { page: unitReport; }
+  .unit-report-signatures { margin-top: 8mm !important; }
+}
