@@ -534,11 +534,56 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const [unitRate, setUnitRate] = useState(0)
   useEffect(() => {
     let alive = true
-    sb.rpc('approver_of', { p_person: person.id }).then((r: any) => { if (alive) setHead(r.data?.[0] || null) })
+    const loadSigner = async () => {
+      const { data: rpcRows } = await sb.rpc('approver_of', { p_person: person.id })
+      const approvedSigner = rpcRows?.[0] || null
+      // ใช้ทะเบียนบุคลากรเป็นแหล่งจริงของตำแหน่งวิชาชีพและบทบาทบริหาร
+      const { data: directory } = await sb.from('staff_directory')
+        .select('source_row,prefix,first_name,last_name,position,org_role,unit_name,extra_unit_names,nursing_group,extra_nursing_group_names,active')
+        .eq('active', true)
+      if (!alive) return
+      const fullName = (p: any) => [p?.prefix, p?.first_name, p?.last_name].filter(Boolean).join('').replace(/\\s+/g, ' ').trim()
+      const roleText = (p: any) => String(p?.org_role || '').trim()
+      const professionalPosition = (p: any) => String(p?.position || '').trim()
+      const signerPosition = (p: any) => [professionalPosition(p), roleText(p)].filter(Boolean).join(' · ')
+      const normalize = (v: any) => String(v || '').replace(/\\s+/g, '').trim()
+      const namesIn = (v: any) => String(v || '').split(/[,;|]/).map(normalize).filter(Boolean)
+      const unitName = normalize(units.find((u: any) => u.id === person.unit_id)?.name)
+      const groupName = normalize(units.find((u: any) => u.id === person.unit_id)?.parent_group)
+      const staff = (directory || []).filter((p: any) => p.active)
+      let signer: any = null
+      if (approvedSigner?.approver_name) {
+        const rpcName = normalize(approvedSigner.approver_name)
+        signer = staff.find((p: any) => normalize(fullName(p)) === rpcName) || null
+      }
+      if (!signer && unitName) {
+        // ลำดับความสำคัญ: หัวหน้างานที่ระบุหน่วยงานตรงตัวก่อน แล้วจึงหัวหน้ากลุ่มงานที่ครอบคลุมหน่วยงานนั้น
+        const directHeads = staff.filter((p: any) =>
+          roleText(p).includes('หัวหน้างาน') && !roleText(p).includes('หัวหน้ากลุ่มงาน') &&
+          [p.unit_name, ...namesIn(p.extra_unit_names)].some((n: any) => normalize(n) === unitName)
+        )
+        const groupHeads = staff.filter((p: any) =>
+          roleText(p).includes('หัวหน้ากลุ่มงาน') &&
+          [p.nursing_group, ...namesIn(p.extra_nursing_group_names)].some((n: any) => normalize(n) === groupName)
+        )
+        signer = directHeads[0] || groupHeads[0] || null
+      }
+      if (signer) {
+        setHead({ approver_name: fullName(signer), approver_position: signerPosition(signer) })
+      } else if (approvedSigner) {
+        setHead({
+          approver_name: approvedSigner.approver_name,
+          approver_position: approvedSigner.approver_position || ''
+        })
+      } else {
+        setHead(null)
+      }
+    }
+    loadSigner()
     if (person.unit_id && month) sb.from('unit_settings').select('baht_per_point').eq('unit_id', person.unit_id).eq('month', month + '-01').maybeSingle().then(({ data, error }: any) => { if (alive) setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0) })
     else setUnitRate(0)
     return () => { alive = false }
-  }, [sb, person.id, person.unit_id, month])
+  }, [sb, person.id, person.unit_id, month, units])
   const unit = units.find((u: any) => u.id === person.unit_id)
   const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
   const monthText = new Date(month + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
