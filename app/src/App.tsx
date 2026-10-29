@@ -296,9 +296,33 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const me = useContext(MeCtx)
   const [printing, setPrinting] = useState(false) // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
   const [uSel, setUSel] = useState<number | null>(defaultUnit ?? unitOptions?.[0]?.id ?? null)
-  const people = useMemo(() => (picker ? (allPeople || []).filter((p: any) => p.unit_id === uSel) : peopleProp), [picker, allPeople, uSel, peopleProp])
-  const ids = useMemo(() => people.map((p: any) => p.id), [people])
-  const [rows, reload] = useLogs(sb, month, ids)
+  const [directoryStaff, setDirectoryStaff] = useState<any[]>([])
+  const [locallyAddedPeople, setLocallyAddedPeople] = useState<any[]>([])
+  const [selectingStaff, setSelectingStaff] = useState(false)
+  const [peopleLoadError, setPeopleLoadError] = useState('')
+  const people = useMemo(() => (picker ? [...(allPeople || []), ...locallyAddedPeople].filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i && p.unit_id === uSel) : peopleProp), [picker, allPeople, locallyAddedPeople, uSel, peopleProp])
+  useEffect(() => {
+    if (!picker || !uSel) { setDirectoryStaff([]); return }
+    const unitName = (unitOptions || []).find((u: any) => u.id === uSel)?.name
+    if (!unitName) { setDirectoryStaff([]); return }
+    sb.from('staff_directory').select('source_row,prefix,first_name,last_name,position,unit_name,active').eq('active', true).eq('unit_name', unitName).order('first_name').then(({ data, error }: any) => {
+      if (error) { console.error('โหลดทะเบียนบุคลากรไม่สำเร็จ', error); setPeopleLoadError('โหลดทะเบียนบุคลากรไม่สำเร็จ กรุณาตรวจสอบสิทธิ์การเข้าถึง'); setDirectoryStaff([]); return }
+      setPeopleLoadError('')
+      setDirectoryStaff(data || [])
+    })
+  }, [picker, uSel, sb, unitOptions])
+  const pickerPeople = useMemo(() => {
+    if (!picker) return people
+    const result = [...people]
+    for (const d of directoryStaff) {
+      const fullName = [d.prefix, d.first_name, d.last_name].filter(Boolean).join(' ').trim()
+      const match = result.find((p: any) => p.unit_id === uSel && String(p.name || '').trim() === fullName && p.position === d.position)
+      if (!match) result.push({ id: 'dir:' + d.source_row, directory_source_row: d.source_row, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, name: fullName, position: d.position, unit_id: uSel, active: true, fromDirectory: true })
+    }
+    return result.sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), 'th'))
+  }, [picker, people, directoryStaff, uSel])
+  const ids = useMemo(() => pickerPeople.filter((p: any) => !String(p.id).startsWith('dir:')).map((p: any) => p.id), [pickerPeople])
+  const [rows, reload] = useLogs(sb, month, ids.length ? ids : (picker ? [] : null), uSel)
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
   const [q, setQ] = useState(''); const [categoryFilter, setCategoryFilter] = useState(''); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null)
   const [notice, setNotice] = useState('')
@@ -306,7 +330,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   useEffect(() => { sb.from('app_settings').select('key,value').in('key', ['cap_shift_points', 'cap_day_points']).then((r: any) => setCaps(Object.fromEntries([['cap_shift_points', 90], ['cap_day_points', 180], ...(r.data || []).map((x: any) => [x.key, Number(x.value)])]))) }, [])
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
   useEffect(() => { setCategoryFilter(''); setQ('') }, [pid])
-  const person = people.find((p: any) => p.id === pid); const pos = positions.find((x: any) => x.name === person?.position)
+  const person = pickerPeople.find((p: any) => p.id === pid); const pos = positions.find((x: any) => x.name === person?.position)
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean)   // พิมพ์หลายคำได้ ต้องพบครบทุกคำ ในรหัส/หมวด/กิจกรรมหลัก/กิจกรรมย่อย
@@ -403,8 +427,25 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         <label className="field-label">หน่วยงานที่ต้องการบันทึก</label>
         <select className="inp" value={uSel ?? ''} onChange={e => { setUSel(+e.target.value); setPid('') }}>{(unitOptions || []).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
         <label className="field-label">บันทึกคะแนนให้ใคร</label>
-        <select className="inp" value={pid} onChange={e => setPid(e.target.value)}><option value="">— เลือกบุคลากรในหน่วยงานนี้ —</option>{people.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}</select>
-        {!people.length && <p className="text-xs text-red-700">หน่วยงานนี้ยังไม่มีบุคลากร เพิ่มได้ที่แท็บ "บุคลากร"</p>}
+        <select className="inp" value={pid} disabled={selectingStaff} onChange={async e => {
+          const value = e.target.value; setErr(''); setPid(value)
+          if (!value.startsWith('dir:')) return
+          const d = directoryStaff.find((x: any) => String(x.source_row) === value.slice(4))
+          if (!d) { setErr('ไม่พบข้อมูลบุคลากรในทะเบียน'); setPid(''); return }
+          const matchedUnit = (unitOptions || []).find((u: any) => u.id === uSel && u.name === d.unit_name)
+          if (!matchedUnit) { setErr('หน่วยงานในทะเบียนไม่ตรงกับหน่วยงานที่เลือก กรุณาแจ้งผู้ดูแลระบบ'); setPid(''); return }
+          if (!positions.some((p: any) => p.name === d.position)) { setErr('ตำแหน่งของบุคลากรรายนี้ยังไม่มีในตารางตำแหน่ง P4P จึงยังสร้างระเบียนเพื่อบันทึกไม่ได้: ' + d.position); setPid(''); return }
+          setSelectingStaff(true)
+          const fullName = [d.prefix, d.first_name, d.last_name].filter(Boolean).join(' ').trim()
+          const { data: inserted, error } = await sb.from('people').insert({ prefix: d.prefix || null, first_name: d.first_name, last_name: d.last_name, name: fullName, position: d.position, unit_id: matchedUnit.id, active: true }).select('*').single()
+          setSelectingStaff(false)
+          if (error) { setErr('เพิ่มระเบียนบุคลากรเพื่อบันทึกกิจกรรมไม่สำเร็จ: ' + error.message); setPid(''); return }
+          setLocallyAddedPeople((prev: any[]) => [...prev, inserted])
+          setPid(inserted.id)
+        }}><option value="">— เลือกบุคลากรในหน่วยงานนี้ —</option>{pickerPeople.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position}){p.fromDirectory ? ' · จากทะเบียนบุคลากร' : ''}</option>)}</select>
+        {selectingStaff && <p className="text-xs text-teal-700">กำลังเตรียมระเบียนบุคลากร…</p>}
+        {peopleLoadError && <p className="text-xs text-red-700">{peopleLoadError}</p>}
+        {!pickerPeople.length && <p className="text-xs text-red-700">ไม่พบรายชื่อบุคลากรในหน่วยงานนี้ในทะเบียนบุคลากร</p>
       </>}
       {!picker && people.length > 1 && <select className="inp" value={pid} onChange={e => setPid(e.target.value)}>{people.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}</select>}
       <label className="field-label">วันที่ปฏิบัติงาน <span className="required-mark">*</span><input type="date" lang="th-TH" className="inp mt-1" value={date} onChange={e => setDate(e.target.value)} onKeyDown={e => e.preventDefault()} onPaste={e => e.preventDefault()} onDrop={e => e.preventDefault()} onClick={e => { try { (e.currentTarget as HTMLInputElement).showPicker() } catch {} }} aria-label="เลือกวันที่จากปฏิทินเท่านั้น" /></label>
