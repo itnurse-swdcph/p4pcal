@@ -573,3 +573,41 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
   .unit-report-print { page: unitReport; }
   .unit-report-signatures { margin-top: 8mm !important; }
 }
+
+
+/* P4P print and mobile overflow corrections */
+@media print {
+  /* The individual form uses A4 portrait with reduced margins. */
+  @page individualReport { size: A4 portrait; margin: 6mm 7mm 12mm; }
+  @page unitReport { size: A4 landscape; margin: 7mm 8mm 12mm; }
+  .print-sheet { width: auto !important; min-height: 0 !important; max-width: none !important; padding: 0 !important; margin: 0 !important; }
+  .print-sheet .ps-acts thead,
+  .unit-report-print .unit-report-table thead { display: table-header-group !important; }
+  .print-sheet .ps-acts .ps-repeat-title,
+  .print-sheet .ps-acts .ps-repeat-person,
+  .unit-report-table .unit-report-repeat-title,
+  .unit-report-table .unit-report-repeat-unit { display: table-row !important; }
+  .print-sheet .ps-acts tr,
+  .unit-report-table tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .unit-report-print { page: unitReport; }
+  body:not(.print-unit-report) .print-sheet { page: individualReport; }
+}
+@media (max-width: 760px) {
+  .app-content, .app-content > *, .card, .activity-entry-card,
+  .app-topbar, .topbar-actions, [role="dialog"], .auth-card { min-width: 0 !important; max-width: 100% !important; }
+  .app-topbar { flex-wrap: wrap; gap: .5rem; }
+  .topbar-actions { flex-wrap: wrap; }
+  .card .flex, [role="dialog"] .flex { min-width: 0; flex-wrap: wrap; }
+  .card input, .card select, .card textarea, [role="dialog"] input,
+  [role="dialog"] select, [role="dialog"] textarea { width: 100%; max-width: 100%; }
+  .overflow-x-auto, .card.overflow-x-auto { overflow-x: auto !important; max-width: 100% !important; }
+  table:not(.pt) { display: block; width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table:not(.pt) th, table:not(.pt) td { overflow-wrap: anywhere; }
+  .btn, button { max-width: 100%; white-space: normal; }
+}
+@media (max-width: 480px) {
+  .app-content { padding: .5rem !important; }
+  .card { padding: .65rem; }
+  .topbar-heading h1 { font-size: .9rem; }
+  .print-toolbar { flex-wrap: wrap; }
+}
