@@ -361,3 +361,11 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
   .btn { padding: .45rem .55rem; font-size: .78rem; }
   table:not(.pt) th, table:not(.pt) td { padding: .32rem .2rem; }
 }
+
+
+/* Activity-entry refinements: aligned date/shift, searchable activity dropdown, distinct save actions */
+.activity-entry-card .save-draft-btn { background: #2563eb; border-color: #2563eb; color: #fff; }
+.activity-entry-card .save-draft-btn:hover:not(:disabled) { background: #1d4ed8; }
+.activity-entry-card .approve-now-btn { background: #0f766e; border-color: #0f766e; color: #fff; }
+.activity-entry-card .approve-now-btn:hover:not(:disabled) { background: #115e59; }
+.activity-entry-card .act-list { min-width: 0; max-width: 100%; }
