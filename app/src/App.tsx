@@ -542,7 +542,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
         .select('source_row,prefix,first_name,last_name,position,org_role,unit_name,extra_unit_names,nursing_group,extra_nursing_group_names,active')
         .eq('active', true)
       if (!alive) return
-      const fullName = (p: any) => [p?.prefix, p?.first_name, p?.last_name].filter(Boolean).join('').replace(/\\s+/g, ' ').trim()
+      const fullName = (p: any) => `${[p?.prefix, p?.first_name].filter(Boolean).join('')}${p?.last_name ? ' ' + p.last_name : ''}`.replace(/\\s+/g, ' ').trim()
       const roleText = (p: any) => String(p?.org_role || '').trim()
       const professionalPosition = (p: any) => String(p?.position || '').trim()
       const signerPosition = (p: any) => [professionalPosition(p), roleText(p)].filter(Boolean).join(' · ')
