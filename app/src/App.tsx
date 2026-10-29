@@ -532,7 +532,6 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status !== 'draft'), [rowsIn])
   const [head, setHead] = useState<any>(null)
   const [unitRate, setUnitRate] = useState(0)
-  const ap = useContext(ApproverCtx)
   useEffect(() => {
     let alive = true
     sb.rpc('approver_of', { p_person: person.id }).then((r: any) => { if (alive) setHead(r.data?.[0] || null) })
