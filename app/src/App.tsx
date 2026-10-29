@@ -681,30 +681,48 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       const unitName = normalize(units.find((u: any) => u.id === person.unit_id)?.name)
       const groupName = normalize(units.find((u: any) => u.id === person.unit_id)?.parent_group)
       const staff = (directory || []).filter((p: any) => p.active)
+      const personName = normalize(person.name)
+      const subject = staff.find((p: any) => normalize(fullName(p)) === personName)
+      const subjectRole = String(subject?.org_role || person.org_role || '').replace(/\\s+/g, '').trim()
+      const unitHeads = staff.filter((p: any) =>
+        roleText(p).includes('หัวหน้างาน') && !roleText(p).includes('หัวหน้ากลุ่มงาน') &&
+        [p.unit_name, ...namesIn(p.extra_unit_names)].some((n: any) => normalize(n) === unitName)
+      )
+      const groupHeads = staff.filter((p: any) =>
+        roleText(p).includes('หัวหน้ากลุ่มงาน') &&
+        [p.nursing_group, ...namesIn(p.extra_nursing_group_names)].some((n: any) => normalize(n) === groupName)
+      )
+      const chief = staff.find((p: any) => {
+        const role = roleText(p)
+        return role.includes('รักษาการหัวหน้าภารกิจด้านการพยาบาล') || role.includes('รักษาการหัวหน้าพยาบาล')
+      })
       let signer: any = null
-      if (approvedSigner?.approver_name) {
+      let signerLabel = 'หัวหน้างานรับรอง'
+      // เลือกผู้รับรองตามลำดับถัดไปของผู้ถูกประเมิน/ผู้ปฏิบัติงาน:
+      // เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล
+      if (subjectRole.includes('รักษาการหัวหน้าภารกิจด้านการพยาบาล') || subjectRole.includes('รักษาการหัวหน้าพยาบาล')) {
+        signer = null
+      } else if (subjectRole.includes('หัวหน้ากลุ่มงาน')) {
+        signer = chief || null
+        signerLabel = 'รักษาการหัวหน้าพยาบาลรับรอง'
+      } else if (subjectRole.includes('หัวหน้างาน')) {
+        signer = groupHeads[0] || null
+        signerLabel = 'หัวหน้ากลุ่มงานรับรอง'
+      } else {
+        signer = unitHeads[0] || null
+        signerLabel = 'หัวหน้างานรับรอง'
+      }
+      // ใช้ข้อมูลจากขั้นตอนรับรองในระบบเป็นข้อมูลสำรอง เฉพาะเมื่อค้นหาผู้รับรองตามสายบังคับบัญชาไม่พบ
+      if (!signer && approvedSigner?.approver_name && !subjectRole.includes('หัวหน้ากลุ่มงาน') && !subjectRole.includes('หัวหน้างาน')) {
         const rpcName = normalize(approvedSigner.approver_name)
         signer = staff.find((p: any) => normalize(fullName(p)) === rpcName) || null
       }
-      if (!signer && unitName) {
-        // ลำดับความสำคัญ: หัวหน้างานที่ระบุหน่วยงานตรงตัวก่อน แล้วจึงหัวหน้ากลุ่มงานที่ครอบคลุมหน่วยงานนั้น
-        const directHeads = staff.filter((p: any) =>
-          roleText(p).includes('หัวหน้างาน') && !roleText(p).includes('หัวหน้ากลุ่มงาน') &&
-          [p.unit_name, ...namesIn(p.extra_unit_names)].some((n: any) => normalize(n) === unitName)
-        )
-        const groupHeads = staff.filter((p: any) =>
-          roleText(p).includes('หัวหน้ากลุ่มงาน') &&
-          [p.nursing_group, ...namesIn(p.extra_nursing_group_names)].some((n: any) => normalize(n) === groupName)
-        )
-        signer = directHeads[0] || groupHeads[0] || null
-      }
       if (signer) {
-        setHead({ approver_name: fullName(signer), approver_position: signerPosition(signer) })
-      } else if (approvedSigner) {
-        setHead({
-          approver_name: approvedSigner.approver_name,
-          approver_position: approvedSigner.approver_position || ''
-        })
+        setHead({ approver_name: fullName(signer), approver_position: signerPosition(signer), approver_label: signerLabel })
+      } else if (subjectRole.includes('หัวหน้ากลุ่มงาน') && chief) {
+        setHead({ approver_name: fullName(chief), approver_position: signerPosition(chief), approver_label: 'รักษาการหัวหน้าพยาบาลรับรอง' })
+      } else if (approvedSigner?.approver_name && !subjectRole.includes('หัวหน้ากลุ่มงาน') && !subjectRole.includes('หัวหน้างาน')) {
+        setHead({ approver_name: approvedSigner.approver_name, approver_position: approvedSigner.approver_position || '', approver_label: 'หัวหน้างานรับรอง' })
       } else {
         setHead(null)
       }
@@ -769,7 +787,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
           {!groups.length && <tr><td colSpan={5} className="c">ไม่มีกิจกรรมที่บันทึกในเดือนนี้</td></tr>}
           {groups.length > 0 && <tr className="b"><td colSpan={4} className="r">รวมคะแนน</td><td className="r">{nf(groups.reduce((a, g) => a + g.pts, 0))}</td></tr>}
         </tbody></table>
-      <div className="sign-row ps-sign-row">{sign('ผู้บันทึก', person.name, person.position)}{sign('หัวหน้างานรับรอง', head?.approver_name, head?.approver_position)}</div>
+      <div className="sign-row ps-sign-row">{sign('ผู้บันทึก', person.name, person.position)}{sign(head?.approver_label || 'หัวหน้างานรับรอง', head?.approver_name, head?.approver_position)}</div>
       <div className="ps-foot">พิมพ์เมื่อ {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} · ระบบ P4P กลุ่มการพยาบาล</div>
     </div>
   </div>, document.body)
