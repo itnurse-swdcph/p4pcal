@@ -1329,21 +1329,25 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
           all.push(...page)
           if (page.length < pageSize) break
         }
-        return all.filter((d: any) =>
-          normalizeUnit(d.unit_name) === unitKey ||
-          splitNames(d.extra_unit_names).includes(unitKey)
-        )
+        // การจัดสังกัดยึดหน่วยงานหลักเท่านั้น ไม่ใช้หน่วยงาน/กลุ่มงานเพิ่มเติมในการจัดรายชื่อซ้ำ
+        return all.filter((d: any) => normalizeUnit(d.unit_name) === unitKey)
       }
       const [rpcRows, directRows] = await Promise.all([rpcPromise, fetchAllActive()])
       if (!alive) return
-      const merged = [...rpcRows, ...directRows]
-      const unique = merged.filter((d: any, i: number, arr: any[]) => {
-        const sourceRow = Number(d.source_row)
-        if (Number.isFinite(sourceRow) && sourceRow > 0)
-          return arr.findIndex((x: any) => Number(x.source_row) === sourceRow) === i
-        const name = normalizeUnit(d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`)
-        return arr.findIndex((x: any) => normalizeUnit(x.full_name || `${x.prefix || ''}${x.first_name || ''} ${x.last_name || ''}`) === name) === i
+      const personKey = (d: any) => normalizeUnit(d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`)
+      const samePerson = (a: any, b: any) =>
+        (a.source_row != null && b.source_row != null && Number(a.source_row) === Number(b.source_row)) ||
+        (a.person_id != null && b.person_id != null && String(a.person_id) === String(b.person_id)) ||
+        (!!personKey(a) && personKey(a) === personKey(b))
+      // ใช้ทะเบียนหลักเป็นตัวกำหนดสมาชิกของหน่วยงาน แล้วรับข้อมูลจาก RPC เฉพาะคนที่อยู่ในทะเบียนหลักชุดเดียวกัน
+      // เพื่อไม่ให้ RPC เพิ่มคนจาก extra_unit_names เข้ามาเป็นสมาชิกหน่วยงานอื่น
+      const primaryRows = directRows.map((d: any) => {
+        const extra = rpcRows.find((r: any) => samePerson(r, d))
+        return extra ? { ...extra, ...d } : d
       })
+      const unique = primaryRows.filter((d: any, i: number, arr: any[]) =>
+        arr.findIndex((x: any) => samePerson(x, d)) === i
+      )
       setDirectoryPeople(unique)
     }
     loadDirectoryRoster()
