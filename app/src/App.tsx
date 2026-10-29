@@ -663,7 +663,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       <button type="button" className="btn sec" onClick={() => { setFilterFrom(''); setFilterTo('') }}>ล้างตัวกรองวันที่</button>
       <p className="ml-auto text-xs text-stone-600">แสดง {displayedRows.length.toLocaleString('th-TH')} จาก {rows.length.toLocaleString('th-TH')} รายการ · เรียงรายการบันทึกล่าสุดก่อน</p>
     </div>
-    <table className={`w-full log-table ${showName ? 'log-table-with-name' : ''}`}><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th></th></tr></thead>
+    <table className={`w-full log-table ${showName ? 'log-table-with-name' : ''}`}><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th>เหตุผลที่ไม่รับรอง</th><th></th></tr></thead>
       <tbody>{displayedRows.map((r: any) => {
         // ตรวจซ้ำที่หน้าจอด้วย เพื่อไม่ให้แสดง "ผ่าน" หากข้อมูล validation จาก view ขาดหายหรือยังไม่อัปเดต
         const checkErrors = Array.isArray(r.errors) ? [...r.errors] : []
@@ -680,7 +680,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
         <td><div><b>{r.activity_code}</b> — {r.title}</div>{r.sub_activity?.trim() && <div className="text-sm mt-1 whitespace-pre-wrap break-words">กิจกรรมย่อย: {r.sub_activity}</div>}</td>
         <td>{r.qty} {r.uom}</td><td className="whitespace-nowrap">{nf(r.counted_points)}{Number(r.cap_cut) > 0 && Number(r.points_before_cap) > 0 ? <span className="text-xs text-amber-700"> (ตัดเพดาน −{nf(r.cap_cut)})</span> : Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
         <td className="text-xs">{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
-        <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-0.5 text-xs text-stone-500">รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}</div>}{r.status === 'rejected' && <div className="mt-1 min-w-40 max-w-xs whitespace-pre-wrap break-words rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800"><b>เหตุผลที่ไม่รับรอง:</b><div className="mt-0.5">{String(r.reject_reason || '').trim() || 'ไม่พบเหตุผลที่บันทึกไว้ กรุณาติดต่อหัวหน้าผู้พิจารณา'}</div></div>}</td>
+        <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-0.5 text-xs text-stone-500">รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}</div>}</td><td className="min-w-48 max-w-sm whitespace-pre-wrap break-words text-xs">{r.status === 'rejected' ? <div className="rounded-md border border-red-200 bg-red-50 p-2 text-red-800">{String(r.reject_reason || '').trim() || 'ไม่พบเหตุผลที่บันทึกไว้ กรุณาติดต่อหัวหน้าผู้พิจารณา'}</div> : <span className="text-stone-400">—</span>}</td>
         <td className="whitespace-nowrap space-x-1">
           {!readOnly && me && r.entered_by === me && (r.status === 'draft' || r.status === 'rejected') && <>
             <button className="btn !py-0.5" onClick={() => submitRows([r.id])}>{r.status === 'rejected' ? 'ส่งใหม่' : 'ส่ง'}</button>
@@ -688,7 +688,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
             <button className="text-xs underline text-red-700" onClick={() => del(r.id)}>ลบ</button></>}
           {!readOnly && r.status === 'pending' && canDecideRow(ap, me, r) && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => { setRejecting(r); setReason('') }}>ไม่รับรอง</button></>}
           {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}</td>
-      </tr>})}{!displayedRows.length && <tr><td colSpan={8} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
+      </tr>})}{!displayedRows.length && <tr><td colSpan={9} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
     {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="reject-title"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-3">
       <h3 id="reject-title" className="text-lg font-bold">ไม่รับรองรายการ</h3>
       <p className="text-sm text-stone-700"><b>{rejecting.person_name}</b> · {formatThaiShortDate(rejecting.work_date)} · {rejecting.activity_code} {rejecting.title}</p>
