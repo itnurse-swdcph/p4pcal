@@ -430,3 +430,81 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
   .print-sheet .ps-acts .ps-domain-row { break-after: avoid !important; page-break-after: avoid !important; }
   .print-sheet .ps-sign-row { display: flex !important; flex-direction: row !important; }
 }
+
+
+/* Follow-up mobile fixes: keep wide tables inside their own scroll area instead of widening the page. */
+.hrm-account-hint {
+  margin: .05rem 0 .35rem;
+  padding: .6rem .75rem;
+  border: 1px solid #b9ded5;
+  border-left: 3px solid #087f70;
+  border-radius: .45rem;
+  background: #effaf7;
+  color: #176b5f;
+  font-size: .78rem;
+  line-height: 1.55;
+}
+.overflow-x-auto,
+.card.overflow-x-auto {
+  overflow-x: auto !important;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+@media (max-width: 760px) {
+  .p4p-shell, .p4p-main, .app-content, .app-topbar,
+  .app-content > *, .app-content .card, [role="dialog"] {
+    min-width: 0;
+    max-width: 100%;
+  }
+  /* Tables with many columns scroll inside the table/container, never the whole viewport. */
+  table:not(.pt) {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    table-layout: auto;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .overflow-x-auto > table:not(.pt),
+  .card.overflow-x-auto > table:not(.pt) {
+    width: max-content;
+    min-width: 620px;
+    max-width: none;
+  }
+  table:not(.pt) th, table:not(.pt) td {
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+  .app-content .grid {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .app-content .flex {
+    min-width: 0;
+  }
+  .app-content .btn,
+  .app-content button {
+    max-width: 100%;
+  }
+  .app-topbar .topbar-actions {
+    min-width: 0;
+    max-width: 45%;
+  }
+}
+@media (max-width: 420px) {
+  .overflow-x-auto > table:not(.pt),
+  .card.overflow-x-auto > table:not(.pt) {
+    min-width: 560px;
+  }
+  .app-topbar .topbar-actions {
+    max-width: 42%;
+  }
+  .activity-entry-card .flex,
+  [role="dialog"] .flex {
+    flex-wrap: wrap;
+  }
+}
