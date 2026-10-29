@@ -936,7 +936,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
   const [signaturePeople, setSignaturePeople] = useState<any[]>([])
   const [unitRate, setUnitRate] = useState(0)
-  const [actingChiefName, setActingChiefName] = useState('นางสาวมัณฑนา เพชรคำ')
+  const [actingChief, setActingChief] = useState<any>({ name: 'นางสาวมัณฑนา เพชรคำ', position: '' })
   const [printReport, setPrintReport] = useState(false)
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
@@ -956,10 +956,10 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         setSignaturePeople(!error && Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
       })
     } else setSignaturePeople([])
-    sb.from('staff_directory').select('prefix,first_name,last_name,org_role,unit_name').eq('active', true).or('org_role.ilike.%รักษาการหัวหน้าภารกิจด้านการพยาบาล%,org_role.ilike.%รักษาการหัวหน้าพยาบาล%').limit(20).then(({ data, error }: any) => {
+    sb.from('staff_directory').select('prefix,first_name,last_name,position,org_role,unit_name').eq('active', true).or('org_role.ilike.%รักษาการหัวหน้าภารกิจด้านการพยาบาล%,org_role.ilike.%รักษาการหัวหน้าพยาบาล%').limit(20).then(({ data, error }: any) => {
       if (!alive || error || !Array.isArray(data)) return
       const chief = data.find((d: any) => String(d.org_role || '').includes('รักษาการหัวหน้าภารกิจด้านการพยาบาล')) || data.find((d: any) => String(d.org_role || '').includes('รักษาการหัวหน้าพยาบาล'))
-      if (chief) setActingChiefName(`${chief.prefix || ''}${chief.first_name || ''} ${chief.last_name || ''}`.trim())
+      if (chief) setActingChief({ name: `${chief.prefix || ''}${chief.first_name || ''} ${chief.last_name || ''}`.trim(), position: chief.position || '' })
     })
     const monthDate = month + '-01'
     sb.from('unit_settings').select('baht_per_point').eq('unit_id', unit).eq('month', monthDate).maybeSingle().then(({ data, error }: any) => {
@@ -1008,8 +1008,11 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const groupName = selectedUnit?.parent_group || ''
   const signers = [...signaturePeople, ...directoryPeople]
   const monthText = month ? new Date(month + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : ''
-  const unitHeadName = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้างาน') && String(d.unit_name || '').trim() === unitName)?.full_name || ''
-  const groupHeadName = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้ากลุ่มงาน') && String(d.unit_name || '').trim() === groupName)?.full_name || ''
+  const unitHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้างาน') && String(d.unit_name || '').trim() === unitName)
+  const groupHead = signers.find((d: any) => String(d.org_role || '').replace(/\s+/g, '').includes('หัวหน้ากลุ่มงาน') && String(d.unit_name || '').trim() === groupName)
+  const signerName = (d: any) => d?.full_name || ((d?.prefix || '') + (d?.first_name || '') + ' ' + (d?.last_name || '')).trim()
+  const unitHeadName = signerName(unitHead)
+  const groupHeadName = signerName(groupHead)
   useEffect(() => {
     if (!printReport) return
     const afterPrint = () => { document.body.classList.remove('print-unit-report'); setPrintReport(false) }
@@ -1050,9 +1053,9 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
       <tr className="unit-report-total"><td colSpan={3}>รวมทั้งหน่วยงาน</td><td>{nf(sum.reduce((v: number, x: any) => v + x.g, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.workPoints, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((v: number, x: any) => v + x.payout, 0))} บาท</td></tr></tbody></table>
       <div className="unit-report-signatures">
-        <div>ลงชื่อ ........................................................<br/>({unitHeadName || '........................................................'})<br/><b>หัวหน้างาน</b></div>
-        <div>ลงชื่อ ........................................................<br/>({groupHeadName || '........................................................'})<br/><b>หัวหน้ากลุ่มงาน</b></div>
-        <div>ลงชื่อ ........................................................<br/>({actingChiefName})<br/><b>รักษาการหัวหน้าภารกิจด้านการพยาบาล</b></div>
+        <div>ลงชื่อ ........................................................<br/>({unitHeadName || '........................................................'})<br/>{unitHead?.position && <span>{unitHead.position} </span>}<b>{'หัวหน้างาน' + String(unitName || '').replace(/^งาน/, '')}</b></div>
+        <div>ลงชื่อ ........................................................<br/>({groupHeadName || '........................................................'})<br/>{groupHead?.position && <span>{groupHead.position} </span>}<b>{'หัวหน้ากลุ่มงาน' + String(groupName || '').replace(/^กลุ่มงาน/, '')}</b></div>
+        <div>ลงชื่อ ........................................................<br/>({actingChief.name})<br/>{actingChief.position && <span>{actingChief.position} </span>}<b>รักษาการหัวหน้าภารกิจด้านการพยาบาล</b></div>
       </div>
     </div>, document.body)}
         <h2 className="font-bold">{sel ? 'รายการของ ' + roster.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
