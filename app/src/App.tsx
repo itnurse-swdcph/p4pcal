@@ -608,7 +608,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       <button type="button" className="btn sec" onClick={() => { setFilterFrom(''); setFilterTo('') }}>ล้างตัวกรองวันที่</button>
       <p className="ml-auto text-xs text-stone-600">แสดง {displayedRows.length.toLocaleString('th-TH')} จาก {rows.length.toLocaleString('th-TH')} รายการ · เรียงรายการบันทึกล่าสุดก่อน</p>
     </div>
-    <table className="w-full"><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th></th></tr></thead>
+    <table className={`w-full log-table ${showName ? 'log-table-with-name' : ''}`}><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th></th></tr></thead>
       <tbody>{displayedRows.map((r: any) => {
         // ตรวจซ้ำที่หน้าจอด้วย เพื่อไม่ให้แสดง "ผ่าน" หากข้อมูล validation จาก view ขาดหายหรือยังไม่อัปเดต
         const checkErrors = Array.isArray(r.errors) ? [...r.errors] : []
