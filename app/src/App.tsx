@@ -745,7 +745,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   return createPortal(<div className="print-overlay">
     <div className="print-toolbar no-print">
       <span className="text-sm text-stone-600 mr-auto self-center">ตัวอย่างก่อนพิมพ์ (ขนาด A4) · เลือก "บันทึกเป็น PDF" ในหน้าต่างพิมพ์ได้</span>
-      <button className="btn" onClick={() => window.print()}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button>
+      <button className="btn" onClick={startUnitReportPrint}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button>
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet">
@@ -1214,11 +1214,25 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const groupHeadName = signerName(groupHead)
   useEffect(() => {
     if (!printReport) return
-    const afterPrint = () => { document.body.classList.remove('print-unit-report'); setPrintReport(false) }
+    const afterPrint = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
     window.addEventListener('afterprint', afterPrint)
     return () => { window.removeEventListener('afterprint', afterPrint) }
   }, [printReport])
-  const printUnitReport = () => { document.body.classList.add('print-unit-report'); setPrintReport(true) }
+  const printUnitReport = () => {
+    if (!unit || !sum.length) { alert('ไม่พบข้อมูลรายงานของหน่วยงาน กรุณาเลือกหน่วยงานและตรวจสอบข้อมูลก่อน'); return }
+    document.body.classList.remove('print-unit-report')
+    document.body.classList.add('unit-report-preview-open')
+    setPrintReport(true)
+  }
+  const startUnitReportPrint = () => {
+    document.body.classList.remove('unit-report-preview-open')
+    document.body.classList.add('print-unit-report')
+    window.requestAnimationFrame(() => window.print())
+  }
+  const closeUnitReportPreview = () => {
+    document.body.classList.remove('print-unit-report', 'unit-report-preview-open')
+    setPrintReport(false)
+  }
   const bulk = async () => {
     const ids = rows.filter((r: any) => r.status === 'pending' && !r.errors.length && !r.warnings.length && canDecideRow(ap, me, r)).map((r: any) => r.id)
     if (!ids.length) return alert('ไม่มีรายการ ✓ ที่รอรับรอง')
@@ -1238,14 +1252,14 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       {stat('รอรับรอง', rows.filter((r: any) => r.status === 'pending').length)}{stat('คะแนนที่รับรองแล้ว', nf(sum.reduce((t: number, x: any) => t + x.appr, 0)))}</div>
     <p className="text-sm text-stone-700">ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล · <b>คุณรับรองได้เฉพาะรายการของ{ap?.role === 'admin' ? 'ทุกคน (ยกเว้นของตนเอง)' : ap?.level === 1 ? 'เจ้าหน้าที่ในหน่วยงานที่ดูแล' : ap?.level === 2 ? 'หัวหน้างานในกลุ่มงานที่ดูแล' : ap?.level === 3 ? 'หัวหน้ากลุ่มงาน' : 'ผู้ที่อยู่ในลำดับถัดไปเท่านั้น (บัญชีของคุณยังไม่มีสิทธิ์รับรอง)'}</b></p>
     <p className="text-xs text-stone-600">เงินคำนวณรายกลุ่มวิชาชีพทั้งโรงพยาบาลที่เมนู "จ่ายเงิน P4P" โดยนับเฉพาะคะแนนที่หัวหน้ารับรองแล้ว (ไม่เกิน 1.5 เท่าของแต้มประกัน)</p>
-    <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button><button className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน (A4 แนวนอน)</button></div>
+    <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button><button className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน</button></div>
     <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
           <td className="text-center">{x.order}</td><td><b>{x.p.name}</b>{x.p.fromDirectory && <div className="text-xs text-stone-500">ยังไม่ลงทะเบียนใช้งาน</div>}<div><button type="button" className="btn sec !py-0.5 !px-2 !text-xs no-print" onClick={(e: any) => { e.stopPropagation(); setPrintFor(x.p) }}>ดูตัวอย่าง/พิมพ์รายบุคคล</button></div></td><td className="text-xs">{x.p.position || '—'}</td><td className="text-center">{nf(x.g, 0)}</td><td className="text-center">{nf(x.workPoints)}</td><td className="text-center">{nf(x.excess)}</td><td className="text-center">{nf(x.rate)} บาท/แต้ม</td><td className="text-center font-semibold">{nf(x.payout)} บาท</td>
         </tr>)}
         <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td className="text-center">—</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
     {printReport && createPortal(<div className="unit-report-print">
-      <div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์ · A4 แนวนอน</span><button type="button" className="btn" onClick={() => window.print()}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={() => { document.body.classList.remove('print-unit-report'); setPrintReport(false) }}>ปิด</button></div>
+      <div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์</span><button type="button" className="btn" onClick={() => window.print()}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={closeUnitReportPreview}>ปิด</button></div>
       <table className="unit-report-table"><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">{unitName}　 {groupName || '................................'}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
       <tr className="unit-report-total"><td colSpan={3}>รวมทั้งหน่วยงาน</td><td>{nf(sum.reduce((v: number, x: any) => v + x.g, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.workPoints, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((v: number, x: any) => v + x.payout, 0))} บาท</td></tr></tbody></table>
