@@ -291,16 +291,16 @@ function Main({ sb, session }: any) {
     sb.rpc('my_units').then((r: any) => setMyUnits((r.data || []).map((x: any) => (typeof x === 'object' && x ? Object.values(x)[0] : x) as number)))
     loadPeople()
   }, [])
+  useEffect(() => {
+    if (profile?.role === 'group_head' && profile?.nursing_group) setReviewGroup(String(profile.nursing_group).trim())
+  }, [profile?.role, profile?.nursing_group])
+
   useEffect(() => { sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || [])) }, [actsVersion])
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'; const isHeadRole = role === 'head' || role === 'group_head'
   const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(isHeadRole || role === 'admin' ? [['certify', 'รับรองกิจกรรม'], ['review', 'สรุปรายงานหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ'], ['payout', 'จ่ายเงิน P4P']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [['personal', 'แก้ไขข้อมูลส่วนตัว']])]
-  const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])
-  useEffect(() => {
-    if (profile?.role === 'group_head' && profile?.nursing_group) setReviewGroup(String(profile.nursing_group).trim())
-  }, [profile?.role, profile?.nursing_group])
-  // แสดงเฉพาะหน่วยงานที่มีอยู่ใน staff_directory ล่าสุด และจับคู่ชื่อแบบตรงตัวกับ units
+  const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])  // แสดงเฉพาะหน่วยงานที่มีอยู่ใน staff_directory ล่าสุด และจับคู่ชื่อแบบตรงตัวกับ units
   // ไม่สร้าง/เปลี่ยน unit_id และไม่แก้หรือรวมข้อมูลในฐานข้อมูล
   // ซ่อนชื่อหน่วยงานเดิมเสมอ แม้โหลด staff_directory ไม่สำเร็จหรือมีข้อมูลเก่าค้างใน units
   const directoryUnits = units.filter(u => {
