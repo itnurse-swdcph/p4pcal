@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
     normalizeName(String(d.full_name || "")) === normalizeName(selectedFullName)
   );
   const isLeader = staff.org_role === "หัวหน้างาน" || staff.org_role === "หัวหน้ากลุ่มงาน";
-  const assignedRole = isChiefNurse ? "admin" : isLeader ? "head" : "staff";
+  const assignedRole = isChiefNurse ? "admin" : staff.org_role === "หัวหน้ากลุ่มงาน" ? "group_head" : staff.org_role === "หัวหน้างาน" ? "head" : "staff";
   const email = username + "@p4p.invalid";
   const { data, error } = await admin.auth.admin.createUser({
     email,
@@ -126,6 +126,35 @@ Deno.serve(async (req: Request) => {
     await admin.auth.admin.deleteUser(data.user.id);
     if (profileUpdate.error.code === "23505") return json(409, { error: "ชื่อผู้ใช้หรือรายชื่อบุคลากรถูกลงทะเบียนแล้ว" });
     return json(500, { error: "บันทึกโปรไฟล์ไม่สำเร็จ กรุณาลองใหม่" });
+  }
+
+  // Create or safely link the P4P person row at registration time.
+  // staff_directory_id is the stable identity key; never guess a unit or create duplicates.
+  const personName = [staff.prefix, staff.first_name, staff.last_name].filter(Boolean).join(" ").trim();
+  const { data: existingPerson, error: personLookupError } = await admin
+    .from("people").select("id,user_id").eq("staff_directory_id", staff.source_row).maybeSingle();
+  if (personLookupError) {
+    await admin.auth.admin.deleteUser(data.user.id);
+    return json(500, { error: "ตรวจสอบทะเบียนบุคลากร P4P ไม่สำเร็จ กรุณาลองใหม่" });
+  }
+  if (existingPerson?.user_id && existingPerson.user_id !== data.user.id) {
+    await admin.auth.admin.deleteUser(data.user.id);
+    return json(409, { error: "ทะเบียนบุคลากรนี้เชื่อมกับบัญชีอื่นแล้ว กรุณาติดต่อผู้ดูแลระบบ" });
+  }
+  let personWrite: any;
+  if (existingPerson) {
+    personWrite = await admin.from("people").update({ user_id: data.user.id })
+      .eq("id", existingPerson.id).is("user_id", null);
+  } else {
+    personWrite = await admin.from("people").insert({
+      prefix: staff.prefix, first_name: staff.first_name, last_name: staff.last_name,
+      name: personName, position: staff.position, unit_id: unit.id, active: true,
+      staff_directory_id: staff.source_row, user_id: data.user.id
+    });
+  }
+  if (personWrite.error) {
+    await admin.auth.admin.deleteUser(data.user.id);
+    return json(500, { error: "เชื่อมทะเบียนบุคลากรสำหรับบันทึกกิจกรรมไม่สำเร็จ กรุณาลองใหม่" });
   }
 
   const extraNames = String(staff.extra_unit_names || "").split(/[;,，、]/).map((x: string) => x.trim()).filter(Boolean);
