@@ -1087,10 +1087,16 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   }
   const emptyForm = (selectedLine: string = formLine) => ({ code: selectedLine ? nextActivityCode(selectedLine) : '', title: '', uom: '', minutes: '1', max_day: '', max_month: '', eligible: selectedLine ? [selectedLine] : [], need_evidence: false, definition: '', use_role_mult: false, note: '' })
   const [form, setForm] = useState<any>(() => emptyForm(line || ''))
-  const byCode = (a: any, b: any) => String(a.code).localeCompare(String(b.code), 'th')
+  const sequenceOf = (a: any) => Number(String(a.code || '').match(/(\d+)$/)?.[1] || 0)
+  const bySequence = (a: any, b: any) => sequenceOf(a) - sequenceOf(b) || String(a.code).localeCompare(String(b.code), 'th')
   const inLine = (acts || []).filter((a: any) => (a.eligible || []).includes(line))
+  const orderedInLine = [...inLine].sort(bySequence)
+  const activityOrder = new Map(orderedInLine.map((a: any, index: number) => [a.code, index + 1]))
+  const workbookRates: Record<string, number> = { 'พยาบาล': 0.143, 'ผู้ช่วยเหลือคนไข้': 0.071, 'พนักงานประจำตึก': 0.071, 'พนักงานธุรการ': 0.114, 'พนักงานเปล': 0.071, 'Paramedic': 0.143, 'EMT': 0.114 }
+  const positionRates = [...new Set((positions || []).filter((p: any) => p.grp === line).map((p: any) => Number(p.rate)).filter((rate: number) => rate > 0))]
+  const pointsPerMinute = positionRates.length === 1 ? positionRates[0] : (workbookRates[line] || 0)
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const filtered = inLine.filter((a: any) => terms.every(t => [a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
+  const filtered = orderedInLine.filter((a: any) => terms.every(t => [a.title, a.definition, a.note].join(' ').toLowerCase().includes(t)))
   const add = async () => {
     setMsg('')
     if (!formLine || !form.code.trim() || !form.title.trim() || !form.uom.trim() || !form.minutes || Number(form.minutes) <= 0 || !form.eligible.length) {
@@ -1186,17 +1192,21 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     </div>
     {filtered.length === 0 ? <div className="card text-center text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหา</div> :
       <div className="card overflow-x-auto p-0">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
-          <thead><tr><th>ชื่อกิจกรรม</th><th className="whitespace-nowrap">นาที / หน่วย</th><th>ข้อจำกัด</th><th>หลักฐานและเกณฑ์</th><th>สายงานที่มีสิทธิ์</th><th>หมายเหตุ</th>{isAdmin && <th>จัดการ</th>}</tr></thead>
-          <tbody>{filtered.map((a: any) => <tr key={a.code} className="align-top">
-            <td className="min-w-[220px]"><div className="font-semibold">{a.title}</div>{a.need_evidence && <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">ต้องมีหลักฐาน</span>}</td>
-            <td className="whitespace-nowrap">{a.minutes} / {a.uom || 'ไม่ระบุ'}</td>
-            <td className="min-w-[130px]">{a.max_day ? <div>ต่อวัน: {a.max_day}</div> : null}{a.max_month ? <div>ต่อเดือน: {a.max_month}</div> : null}{!a.max_day && !a.max_month ? 'ไม่กำหนด' : null}</td>
-            <td className="min-w-[260px]"><div className="whitespace-pre-wrap leading-relaxed">{a.definition?.trim() || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ'}</div>{a.use_role_mult && <div className="mt-1 text-xs text-teal-800">คำนวณตัวคูณตามบทบาท</div>}</td>
-            <td className="min-w-[180px]">{(a.eligible || []).map((x: string) => LINE_LABEL[x] || x).join(', ') || 'ไม่ได้ระบุ'}</td>
-            <td className="min-w-[160px] whitespace-pre-wrap">{a.note || '—'}</td>
-            {isAdmin && <td className="whitespace-nowrap"><div className="flex flex-col items-start gap-1"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div></td>}
-          </tr>)}</tbody>
+        <table className="w-full min-w-[980px] border-collapse text-sm">
+          <thead><tr><th>ลำดับ</th><th className="text-left">กิจกรรม</th><th>หน่วยนับ</th><th className="whitespace-nowrap">เวลามาตรฐาน (นาที)</th><th className="whitespace-nowrap">คะแนนต่อนาที</th><th>คุณค่างาน</th><th className="whitespace-nowrap">คะแนนปรับแล้ว (Workpoint)</th></tr></thead>
+          <tbody>{filtered.map((a: any) => {
+            const workValue = 1
+            const workpoint = Math.round((Number(a.minutes || 0) * pointsPerMinute * workValue + Number.EPSILON) * 100) / 100
+            return <tr key={a.code} className="align-top">
+              <td className="text-center">{activityOrder.get(a.code) || '—'}</td>
+              <td className="min-w-[340px]"><div className="font-semibold">{a.title}</div>{a.need_evidence && <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">ต้องมีหลักฐาน</span>}{a.use_role_mult && <span className="mt-1 inline-block rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-900">คำนวณตัวคูณตามบทบาท</span>}{isAdmin && <div className="mt-1 flex gap-2"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div>}</td>
+              <td className="text-center">{a.uom || 'ไม่ระบุ'}</td>
+              <td className="text-center">{Number(a.minutes || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })}</td>
+              <td className="text-center">{nf(pointsPerMinute, 3)}</td>
+              <td className="text-center">{nf(workValue, 0)}</td>
+              <td className="text-center font-semibold">{nf(workpoint, 2)}</td>
+            </tr>
+          })}</tbody>
         </table>
       </div>}
   </div>
