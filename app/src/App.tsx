@@ -314,7 +314,7 @@ function Main({ sb, session }: any) {
   })
     .slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
   const unitOptions = isHeadRole ? directoryUnits.filter(u => myUnits.includes(u.id) || (role === 'head' && u.id === profile.unit_id)) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
-  const scope = people.filter(p => (isRev || isHeadRole ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id))
+  const scope = people.filter(p => (isRev || isHeadRole ? (unit != null ? Number(p.unit_id) === Number(unit) : (role === 'group_head' ? Number(personApprover[p.id]?.approver_staff_directory_id) === Number(profile.staff_directory_id) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน')))) : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
