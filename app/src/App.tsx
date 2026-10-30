@@ -1569,7 +1569,6 @@ function PeoplePage({ sb, people, unit, positions, reload }: any) {
 }
 
 const GLOBAL_SETTINGS: [string, string, string][] = [
-  ['max_day_minutes', 'เวลารวมสูงสุดที่บันทึกได้ต่อคนต่อวัน (นาที)', 'เกินค่านี้ระบบจะแจ้งเตือน ! "เวลารวมในวันนี้เกินกำหนด" ให้หัวหน้าตรวจทาน (ยังนับแต้ม) · ช่วงที่ใช้ได้ 1–1,440'],
   ['mult_chair', 'ตัวคูณบทบาท – ประธาน', 'ใช้กับกิจกรรมประเภทประชุม/คณะกรรมการที่เลือกบทบาท "ประธาน"'],
   ['mult_sec', 'ตัวคูณบทบาท – เลขานุการ/กรรมการ', ''],
   ['mult_member', 'ตัวคูณบทบาท – สมาชิก/ผู้เข้าร่วม', 'ใช้เมื่อไม่ได้ระบุบทบาทด้วย'],
@@ -1584,7 +1583,7 @@ function SettingsPage({ sb }: any) {
   const saveG = async () => {
     setGMsg('')
     for (const [k, l] of GLOBAL_SETTINGS) {
-      const v = Number(g[k]); const ok = k === 'max_day_minutes' ? Number.isInteger(v) && v >= 1 && v <= 1440 : k === 'cap_shift_points' ? v > 0 && v <= 90 : k === 'cap_day_points' ? v > 0 && v <= 10000 : v > 0 && v <= 10
+      const v = Number(g[k]); const ok = k === 'cap_shift_points' ? v > 0 && v <= 90 : k === 'cap_day_points' ? v > 0 && v <= 180 : v > 0 && v <= 10
       if (!(String(g[k] ?? '').trim() !== '' && ok)) { setGMsg(`ค่า "${l}" ไม่ถูกต้อง`); return }
     }
     if (!confirm('การเปลี่ยนค่าเหล่านี้มีผลกับการคำนวณแต้มของทุกหน่วยงานและทุกเดือน รวมรายการที่รับรองแล้วด้วย ยืนยันบันทึก?')) return
