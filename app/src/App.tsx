@@ -14,7 +14,7 @@ const LINE_LABEL: Record<string, string> = { 'พยาบาล': 'พยาบ
 const NO_LINE = 'ยังไม่กำหนดสายงาน'
 // รหัสผู้ใช้ที่ล็อกอิน ใช้ตัดสินว่าปุ่ม ส่ง/แก้ไข/ลบ ของแบบร่างเป็นของใคร (ฐานข้อมูลบังคับกฎซ้ำอีกชั้น)
 const MeCtx = createContext<string | null>(null)
-// ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล (ระดับมาจากทะเบียนบุคลากร org_role; ฐานข้อมูลบังคับซ้ำ และรับรองรายการของตนเองไม่ได้)
+// ผู้รับรองแบบชั้นเดียว: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล; รักษาการหัวหน้าพยาบาลรับรองตนเองได้
 // ระดับ 0 เจ้าหน้าที่ 1 หัวหน้างาน 2 หัวหน้ากลุ่มงาน 3 รักษาการหัวหน้าพยาบาล
 const approverLabel = (subjectLevel: number) => subjectLevel >= 3 ? 'ผู้ดูแลระบบ' : subjectLevel === 2 ? 'รักษาการหัวหน้าพยาบาล' : subjectLevel === 1 ? 'หัวหน้ากลุ่มงาน' : 'หัวหน้างาน'
 const ApproverCtx = createContext<{ role: string; level: number; staffDirectoryId: number | null; personUser: Record<string, string | null>; personLevel: Record<string, number>; personApprover: Record<string, any> } | null>(null)
