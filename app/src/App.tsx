@@ -20,7 +20,7 @@ const approverLabel = (subjectLevel: number) => subjectLevel >= 3 ? 'ผู้�
 const ApproverCtx = createContext<{ role: string; level: number; staffDirectoryId: number | null; personUser: Record<string, string | null>; personLevel: Record<string, number>; personApprover: Record<string, any> } | null>(null)
 function canDecideRow(ap: any, me: string | null, r: any) {
   if (!ap || !r || !me || ap.staffDirectoryId == null) return false
-  if (ap.personUser[r.person_id] === me) return false
+  if (ap.personUser[r.person_id] === me && Number(ap.staffDirectoryId) !== 2) return false
   const assigned = ap.personApprover?.[r.person_id]
   return !!assigned &&
     Number(assigned.approver_staff_directory_id) === Number(ap.staffDirectoryId) &&
