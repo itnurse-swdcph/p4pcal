@@ -1089,6 +1089,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const [form, setForm] = useState<any>(() => emptyForm(line || ''))
   const sequenceOf = (a: any) => Number(String(a.code || '').match(/(\d+)$/)?.[1] || 0)
   const bySequence = (a: any, b: any) => sequenceOf(a) - sequenceOf(b) || String(a.code).localeCompare(String(b.code), 'th')
+  const displayActivityTitle = (title: any) => String(title || '').replace(/\s+(\d{1,2}\.)\s*/g, '\n$1').trim()
   const inLine = (acts || []).filter((a: any) => (a.eligible || []).includes(line))
   const orderedInLine = [...inLine].sort(bySequence)
   const activityOrder = new Map(orderedInLine.map((a: any, index: number) => [a.code, index + 1]))
@@ -1192,14 +1193,15 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     </div>
     {filtered.length === 0 ? <div className="card text-center text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหา</div> :
       <div className="card overflow-x-auto p-0">
-        <table className="w-full min-w-[980px] border-collapse text-sm">
+        <table className="w-full min-w-[1240px] table-fixed border-collapse text-sm">
+          <colgroup><col style={{ width: '5%' }} /><col style={{ width: '50%' }} /><col style={{ width: '9%' }} /><col style={{ width: '12%' }} /><col style={{ width: '8%' }} /><col style={{ width: '7%' }} /><col style={{ width: '9%' }} /></colgroup>
           <thead><tr><th>ลำดับ</th><th className="text-left">กิจกรรม</th><th>หน่วยนับ</th><th className="whitespace-nowrap">เวลามาตรฐาน (นาที)</th><th className="whitespace-nowrap">คะแนนต่อนาที</th><th>คุณค่างาน</th><th className="whitespace-nowrap">คะแนนปรับแล้ว (Workpoint)</th></tr></thead>
           <tbody>{filtered.map((a: any) => {
             const workValue = 1
             const workpoint = Math.round((Number(a.minutes || 0) * pointsPerMinute * workValue + Number.EPSILON) * 100) / 100
             return <tr key={a.code} className="align-top">
               <td className="text-center">{activityOrder.get(a.code) || '—'}</td>
-              <td className="min-w-[340px]"><div className="font-semibold">{a.title}</div>{a.need_evidence && <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">ต้องมีหลักฐาน</span>}{a.use_role_mult && <span className="mt-1 inline-block rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-900">คำนวณตัวคูณตามบทบาท</span>}{isAdmin && <div className="mt-1 flex gap-2"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div>}</td>
+              <td className="min-w-[500px] whitespace-pre-line break-words"><div className="font-semibold">{displayActivityTitle(a.title)}</div>{a.need_evidence && <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">ต้องมีหลักฐาน</span>}{a.use_role_mult && <span className="mt-1 inline-block rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-900">คำนวณตัวคูณตามบทบาท</span>}{isAdmin && <div className="mt-1 flex gap-2"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div>}</td>
               <td className="text-center">{a.uom || 'ไม่ระบุ'}</td>
               <td className="text-center">{Number(a.minutes || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })}</td>
               <td className="text-center">{nf(pointsPerMinute, 3)}</td>
