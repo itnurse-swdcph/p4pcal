@@ -412,10 +412,37 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const normalizePersonName = (value: any) => String(value || '').replace(/\s+/g, '').replace(/[.·]/g, '').trim().toLocaleLowerCase('th')
   // บางบัญชีหัวหน้ากลุ่มงานมี staff_directory_id ในโปรไฟล์ไม่ครบ แต่มีระเบียน people อยู่แล้ว
   // จึงจับคู่สำรองด้วยชื่อ-สกุลเต็มจากโปรไฟล์แบบตรงตัว โดยไม่สร้างหรือแก้ไขระเบียนบุคลากรใหม่
+  const [resolvedOwnPerson, setResolvedOwnPerson] = useState<any>(null)
   const ownPerson = personRecords.find((p: any) => p.user_id === currentUserId)
     || (currentUserStaffDirectoryId != null ? personRecords.find((p: any) => Number(p.staff_directory_id) === Number(currentUserStaffDirectoryId)) : null)
     || (currentUserFullName ? personRecords.find((p: any) => normalizePersonName(p.name) === normalizePersonName(currentUserFullName)) : null)
+    || resolvedOwnPerson
   const [entryMode, setEntryMode] = useState<'self' | 'other'>('self')
+  // หัวหน้ากลุ่มงานบางบัญชีมี staff_directory_id แล้ว แต่ยังไม่มี people record
+  // จึงเตรียม/เชื่อมระเบียนจาก staff_directory ก่อนเปิดให้บันทึกกิจกรรมของตนเอง
+  useEffect(() => {
+    if (!picker || entryMode !== 'self' || ownPerson || currentUserStaffDirectoryId == null) return
+    let alive = true
+    ;(async () => {
+      const { data: personId, error: ensureError } = await sb.rpc('ensure_person_from_directory', {
+        p_source_row: currentUserStaffDirectoryId
+      })
+      if (!alive) return
+      if (ensureError || !personId) {
+        console.error('เตรียมระเบียนบุคลากรของบัญชีที่เข้าสู่ระบบไม่สำเร็จ', ensureError)
+        return
+      }
+      const { data: linkedPerson, error: readError } = await sb.from('people').select('*').eq('id', personId).maybeSingle()
+      if (!alive) return
+      if (readError || !linkedPerson) {
+        console.error('อ่านระเบียนบุคลากรของบัญชีที่เข้าสู่ระบบไม่สำเร็จ', readError)
+        return
+      }
+      setResolvedOwnPerson(linkedPerson)
+      reloadPeople?.()
+    })()
+    return () => { alive = false }
+  }, [picker, entryMode, ownPerson?.id, currentUserStaffDirectoryId, sb])
   const approver = useContext(ApproverCtx)
   const [printing, setPrinting] = useState(false) // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
   const [uSel, setUSel] = useState<number | null>(defaultUnit ?? unitOptions?.[0]?.id ?? null)
