@@ -17,14 +17,14 @@ const MeCtx = createContext<string | null>(null)
 // ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล (ระดับมาจากทะเบียนบุคลากร org_role; ฐานข้อมูลบังคับซ้ำ และรับรองรายการของตนเองไม่ได้)
 // ระดับ 0 เจ้าหน้าที่ 1 หัวหน้างาน 2 หัวหน้ากลุ่มงาน 3 รักษาการหัวหน้าพยาบาล
 const approverLabel = (subjectLevel: number) => subjectLevel >= 3 ? 'ผู้ดูแลระบบ' : subjectLevel === 2 ? 'รักษาการหัวหน้าพยาบาล' : subjectLevel === 1 ? 'หัวหน้ากลุ่มงาน' : 'หัวหน้างาน'
-const ApproverCtx = createContext<{ role: string; level: number; personUser: Record<string, string | null>; personLevel: Record<string, number> } | null>(null)
+const ApproverCtx = createContext<{ role: string; level: number; staffDirectoryId: number | null; personUser: Record<string, string | null>; personLevel: Record<string, number>; personApprover: Record<string, any> } | null>(null)
 function canDecideRow(ap: any, me: string | null, r: any) {
-  if (!ap || !r || !me) return false
-  if (ap.personUser[r.person_id] === me) return false          // รับรองรายการของตนเองไม่ได้
-  if (ap.role === 'admin') return true
-  if (ap.role !== 'head' && ap.role !== 'group_head') return false
-  const sl = ap.personLevel[r.person_id] ?? 0
-  return (ap.level === 1 && sl === 0) || (ap.level === 2 && sl === 1) || (ap.level === 3 && sl === 2)
+  if (!ap || !r || !me || ap.staffDirectoryId == null) return false
+  if (ap.personUser[r.person_id] === me) return false
+  const assigned = ap.personApprover?.[r.person_id]
+  return !!assigned &&
+    Number(assigned.approver_staff_directory_id) === Number(ap.staffDirectoryId) &&
+    assigned.approver_user_id === me
 }
 const ROLE_TH: any = { staff: 'เจ้าหน้าที่', head: 'หัวหน้างาน', group_head: 'หัวหน้ากลุ่มงาน', committee: 'กรรมการ P4P', admin: 'ผู้ดูแลระบบ' }
 const ROLES = ['ประธาน', 'เลขานุการ/กรรมการ', 'สมาชิก/ผู้เข้าร่วม']
@@ -272,9 +272,14 @@ function Main({ sb, session }: any) {
   const [mobileNav, setMobileNav] = useState(false)
   const [compactNav, setCompactNav] = useState(false)
   const [myLevel, setMyLevel] = useState(0); const [personLevel, setPersonLevel] = useState<Record<string, number>>({})
+  const [personApprover, setPersonApprover] = useState<Record<string, any>>({})
   const loadPeople = () => {
     sb.from('people').select('*').eq('active', true).order('name').then((r: any) => setPeople(r.data || []))
     sb.rpc('person_levels').then((r: any) => setPersonLevel(Object.fromEntries((r.data || []).map((x: any) => [x.person_id, Number(x.lvl)]))))
+    sb.rpc('person_approvers').then((r: any) => {
+      if (r.error) { console.error('โหลดผู้รับรองประจำบุคลากรไม่สำเร็จ', r.error); return }
+      setPersonApprover(Object.fromEntries((r.data || []).map((x: any) => [x.person_id, x])))
+    })
   }
   useEffect(() => {
     sb.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle().then((r: any) => { if (!r.data) { setNoProfile(true); return } setProfile(r.data); setUnit((r.data.role === 'admin' || r.data.role === 'group_head') ? null : (r.data.unit_id ?? null)) })
@@ -313,7 +318,7 @@ function Main({ sb, session }: any) {
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
-  return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
+  return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, staffDirectoryId: profile.staff_directory_id ?? null, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel, personApprover }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
     {mobileNav && <button aria-label="ปิดเมนู" className="sidebar-scrim" onClick={() => setMobileNav(false)}/>}
     <aside className={'app-sidebar ' + (mobileNav ? 'mobile-open' : '')}>
       <div className="sidebar-brand"><img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/icon.png" alt="P4P" /><div className="sidebar-brand-copy"><strong>P4P Nursing</strong><span>SMART WORKFLOW</span></div><button className="sidebar-icon mobile-close" aria-label="ปิดเมนู" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
@@ -490,7 +495,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const [notice, setNotice] = useState('')
   const [savingActivity, setSavingActivity] = useState(false)
   // Show immediate approval only after the loaded person-level map confirms the hierarchy; newly materialized directory staff trigger a refresh first.
-  const canApproveImmediately = !!picker && !!pid && Object.prototype.hasOwnProperty.call(approver?.personLevel || {}, pid) && Object.prototype.hasOwnProperty.call(approver?.personUser || {}, pid) && canDecideRow(approver, me, { person_id: pid })
+  const canApproveImmediately = !!picker && !!pid && Object.prototype.hasOwnProperty.call(approver?.personApprover || {}, pid) && canDecideRow(approver, me, { person_id: pid })
   const [shift, setShift] = useState('เช้า'); const [caps, setCaps] = useState<any>({ cap_shift_points: 90, cap_day_points: 180 })
   useEffect(() => { sb.from('app_settings').select('key,value').in('key', ['cap_shift_points', 'cap_day_points']).then((r: any) => setCaps(Object.fromEntries([['cap_shift_points', 90], ['cap_day_points', 180], ...(r.data || []).map((x: any) => [x.key, Number(x.value)])]))) }, [])
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
@@ -1028,14 +1033,14 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
         <td><div><b>{r.activity_code}</b> — {r.title}</div>{r.sub_activity?.trim() && <div className="text-sm mt-1 whitespace-pre-wrap break-words">กิจกรรมย่อย: {r.sub_activity}</div>}</td>
         <td>{r.qty} {r.uom}</td><td className="whitespace-nowrap">{nf(r.counted_points)}{Number(r.cap_cut) > 0 && Number(r.points_before_cap) > 0 ? <span className="text-xs text-amber-700"> (ตัดเพดาน −{nf(r.cap_cut)})</span> : Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
         <td className="text-xs">{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
-        <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-0.5 text-xs text-stone-500">รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}</div>}</td><td className="min-w-48 max-w-sm whitespace-pre-wrap break-words text-xs">{r.status === 'rejected' ? <div className="rounded-md border border-red-200 bg-red-50 p-2 text-red-800">{String(r.reject_reason || '').trim() || 'ไม่พบเหตุผลที่บันทึกไว้ กรุณาติดต่อหัวหน้าผู้พิจารณา'}</div> : <span className="text-stone-400">—</span>}</td>
+        <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-0.5 text-xs text-stone-500">{ap?.personApprover?.[r.person_id]?.approver_name ? `รอ ${ap.personApprover[r.person_id].approver_name} (${ap.personApprover[r.person_id].approver_stage})` : 'ยังไม่พบผู้รับรองในทะเบียนบุคลากร'}{ap?.personApprover?.[r.person_id] && !ap.personApprover[r.person_id].approver_user_id && <div className="text-amber-700">รอผู้รับรองเชื่อมบัญชี</div>}</div>}</td><td className="min-w-48 max-w-sm whitespace-pre-wrap break-words text-xs">{r.status === 'rejected' ? <div className="rounded-md border border-red-200 bg-red-50 p-2 text-red-800">{String(r.reject_reason || '').trim() || 'ไม่พบเหตุผลที่บันทึกไว้ กรุณาติดต่อหัวหน้าผู้พิจารณา'}</div> : <span className="text-stone-400">—</span>}</td>
         <td className="whitespace-nowrap space-x-1">
           {!readOnly && me && r.entered_by === me && (r.status === 'draft' || r.status === 'rejected') && <>
             <button className="btn !py-0.5" onClick={() => submitRows([r.id])}>{r.status === 'rejected' ? 'ส่งใหม่' : 'ส่ง'}</button>
             <button className="btn sec !py-0.5" onClick={() => beginEdit(r)}>แก้ไข</button>
             <button className="text-xs underline text-red-700" onClick={() => del(r.id)}>ลบ</button></>}
           {!readOnly && r.status === 'pending' && canDecideRow(ap, me, r) && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => { setRejecting(r); setReason('') }}>ไม่รับรอง</button></>}
-          {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}</td>
+          {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{ap?.personApprover?.[r.person_id]?.approver_name || 'ผู้รับรองที่กำหนด'}รับรอง</span>}</td>
       </tr>})}{!displayedRows.length && <tr><td colSpan={9} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
     {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="reject-title"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-3">
       <h3 id="reject-title" className="text-lg font-bold">ไม่รับรองรายการ</h3>
@@ -1565,7 +1570,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       <LogTable sb={sb} rows={certificationRows} reload={reload} canApprove={!audit} readOnly={!!audit} acts={acts} month={month} />
     </>}
     {!reportOnly && !certificationOnly && <>
-      <p className="text-sm text-stone-700">ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล · <b>คุณรับรองได้เฉพาะรายการในขอบเขตสิทธิ์ของคุณ</b></p>
+      <p className="text-sm text-stone-700">การรับรองแบบชั้นเดียว: ระบบเลือกผู้รับรองเพียงคนเดียวตามลำดับ หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล โดยข้ามตำแหน่งที่ไม่มีผู้ดำรงตำแหน่ง · <b>คุณรับรองได้เฉพาะรายการที่ระบุชื่อคุณเป็นผู้รับรอง</b></p>
       <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button><button className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน</button></div>
           <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
