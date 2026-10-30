@@ -1,96 +1,81 @@
-# สร้าง activities.json จากไฟล์ "ส่งแบบบันทึก P4P กลุ่มการพยาบาล.xlsx" (7 ชีต = 7 สายงาน)
-#   python3 build_activities.py <xlsx> <out.json>
-import sys, re, json, openpyxl
-wb = openpyxl.load_workbook(sys.argv[1], data_only=True)
-norm = lambda v: re.sub(r'\s+', ' ', str(v)).strip() if v is not None else ''
-def num(v):
-    try: return round(float(v), 2)
-    except (TypeError, ValueError): return None
-ROLE_MULT = {'ADM-01-01', 'ADM-04-01', 'ACD-01-01'}      # ประชุม/เกื้อกูล/ประชุมวิชาการ: คงตัวคูณบทบาทเดิม
-ACAD = re.compile(r'วิทยากร|ฝึกซ้อม|ฝึกทักษะ|ฝึกอบรม|อบรม|สอน|ทบทวนภารกิจ|ประชุมทบทวน|CQI|โครงการ|นำเสนอผลงาน|รายงานความเสี่ยง|รายงานคุณภาพ|ฝึกปฏิบัติ')
-ADMIN = re.compile(r'ประชุม|เกื้อกูล|พิธี|จัดทำรายงาน|สารบรรณ|พัสดุ|การเงิน|บุคลากร')
-RULES = {   # สายงาน: (ด้านเริ่มต้น หรือ None = ต้องจับคู่ให้ครบ, {ด้าน: [คำสำคัญในชื่อหมวด]})
-  'ผู้ช่วยเหลือคนไข้': (None, {'บริหาร': ['เตรียมอุปกรณ์', 'สิ่งส่งตรวจ', 'ความปลอดภัยและสิ่งแวดล้อม', 'ศูนย์เครื่องมือแพทย์', 'ระบบแก๊สทางการแพทย์', 'งานประชุม'],
-                               'บริการ': ['กิจวัตร', 'เคลื่อนย้ายและนำส่ง', 'รับใหม่และจำหน่าย', 'ช่วยปฏิบัติการพยาบาล'], 'วิชาการ': ['ให้ข้อมูล']}),
-  'พนักงานประจำตึก': (None, {'บริหาร': ['รับ-ส่งเอกสาร', 'สนับสนุนวัสดุ', 'ความปลอดภัยและคุณภาพ', 'งานประชุม'],
-                             'บริการ': ['ทำความสะอาดพื้นที่', 'ทำความสะอาดและฆ่าเชื้อ', 'จัดการขยะ', 'เคลื่อนย้ายผู้ป่วย เครื่องมือ', 'ควรทบทวนขอบเขต'], 'วิชาการ': ['สนับสนุนการให้บริการผู้ป่วย']}),
-  'พนักงานธุรการ': ('บริหาร', {'วิชาการ': ['บริการข้อมูลและประชาสัมพันธ์']}),
-  'พนักงานเปล': ('บริการ', {'บริหาร': ['เตรียมความพร้อมและสนับสนุนบริการ']}),
-  'Paramedic': (None, {'บริหาร': ['เตรียมความพร้อม', 'งานอื่นๆ'], 'บริการ': ['ปฏิบัติการฉุกเฉินนอก', 'ส่งต่อ', 'บริการในโรงพยาบาล']}),
-  'EMT': (None, {'บริหาร': ['เตรียมความพร้อม', 'งานอื่นๆ'], 'บริการ': ['ปฏิบัติการฉุกเฉินนอก', 'บริการในโรงพยาบาล'], 'วิชาการ': ['พัฒนาคุณภาพ']}),
-}
-def dom_for(line, cat):
-    default, rules = RULES[line]
-    hits = [d for d, kws in rules.items() if any(k in cat for k in kws)]
-    if len(hits) == 1: return hits[0]
-    if not hits and default: return default
-    raise SystemExit(f'จัดหมวดเข้าด้านไม่ได้/ซ้ำ: {line} | {cat} | {hits}')
-def domain(cat, title, default='บริการ'):
-    if ACAD.search(title) or ACAD.search(cat): return 'วิชาการ'
-    if ADMIN.search(cat) or ADMIN.search(title): return 'บริหาร'
-    return default
-out, rows = [], []
-def add(line, code, dom, title, uom, minutes, evidence='', note='', active=True, role=False, category=None, main=None):
-    out.append(dict(code=code, domain=dom, category=category, main_activity=main, title=title, uom=uom or '-', minutes=minutes if minutes is not None else 0, use_role_mult=role,
-        max_day=None, max_month=None, need_evidence=False, definition=evidence or None, no_dup_group=None, eligible=[line], note=note or None, active=active and minutes is not None))
+"""Build the flat P4P activity catalog from the seven role worksheets.
 
-# --- พยาบาล (รหัสเดิมในแบบ) ---
-ws = wb['พยาบาล']; cat = ''; top = ''
-strip_no = lambda t: re.sub(r'^\d+\s*[.\)]?\s*', '', t).strip()
-DOM = {'ADM': 'บริหาร', 'SVC': 'บริการ', 'ACD': 'วิชาการ'}
-for r in ws.iter_rows(min_row=6):
-    b, c, d, e, f = [x.value for x in r[1:6]]
-    if c:
-        code = norm(c).upper().replace('SCV-', 'SVC-')   # ในแบบพิมพ์ผิดเป็น scv-09-xx
-        role = code in ROLE_MULT
-        add('พยาบาล', code, DOM[code[:3]], norm(d), norm(e), num(f), role=role, category=top, main=strip_no(cat))
-    elif b:
-        t = norm(b)
-        if re.match(r'^\d', t): cat = t
-        elif t.startswith('งานด้าน'): top = t; cat = ''
+Usage: python3 build_activities.py <source.xlsx> <output.json>
+"""
+import json
+import re
+import sys
 
-# --- สายงานที่มีรหัสกิจกรรมในแบบ ---
-SHEETS = {'พนักงานช่วยเหลือคนไข้': 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก': 'พนักงานประจำตึก', 'พนักงานธุรการ': 'พนักงานธุรการ'}
-for sheet, line in SHEETS.items():
-    ws = wb[sheet]
-    hdr = {norm(c.value): c.column - 1 for c in ws[5] if c.value}
-    col = lambda key: next((i for h, i in hdr.items() if key in h), None)
-    ci = dict(cat=col('หมวดหมู่'), main=col('กิจกรรมหลัก'), sub=col('กิจกรรมย่อย (ภาษาราชการ)'), uom=col('หน่วยนับ'), prop=col('เวลาที่เสนอ'),
-              cmp=col('เวลาเดิมที่ใช้เปรียบเทียบ'), status=col('สถานะการปรับปรุง'), scope=col('ขอบเขตการใช้'), ev=col('หลักฐาน'),
-              caution=col('ข้อควรระวัง'), sup=col('การกำกับดูแล'))
-    g = lambda r, k: norm(r[ci[k]].value) if ci.get(k) is not None else ''
-    for r in ws.iter_rows(min_row=6):
-        code = norm(r[0].value)
-        if not re.match(r'^[A-Z]{2,5}-\d', code): continue
-        minutes = num(r[ci['prop']].value) if ci['prop'] is not None else None
-        if minutes is None and ci['cmp'] is not None: minutes = num(r[ci['cmp']].value)
-        scope, status, cat = g(r, 'scope'), g(r, 'status'), g(r, 'cat')
-        out_of_scope = 'ไม่ควรนับ' in status or 'นอกภารกิจ' in scope
-        title = g(r, 'sub')
-        if 'ศูนย์เครื่องมือแพทย์' in scope: title = '[เฉพาะศูนย์เครื่องมือแพทย์] ' + title
-        elif 'ไตเทียม' in scope: title = '[เฉพาะไตเทียม/คลินิก] ' + title
-        elif out_of_scope: title = '[นอกภารกิจตำแหน่ง ไม่นับ] ' + title
-        note = '; '.join(x for x in [f"ข้อควรระวัง: {g(r, 'caution')}" if g(r, 'caution') else '',
-                                    f"กำกับดูแล: {g(r, 'sup')}" if g(r, 'sup') else '', f'ขอบเขต: {scope}' if scope else ''] if x)
-        add(line, code, dom_for(line, strip_no(cat)), title, g(r, 'uom'), minutes, evidence=g(r, 'ev'), note=note, active=not out_of_scope, category=strip_no(cat), main=g(r, 'main') or None)
+import openpyxl
 
-# --- สายงานที่ไม่มีรหัสในแบบ: สร้างรหัสตามลำดับหมวด/ข้อ ---
-for sheet, line, pre in [('พนักงานเปล', 'พนักงานเปล', 'TRP'), ('Paramedics', 'Paramedic', 'PMD'), ('EMT', 'EMT', 'EMT')]:
-    ws = wb[sheet]; sec = 0; item = 0; secname = ''
-    for r in ws.iter_rows(min_row=4):
-        a, b, c, d = [x.value for x in r[:4]]
-        if b and not c and not d:
-            sec += 1; item = 0; secname = norm(b); continue
-        if not (b and c): continue
-        item += 1
-        title = re.sub(r'^\s*\d+\s*[.\)]\s*', '', norm(b))
-        add(line, f'{pre}-{sec:02d}-{item:03d}', dom_for(line, secname), title, norm(c), num(d), category=re.sub(r'(งานรับ[–-])+', 'งานรับ–', secname.strip()))   # แก้พิมพ์ซ้ำ "งานรับ–งานรับ–ส่งต่อ"
 
-codes = [x['code'] for x in out]
-assert len(codes) == len(set(codes)), 'รหัสซ้ำ'
-json.dump(out, open(sys.argv[2], 'w', encoding='utf-8'), ensure_ascii=False, indent=0)
-import collections
-print('รวม', len(out), 'ใช้งาน', sum(x['active'] for x in out))
-for line, n in collections.Counter(x['eligible'][0] for x in out).items(): print(' ', line, n)
-print(' ด้าน', dict(collections.Counter(x['domain'] for x in out)))
-print(' ปิดใช้งาน', [x['code'] for x in out if not x['active']])
+SHEETS = [
+    ("พยาบาล", "พยาบาล", "NUR"),
+    ("พนักงานช่วยเหลือคนไข้", "ผู้ช่วยเหลือคนไข้", "AID"),
+    ("พนักงานประจำตึก", "พนักงานประจำตึก", "WARD"),
+    ("พนักงานธุรการ", "พนักงานธุรการ", "ADMIN"),
+    ("พนักงานเปล", "พนักงานเปล", "STRETCHER"),
+    ("Paramedics", "Paramedic", "PMD"),
+    ("EMTเจ้าพนักงานฉุกเฉินการแพทย์", "EMT", "EMT"),
+]
+
+
+def clean(value):
+    return re.sub(r"\s+", " ", str(value)).strip() if value is not None else ""
+
+
+def build(source):
+    workbook = openpyxl.load_workbook(source, data_only=True, read_only=True)
+    activities = []
+    for sheet_name, eligible_line, prefix in SHEETS:
+        if sheet_name not in workbook.sheetnames:
+            raise ValueError(f"Missing worksheet: {sheet_name}")
+        sheet = workbook[sheet_name]
+        index = 0
+        for row_number, row in enumerate(sheet.iter_rows(min_row=2, max_col=6, values_only=True), start=2):
+            title = clean(row[1])
+            uom = clean(row[2])
+            minutes = row[3]
+            if not title or not uom or minutes is None:
+                continue
+            try:
+                minutes = float(minutes)
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"Invalid minutes at {sheet_name}!D{row_number}: {minutes!r}") from error
+            if minutes <= 0:
+                raise ValueError(f"Minutes must be positive at {sheet_name}!D{row_number}")
+            index += 1
+            # The four medical-gas activities are appended to the aide sheet and
+            # are visible only to staff assigned to the medical-equipment center.
+            center_only = sheet_name == "พนักงานช่วยเหลือคนไข้" and row_number in range(63, 67)
+            code = f"{prefix}-MED-{index:03d}" if center_only else f"{prefix}-{index:03d}"
+            activities.append({
+                "code": code,
+                "domain": "บริการ",  # Required by the current database schema; reporting is flat.
+                "title": title,
+                "uom": uom,
+                "minutes": minutes,
+                "use_role_mult": False,
+                "max_day": None,
+                "max_month": None,
+                "need_evidence": False,
+                "definition": None,
+                "no_dup_group": None,
+                "eligible": [eligible_line],
+                "note": None,
+                "active": True,
+            })
+    codes = [item["code"] for item in activities]
+    if len(codes) != len(set(codes)):
+        raise ValueError("Generated duplicate activity codes")
+    return activities
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        raise SystemExit("Usage: python3 build_activities.py <source.xlsx> <output.json>")
+    result = build(sys.argv[1])
+    with open(sys.argv[2], "w", encoding="utf-8") as output:
+        json.dump(result, output, ensure_ascii=False, indent=2)
+        output.write("\n")
+    print(f"Built {len(result)} activities from {len(SHEETS)} worksheets")

@@ -491,7 +491,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const ids = useMemo(() => pickerPeople.filter((p: any) => !String(p.id).startsWith('dir:')).map((p: any) => p.id), [pickerPeople])
   const [rows, reload] = useLogs(sb, month, ids.length ? ids : (picker ? [] : null), picker && entryMode === 'self' ? null : uSel)
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
-  const [q, setQ] = useState(''); const [categoryFilter, setCategoryFilter] = useState(''); const [activityDropdownOpen, setActivityDropdownOpen] = useState(false); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null)
+  const [q, setQ] = useState(''); const [activityDropdownOpen, setActivityDropdownOpen] = useState(false); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null)
   const [notice, setNotice] = useState('')
   const [savingActivity, setSavingActivity] = useState(false)
   // Show immediate approval only after the loaded person-level map confirms the hierarchy; newly materialized directory staff trigger a refresh first.
@@ -500,19 +500,16 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   useEffect(() => { sb.from('app_settings').select('key,value').in('key', ['cap_shift_points', 'cap_day_points']).then((r: any) => setCaps(Object.fromEntries([['cap_shift_points', 90], ['cap_day_points', 180], ...(r.data || []).map((x: any) => [x.key, Number(x.value)])]))) }, [])
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
   useEffect(() => { if (picker && entryMode === 'self') setPid(ownPerson?.id || ''); else if (picker && entryMode === 'other') setPid('') }, [picker, entryMode, ownPerson?.id])
-  useEffect(() => { setCategoryFilter(''); setQ('') }, [pid])
+  useEffect(() => { setQ('') }, [pid])
   const person = pickerPeople.find((p: any) => p.id === pid); const pos = positions.find((x: any) => x.name === person?.position)
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
-  const terms = q.toLowerCase().split(/\s+/).filter(Boolean)   // พิมพ์หลายคำได้ ต้องพบครบทุกคำ ในรหัส/หมวด/กิจกรรมหลัก/กิจกรรมย่อย
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean)
   const selectedUnitName = String((unitOptions || []).find((u: any) => Number(u.id) === Number(person?.unit_id))?.name || '').trim()
   const isMedicalCenterStaff = selectedUnitName === 'ศูนย์เครื่องมือแพทย์'
-  const isMedicalCenterOnly = (a: any) => String(a?.title || '').startsWith('[เฉพาะศูนย์เครื่องมือแพทย์]')
+  const isMedicalCenterOnly = (a: any) => String(a?.code || '').startsWith('AID-MED-')
   const eligibleActs = acts.filter((a: any) => (!pos || a.eligible.includes(pos.grp)) && (!isMedicalCenterOnly(a) || isMedicalCenterStaff))
-  const activityCategories = [...new Set(eligibleActs.map((a: any) => String(a.category || 'อื่นๆ')))].sort((a: string, b: string) => a.localeCompare(b, 'th'))
-  const showActivityChoices = !!categoryFilter || q.trim().length >= 2
-  const list = eligibleActs.filter((a: any) => (!categoryFilter || String(a.category || 'อื่นๆ') === categoryFilter) && terms.every(t => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(t))).sort(byCode)
-  const catGroups: [string, any[]][] = (() => { const m = new Map<string, any[]>(); list.forEach((a: any) => { const k = a.category || 'อื่นๆ'; m.set(k, [...(m.get(k) || []), a]) }); return [...m.entries()] })()
+  const list = eligibleActs.filter((a: any) => terms.every(t => String(a.title || '').toLowerCase().includes(t))).sort(byCode)
   const act = acts.find((a: any) => a.code === code)
   const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate * (act.use_role_mult ? (role === ROLES[0] ? 2 : role === ROLES[1] ? 1.5 : 1) : 1) : 0
   const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
@@ -669,14 +666,14 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         <label className="field-label">เวรที่ปฏิบัติ<select className="inp mt-1" value={shift} onChange={e => setShift(e.target.value)}>{SHIFTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       </div>
       {pid && <p role="status" className={'text-xs ' + (room <= 0 ? 'text-amber-800 font-bold' : 'text-stone-600')}>{shiftName}วันนี้ใช้ {nf(usedShift)}/{nf(capS, 0)} คะแนน · รวมทั้งวัน {nf(dayUsed)}/{nf(capD, 0)}{room <= 0 && ' · เต็มเพดาน บันทึกเพิ่มได้แต่ไม่นับคะแนน'}</p>}
-      <div className="activity-step-grid"><div className="space-y-1"><label className="field-label" htmlFor="activity-category">1. เลือกหมวดกิจกรรม <span className="required-mark">*</span></label><select id="activity-category" className="inp" value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setActivityDropdownOpen(false) }}><option value="">— ทุกหมวดกิจกรรม —</option>{activityCategories.map((cat: string) => <option key={cat} value={cat}>{cat}</option>)}</select></div><div className="space-y-1 relative"><label className="field-label" htmlFor="activity-search">2. เลือกกิจกรรม</label><input id="activity-search" className="inp" autoComplete="off" placeholder="เลือกกิจกรรม หรือพิมพ์รหัส/ชื่อเพื่อค้นหา" value={q} onFocus={() => setActivityDropdownOpen(true)} onClick={() => setActivityDropdownOpen(true)} onChange={e => { setQ(e.target.value); setActivityDropdownOpen(true) }} onKeyDown={e => { if (e.key === 'Escape') setActivityDropdownOpen(false); if (e.key === 'ArrowDown') setActivityDropdownOpen(true) }} aria-expanded={activityDropdownOpen} aria-controls="activity-options-list" role="combobox" aria-autocomplete="list" />
+      <div className="space-y-1 relative"><label className="field-label" htmlFor="activity-search">เลือกกิจกรรม <span className="required-mark">*</span></label><input id="activity-search" className="inp" autoComplete="off" placeholder="พิมพ์ชื่อกิจกรรมเพื่อค้นหา หรือเลือกจากรายการ" value={q} onFocus={() => setActivityDropdownOpen(true)} onClick={() => setActivityDropdownOpen(true)} onChange={e => { setQ(e.target.value); setActivityDropdownOpen(true) }} onKeyDown={e => { if (e.key === 'Escape') setActivityDropdownOpen(false); if (e.key === 'ArrowDown') setActivityDropdownOpen(true) }} aria-expanded={activityDropdownOpen} aria-controls="activity-options-list" role="combobox" aria-autocomplete="list" />
         {activityDropdownOpen && <div id="activity-options-list" className="act-list absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl" role="listbox" aria-label="เลือกกิจกรรม">
-          {catGroups.map(([cat, items]) => <div key={cat}><div className="act-head">{cat}</div>{items.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={[a.main_activity, a.title].filter(Boolean).join(' › ')} onMouseDown={e => e.preventDefault()} onClick={() => { setQ([a.code, a.title].filter(Boolean).join(' — ')); setActivityDropdownOpen(false); void chooseActivity(a) }} className={'act-item' + (code === a.code ? ' on' : '')}><span className="act-code">{a.code}</span><span className="act-body">{a.main_activity && <span className="act-main">{a.main_activity}</span>}<span className="act-title">{a.title}</span></span><span className="act-uom">{a.minutes} นาที/{a.uom}</span></button>)}</div>)}
-          {!list.length && <p className="p-4 text-sm text-slate-500">{!showActivityChoices ? 'พิมพ์คำค้นหาอย่างน้อย 2 ตัวอักษร หรือเลือกหมวดกิจกรรม เพื่อแสดงรายการ' : 'ไม่พบกิจกรรมที่ตรงกับคำค้นหาหรือสิทธิ์ของตำแหน่งนี้'}</p>}
+          {list.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={a.title} onMouseDown={e => e.preventDefault()} onClick={() => { setQ(a.title); setActivityDropdownOpen(false); void chooseActivity(a) }} className={'act-item' + (code === a.code ? ' on' : '')}><span className="act-body"><span className="act-title">{a.title}</span></span><span className="act-uom">{a.minutes} นาที/{a.uom}</span></button>)}
+          {!list.length && <p className="p-4 text-sm text-slate-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหาหรือสิทธิ์ของตำแหน่งนี้</p>}
           <div className="border-t border-slate-100 p-2 text-xs text-slate-500">{list.length} รายการ · คลิกกิจกรรมเพื่อเลือก</div>
         </div>}
-      </div></div>
-      {act && <div className="rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm"><b className="text-teal-900">เลือกแล้ว: {act.code} {[act.category, act.main_activity, act.title].filter(Boolean).join(' › ')}</b><p className="mt-1 text-xs text-teal-900">กดรายการกิจกรรมเพื่อเปิดแบบฟอร์มกรอกข้อมูล</p></div>}
+      </div>
+      {act && <div className="rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm"><b className="text-teal-900">เลือกแล้ว: {act.title}</b><p className="mt-1 text-xs text-teal-900">กดรายการกิจกรรมเพื่อเปิดแบบฟอร์มกรอกข้อมูล</p></div>}
       {duplicateOpen && act && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="duplicate-activity-title"><div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4">
         <div className="flex items-start justify-between gap-3 border-b pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-amber-700">ตรวจพบรายการซ้ำ</p><h2 id="duplicate-activity-title" className="text-lg font-bold text-slate-900">กิจกรรมนี้บันทึกไปแล้ว</h2><p className="mt-1 text-sm text-slate-700">{act.code} {act.title}</p><p className="mt-1 text-sm font-semibold text-amber-800">รายการนี้บันทึกไปแล้วจำนวน {duplicateRows.reduce((sum: number, row: any) => sum + Number(row.qty || 0), 0)} {act.uom || 'หน่วย'} ในวันที่ {formatThaiShortDate(date)}</p></div><button type="button" className="rounded-lg border px-3 py-1.5 text-sm" onClick={() => setDuplicateOpen(false)}>ปิด</button></div>
         <p className="text-sm text-slate-700">หากต้องการบันทึกเพิ่มกรุณาทำการแก้ไขจำนวนแทน ไม่สามารถสร้างรายการกิจกรรมซ้ำในวันเดียวกันได้</p>
@@ -704,7 +701,6 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   </div>
 }
 
-const DOMAINS = ['บริหาร', 'บริการ', 'วิชาการ']
 const n2 = (v: any) => Number(v || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })
 const statusLabel = (st: any) => {
   const parts = [['approved', 'รับรองแล้ว'], ['pending', 'รอรับรอง'], ['rejected', 'ไม่รับรอง']].filter(([k]) => st[k] > 0)
@@ -781,27 +777,14 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const groups = useMemo(() => {
     const m = new Map<string, any>()
     rows.forEach((r: any) => {
-      const key = `${r.domain || 'อื่น ๆ'}::${r.activity_code}`
-      const g = m.get(key) || { code: r.activity_code, title: r.title, uom: r.uom, domain: r.domain || 'อื่น ๆ', qty: 0, pts: 0 }
+      const key = r.activity_code
+      const g = m.get(key) || { title: r.title, uom: r.uom, qty: 0, pts: 0 }
       g.qty += Number(r.qty || 0)
       g.pts += Number(r.counted_points || 0)
       m.set(key, g)
     })
-    const domainOrder: Record<string, number> = { 'บริหาร': 0, 'บริการ': 1, 'วิชาการ': 2 }
-    return [...m.values()].sort((a, b) => (domainOrder[a.domain] ?? 99) - (domainOrder[b.domain] ?? 99) || a.code.localeCompare(b.code, 'th'))
+    return [...m.values()].sort((a, b) => a.title.localeCompare(b.title, 'th'))
   }, [rows])
-  const activityRows = useMemo(() => {
-    const out: any[] = []
-    let currentDomain = ''
-    groups.forEach((g: any) => {
-      if (g.domain !== currentDomain) {
-        currentDomain = g.domain
-        out.push({ type: 'domain', key: `domain-${currentDomain}`, domain: currentDomain })
-      }
-      out.push({ type: 'activity', key: `${g.domain}-${g.code}`, ...g })
-    })
-    return out
-  }, [groups])
   const startIndividualReportPrint = () => {
     document.body.classList.remove('unit-report-preview-open', 'print-unit-report')
     document.body.classList.add('print-individual-report')
@@ -819,12 +802,10 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet">
-      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th colSpan={5} className="ps-repeat-heading"><div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div><h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1><div className="ps-top"><div className="ps-info"><div><b>ชื่อ-สกุล</b> {person.name}</div><div><b>ตำแหน่ง</b> {person.position}</div><div><b>หน่วยงาน/งาน</b> {unit?.name || person.unit_name || (String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? (person.group_name || person.nursing_group || person.extra_nursing_group_names || '-') : '- ')}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div><div><b>เดือน</b> {monthText}</div></div><table className="pt ps-sum"><thead><tr><th>รายการสรุป</th><th>จำนวน</th></tr></thead><tbody><tr><td>แต้มประกัน/เดือน</td><td className="r">{nf(guarantee, 0)}</td></tr><tr><td>แต้มการปฏิบัติงาน</td><td className="r">{nf(total)}</td></tr><tr><td>แต้มส่วนต่าง</td><td className="r">{nf(difference)}</td></tr><tr><td>อัตราเงินเพิ่ม</td><td className="r">{nf(unitRate)} บาท/แต้ม</td></tr><tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{allocation > 0 ? nf(payout) + ' บาท' : 'รอตั้งค่ากลุ่มวิชาชีพ'}</td></tr></tbody></table></div></th></tr><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
-        <tbody>{activityRows.map((item: any) => item.type === 'domain'
-          ? <tr key={item.key} className="ps-domain-row"><th colSpan={5}>{item.domain}</th></tr>
-          : <tr key={item.key}><td className="nw">{item.code}</td><td className="ps-activity-name">{item.title}</td><td className="c">{item.uom || '—'}</td><td className="r">{n2(item.qty)}</td><td className="r">{nf(item.pts)}</td></tr>)}
-          {!groups.length && <tr><td colSpan={5} className="c">ไม่มีกิจกรรมที่บันทึกในเดือนนี้ หรือ ยังไม่ได้รับการรับรองกิจกรรม กรุณาตรวจสอบ</td></tr>}
-          {groups.length > 0 && <tr className="b"><td colSpan={4} className="r">รวมคะแนน</td><td className="r">{nf(groups.reduce((a, g) => a + g.pts, 0))}</td></tr>}
+      <table className="pt ps-acts"><colgroup><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th colSpan={4} className="ps-repeat-heading"><div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div><h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1><div className="ps-top"><div className="ps-info"><div><b>ชื่อ-สกุล</b> {person.name}</div><div><b>ตำแหน่ง</b> {person.position}</div><div><b>หน่วยงาน/งาน</b> {unit?.name || person.unit_name || (String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? (person.group_name || person.nursing_group || person.extra_nursing_group_names || '-') : '- ')}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div><div><b>เดือน</b> {monthText}</div></div><table className="pt ps-sum"><thead><tr><th>รายการสรุป</th><th>จำนวน</th></tr></thead><tbody><tr><td>แต้มประกัน/เดือน</td><td className="r">{nf(guarantee, 0)}</td></tr><tr><td>แต้มการปฏิบัติงาน</td><td className="r">{nf(total)}</td></tr><tr><td>แต้มส่วนต่าง</td><td className="r">{nf(difference)}</td></tr><tr><td>อัตราเงินเพิ่ม</td><td className="r">{nf(unitRate)} บาท/แต้ม</td></tr><tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{allocation > 0 ? nf(payout) + ' บาท' : 'รอตั้งค่ากลุ่มวิชาชีพ'}</td></tr></tbody></table></div></th></tr><tr><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
+        <tbody>{groups.map((item: any, index: number) => <tr key={`${item.title}-${index}`}><td className="ps-activity-name">{item.title}</td><td className="c">{item.uom || '—'}</td><td className="r">{n2(item.qty)}</td><td className="r">{nf(item.pts)}</td></tr>)}
+          {!groups.length && <tr><td colSpan={4} className="c">ไม่มีกิจกรรมที่บันทึกในเดือนนี้ หรือ ยังไม่ได้รับการรับรองกิจกรรม กรุณาตรวจสอบ</td></tr>}
+          {groups.length > 0 && <tr className="b"><td colSpan={3} className="r">รวมคะแนน</td><td className="r">{nf(groups.reduce((a, g) => a + g.pts, 0))}</td></tr>}
         </tbody></table>
       <div className="sign-row ps-sign-row">{sign('ผู้บันทึก', person.name, person.position)}{sign(head?.approver_label || 'หัวหน้างานรับรอง', head?.approver_name, head?.approver_position)}</div>
       <div className="ps-foot">พิมพ์เมื่อ {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} · ระบบ P4P กลุ่มการพยาบาล</div>
@@ -950,7 +931,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
     : 0
   const editPointsTotal = editPointsPerUnit * Number(form.qty || 0)
   const editActivityTerms = editActivityQuery.toLowerCase().split(/\s+/).filter(Boolean)
-  const editActivityOptions = (acts || []).filter((a: any) => a.active !== false && editActivityTerms.every((term: string) => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(term))).sort((a: any, b: any) => String(a.code).localeCompare(String(b.code), 'th'))
+  const editActivityOptions = (acts || []).filter((a: any) => a.active !== false && editActivityTerms.every((term: string) => String(a.title || '').toLowerCase().includes(term))).sort((a: any, b: any) => String(a.title).localeCompare(String(b.title), 'th'))
   useEffect(() => {
     sb.from('app_settings').select('key,value').in('key', ['mult_chair', 'mult_sec', 'mult_member']).then(({ data, error }: any) => {
       if (!error && data) setEditRoleMultipliers((current: any) => ({ ...current, ...Object.fromEntries(data.map((x: any) => [x.key === 'mult_chair' ? 'ประธาน' : x.key === 'mult_sec' ? 'เลขานุการ/กรรมการ' : 'สมาชิก/ผู้เข้าร่วม', Number(x.value)])) }))
@@ -1054,14 +1035,14 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       <label className="field-label">วันที่ปฏิบัติงาน<input type="date" lang="th-TH" className="inp mt-1" value={form.work_date} onChange={e => setForm({...form, work_date:e.target.value})} onKeyDown={e => e.preventDefault()} onPaste={e => e.preventDefault()} onDrop={e => e.preventDefault()} onClick={e => { try { (e.currentTarget as HTMLInputElement).showPicker() } catch {} }} aria-label="เลือกวันที่ปฏิบัติงานจากปฏิทินเท่านั้น" /></label>
       <label className="field-label block">กิจกรรม
         <div className="relative mt-1">
-          <input className="inp" type="search" autoComplete="off" value={editActivityQuery} onFocus={() => setEditActivityDropdownOpen(Boolean(editActivityQuery.trim()))} onChange={e => { setEditActivityQuery(e.target.value); setEditActivityDropdownOpen(Boolean(e.target.value.trim())) }} onKeyDown={e => { if (e.key === 'Escape') setEditActivityDropdownOpen(false); if (e.key === 'ArrowDown' && editActivityQuery.trim()) setEditActivityDropdownOpen(true) }} placeholder="พิมพ์รหัสหรือชื่อกิจกรรมเพื่อค้นหา" aria-expanded={editActivityDropdownOpen} aria-controls="edit-activity-options" role="combobox" aria-autocomplete="list" />
+          <input className="inp" type="search" autoComplete="off" value={editActivityQuery} onFocus={() => setEditActivityDropdownOpen(Boolean(editActivityQuery.trim()))} onChange={e => { setEditActivityQuery(e.target.value); setEditActivityDropdownOpen(Boolean(e.target.value.trim())) }} onKeyDown={e => { if (e.key === 'Escape') setEditActivityDropdownOpen(false); if (e.key === 'ArrowDown' && editActivityQuery.trim()) setEditActivityDropdownOpen(true) }} placeholder="พิมพ์ชื่อกิจกรรมเพื่อค้นหา" aria-expanded={editActivityDropdownOpen} aria-controls="edit-activity-options" role="combobox" aria-autocomplete="list" />
           {editActivityDropdownOpen && <div id="edit-activity-options" className="edit-activity-options absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl" role="listbox" aria-label="เลือกกิจกรรมที่จะแก้ไข">
             {editActivityOptions.length ? editActivityOptions.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={form.activity_code === a.code} className="edit-activity-option" onMouseDown={e => e.preventDefault()} onClick={() => { setForm({ ...form, activity_code: a.code }); setEditActivityQuery(''); setEditActivityDropdownOpen(false) }}>
-              <span className="edit-activity-code">{a.code}</span><span className="edit-activity-copy">{a.main_activity && <span className="edit-activity-main">{a.main_activity}</span>}<span className="edit-activity-title">{a.title}</span></span>
+              <span className="edit-activity-copy"><span className="edit-activity-title">{a.title}</span></span>
             </button>) : <p className="p-3 text-sm text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้น</p>}
           </div>}
         </div>
-        {selectedEditActivity && <div className="edit-activity-selected mt-2 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm"><b>{selectedEditActivity.code}</b>{selectedEditActivity.main_activity && <div className="edit-activity-main">{selectedEditActivity.main_activity}</div>}<div className="edit-activity-title">{selectedEditActivity.title}</div></div>}
+        {selectedEditActivity && <div className="edit-activity-selected mt-2 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm"><div className="edit-activity-title">{selectedEditActivity.title}</div></div>}
       </label>
       {(() => { const a = acts.find((x:any) => x.code === form.activity_code); return a ? <div className={`rounded-xl border p-3 text-sm ${a.need_evidence ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}><b>{a.need_evidence ? 'หลักฐานที่ต้องใช้สำหรับกิจกรรมนี้ (จำเป็น)' : 'หลักฐานประกอบ'}</b><p className="mt-1 whitespace-pre-wrap">{a.definition || (a.need_evidence ? 'กรุณาระบุหลักฐานอ้างอิงที่ตรวจสอบได้' : 'สามารถระบุเอกสารหรือรูปถ่ายประกอบได้')}</p>{a.need_evidence && <p className="mt-2 text-xs">ต้องกรอกรายละเอียดหลักฐาน หรือมีรูปหลักฐานอย่างน้อย 1 อย่าง</p>}</div> : null })()}
       <label className="field-label">จำนวน ({acts.find((a:any) => a.code === form.activity_code)?.uom || editing.uom || 'หน่วย'})<input type="number" min="0.01" step="0.5" className="inp mt-1" value={form.qty} onChange={e => setForm({...form, qty:e.target.value})} /></label>
@@ -1083,12 +1064,9 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
 
 function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, seeAll }: any) {
   const [query, setQuery] = useState('')
-  const [domain, setDomain] = useState('บริหาร')
-  const [category, setCategory] = useState('ทั้งหมด')
   const allLines = [...new Set([...(positions || []).map((p: any) => p.grp), ...(acts || []).flatMap((a: any) => a.eligible || [])])].filter((g: any) => g && g !== NO_LINE) as string[]
   const lines: string[] = seeAll ? [...LINE_ORDER.filter(l => allLines.includes(l)), ...allLines.filter(l => !LINE_ORDER.includes(l))] : ([myLine].filter((l: any) => l && l !== NO_LINE) as string[])
   const [line, setLine] = useState<string>(myLine && lines.includes(myLine) ? myLine : lines[0] || '')
-  useEffect(() => { setCategory('ทั้งหมด') }, [line])
   useEffect(() => { if (!lines.includes(line)) setLine(myLine && lines.includes(myLine) ? myLine : lines[0] || '') }, [lines.join('|')])
   const [showAdd, setShowAdd] = useState(false)
   const [editingCode, setEditingCode] = useState<string | null>(null)
@@ -1096,58 +1074,27 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const [msg, setMsg] = useState('')
   const groups = [...new Set((positions || []).map((p: any) => p.grp).filter((g: any) => g && g !== NO_LINE))] as string[]
   const [formLine, setFormLine] = useState<string>(line || '')
-  const emptyForm = (selectedLine: string = formLine) => ({ code: '', title: '', domain: 'บริการ', category: '', main_activity: '', uom: '', minutes: '1', max_day: '', max_month: '', eligible: selectedLine ? [selectedLine] : [], need_evidence: false, definition: '', use_role_mult: false, note: '' })
-  const [form, setForm] = useState<any>(() => emptyForm(line || ''))
-  const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
-  const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
-  const inLine = (acts || []).filter((a: any) => (a.eligible || []).includes(line))
-  const catsOfLine = [...new Set([...inLine].sort(byCode).map((a: any) => a.category || 'อื่นๆ'))] as string[]
-  const mainsOfLine = [...new Set(inLine.map((a: any) => a.main_activity).filter(Boolean))] as string[]
-  const formLineActivities = (acts || []).filter((a: any) => (a.eligible || []).includes(formLine))
-  const formCategories = [...new Set(formLineActivities.map((a: any) => a.category).filter(Boolean))] as string[]
-  const nextActivityCode = (selectedLine: string, selectedCategory: string, selectedDomain: string) => {
-    const domainPrefix: Record<string, string> = { 'บริหาร': 'ADM', 'บริการ': 'SVC', 'วิชาการ': 'ACD' }
-    const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && String(a.category || '').trim() === String(selectedCategory || '').trim())
-    const structured = matching.map((a: any) => ({ activity: a, parts: String(a.code || '').trim().match(/^([A-Z]+)-(\d+)-(\d+)$/i) })).filter((x: any) => x.parts)
-    if (structured.length) {
-      // หมวดเดียวกันอาจมีข้อมูลเดิมหลายรูปแบบ/หลายชุดรหัส ให้ต่อจากชุดที่มีเลขกิจกรรมสูงสุด
-      // และให้น้ำหนัก prefix ตามด้านที่เลือก เพื่อไม่ย้อนกลับไปเริ่ม ACD-01-02 เมื่อมี ACD-04-09 อยู่แล้ว
-      const preferredPrefix = domainPrefix[selectedDomain] || ''
-      const groupsByCode: Record<string, { prefix: string; categoryNo: string; maxItem: number }> = {}
-      structured.forEach((x: any) => {
-        const prefix = x.parts[1].toUpperCase()
-        const categoryNo = x.parts[2]
-        const key = prefix + '-' + categoryNo
-        const itemNo = Number(x.parts[3] || 0)
-        if (!groupsByCode[key]) groupsByCode[key] = { prefix, categoryNo, maxItem: itemNo }
-        else groupsByCode[key].maxItem = Math.max(groupsByCode[key].maxItem, itemNo)
-      })
-      const groups = Object.values(groupsByCode)
-      const preferredGroups = groups.filter(g => g.prefix === preferredPrefix)
-      const candidates = preferredGroups.length ? preferredGroups : groups
-      candidates.sort((a, b) => b.maxItem - a.maxItem || Number(b.categoryNo) - Number(a.categoryNo))
-      const chosen = candidates[0]
-      return chosen.prefix + '-' + chosen.categoryNo + '-' + String(chosen.maxItem + 1).padStart(2, '0')
-    }
-    const simple = matching.map((a: any) => String(a.code || '').match(/^([A-Z]+)-?(\d+)$/i)).find(Boolean)
-    if (simple) {
-      const prefix = simple[1].toUpperCase()
-      const max = matching.reduce((n: number, a: any) => Math.max(n, Number(String(a.code).match(/(\d+)$/)?.[1] || 0)), 0)
-      return prefix + '-' + String(max + 1).padStart(3, '0')
-    }
-    const prefix = domainPrefix[selectedDomain] || 'ACT'
-    const categoryNo = String(Math.max(1, formCategories.indexOf(selectedCategory) + 1)).padStart(2, '0')
-    const sameGroup = (acts || []).filter((a: any) => { const m = String(a.code || '').match(/^([A-Z]+)-(\d+)-(\d+)$/i); return (a.eligible || []).includes(selectedLine) && m && m[1].toUpperCase() === prefix && m[2] === categoryNo })
-    const max = sameGroup.reduce((n: number, a: any) => Math.max(n, Number(String(a.code).match(/-(\d+)$/)?.[1] || 0)), 0)
-    return prefix + '-' + categoryNo + '-' + String(max + 1).padStart(2, '0')
+  const linePrefixes: Record<string, string> = { 'พยาบาล': 'NUR', 'ผู้ช่วยเหลือคนไข้': 'AID', 'พนักงานประจำตึก': 'WARD', 'พนักงานธุรการ': 'ADMIN', 'พนักงานเปล': 'STRETCHER', 'Paramedic': 'PMD', 'EMT': 'EMT' }
+  const nextActivityCode = (selectedLine: string, medicalCenterOnly = false) => {
+    const prefix = linePrefixes[selectedLine] || 'ACT'
+    const codePrefix = medicalCenterOnly ? `${prefix}-MED-` : `${prefix}-`
+    const max = (acts || []).reduce((n: number, a: any) => {
+      const code = String(a.code || '')
+      const suffix = code.startsWith(codePrefix) ? code.slice(codePrefix.length) : ''
+      return Math.max(n, /^\d+$/.test(suffix) ? Number(suffix) : 0)
+    }, 0)
+    return codePrefix + String(max + 1).padStart(3, '0')
   }
+  const emptyForm = (selectedLine: string = formLine) => ({ code: selectedLine ? nextActivityCode(selectedLine) : '', title: '', uom: '', minutes: '1', max_day: '', max_month: '', eligible: selectedLine ? [selectedLine] : [], need_evidence: false, definition: '', use_role_mult: false, note: '' })
+  const [form, setForm] = useState<any>(() => emptyForm(line || ''))
+  const byCode = (a: any, b: any) => String(a.code).localeCompare(String(b.code), 'th')
+  const inLine = (acts || []).filter((a: any) => (a.eligible || []).includes(line))
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const filtered = inLine.filter((a: any) => (category === 'ทั้งหมด' || (a.category || 'อื่นๆ') === category) &&
-    terms.every(t => [a.code, a.category, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
+  const filtered = inLine.filter((a: any) => terms.every(t => [a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
   const add = async () => {
     setMsg('')
-    if (!formLine || !form.category || !form.code.trim() || !form.title.trim() || !form.uom.trim() || !form.minutes || Number(form.minutes) <= 0 || !form.eligible.length) {
-      setMsg('กรุณาเลือกสายงานและหมวดหมู่ แล้วกรอกชื่อกิจกรรม หน่วยนับ และนาที/หน่วยให้ครบ')
+    if (!formLine || !form.code.trim() || !form.title.trim() || !form.uom.trim() || !form.minutes || Number(form.minutes) <= 0 || !form.eligible.length) {
+      setMsg('กรุณาเลือกสายงานและกรอกชื่อกิจกรรม หน่วยนับ และนาทีต่อหน่วยให้ครบ')
       return
     }
     if (form.need_evidence && !form.definition.trim()) {
@@ -1156,7 +1103,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     }
     setBusy(true)
     const payload = {
-      code: form.code.trim(), title: form.title.trim(), domain: form.domain, category: form.category.trim() || null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
+      code: form.code.trim(), title: form.title.trim(), domain: 'บริการ', uom: form.uom.trim(),
       minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
       max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
       need_evidence: form.need_evidence, definition: form.definition.trim() || null,
@@ -1164,13 +1111,13 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     }
     const { error } = await sb.from('activities').insert(payload)
     setBusy(false)
-    if (error) { setMsg(error.code === '23505' ? 'รหัสกิจกรรมนี้มีอยู่แล้ว กรุณาใช้รหัสอื่น' : 'เพิ่มกิจกรรมไม่สำเร็จ: ' + error.message); return }
+    if (error) { setMsg(error.code === '23505' ? 'กิจกรรมนี้มีรหัสซ้ำ กรุณาลองใหม่' : 'เพิ่มกิจกรรมไม่สำเร็จ: ' + error.message); return }
     setForm(emptyForm()); setShowAdd(false); setMsg('เพิ่มกิจกรรมสำเร็จ'); reloadActs()
   }
   const beginEditActivity = (a: any) => {
     setEditingCode(a.code)
     setFormLine((a.eligible || [])[0] || line || '')
-    setForm({ code: a.code, title: a.title || '', domain: a.domain || 'บริการ', category: a.category || '', main_activity: a.main_activity || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), eligible: Array.isArray(a.eligible) ? a.eligible : [], need_evidence: Boolean(a.need_evidence), definition: a.definition || '', use_role_mult: Boolean(a.use_role_mult), note: a.note || '' })
+    setForm({ code: a.code, title: a.title || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), eligible: Array.isArray(a.eligible) ? a.eligible : [], need_evidence: Boolean(a.need_evidence), definition: a.definition || '', use_role_mult: Boolean(a.use_role_mult), note: a.note || '' })
     setShowAdd(true)
     setMsg('')
   }
@@ -1178,7 +1125,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     setMsg('')
     if (!editingCode) return
     if (!form.title.trim() || !form.uom.trim() || !form.minutes || Number(form.minutes) <= 0 || !form.eligible.length) {
-      setMsg('กรุณากรอกชื่อกิจกรรม หน่วยนับ นาที/หน่วย และเลือกกลุ่มตำแหน่งที่มีสิทธิ์ให้ครบ')
+      setMsg('กรุณากรอกชื่อกิจกรรม หน่วยนับ นาทีต่อหน่วย และเลือกสายงานที่มีสิทธิ์ให้ครบ')
       return
     }
     if (form.need_evidence && !form.definition.trim()) {
@@ -1187,7 +1134,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     }
     setBusy(true)
     const payload = {
-      title: form.title.trim(), domain: form.domain, category: form.category.trim() || null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
+      title: form.title.trim(), domain: 'บริการ', uom: form.uom.trim(),
       minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
       max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
       need_evidence: form.need_evidence, definition: form.definition.trim() || null,
@@ -1196,39 +1143,36 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     const { error } = await sb.from('activities').update(payload).eq('code', editingCode)
     setBusy(false)
     if (error) { setMsg('แก้ไขกิจกรรมไม่สำเร็จ: ' + error.message); return }
-    setForm(emptyForm()); setShowAdd(false); setEditingCode(null); setMsg(`บันทึกการแก้ไขกิจกรรม ${editingCode} สำเร็จ`); reloadActs()
+    setForm(emptyForm()); setShowAdd(false); setEditingCode(null); setMsg('บันทึกการแก้ไขกิจกรรมแล้ว'); reloadActs()
   }
   const cancelForm = () => { setShowAdd(false); setEditingCode(null); setFormLine(line || ''); setForm(emptyForm(line || '')); setMsg('') }
   const deactivate = async (a: any) => {
-    if (!confirm(`ยืนยันเพิกถอนกิจกรรม ${a.code} — ${a.title} หรือไม่? กิจกรรมจะไม่ปรากฏในรายการบันทึกใหม่ แต่ประวัติที่บันทึกไว้จะยังคงอยู่`)) return
+    if (!confirm(`ยืนยันเพิกถอนกิจกรรม “${a.title}” หรือไม่? กิจกรรมจะไม่ปรากฏในรายการบันทึกใหม่`)) return
     const { error } = await sb.from('activities').update({ active: false }).eq('code', a.code)
     if (error) { setMsg('เพิกถอนกิจกรรมไม่สำเร็จ: ' + error.message); return }
-    setMsg(`เพิกถอนกิจกรรม ${a.code} แล้ว`); reloadActs()
+    setMsg('เพิกถอนกิจกรรมแล้ว'); reloadActs()
   }
   return <div className="space-y-4">
     <div className="card space-y-3">
-      <div className="flex flex-wrap items-center gap-3"><div className="mr-auto"><h2 className="text-lg font-bold">คลังกิจกรรม P4P</h2><p className="text-sm text-stone-600">{seeAll ? 'ค้นหาและศึกษารายละเอียด เกณฑ์การนับแต้ม และหลักฐานประกอบ แยกตามสายงาน (เห็นทุกสายงาน)' : 'แสดงเฉพาะกิจกรรมของตำแหน่งของคุณ ค้นหาและศึกษาเกณฑ์การนับแต้มและหลักฐานประกอบ'}</p></div>
+      <div className="flex flex-wrap items-center gap-3"><div className="mr-auto"><h2 className="text-lg font-bold">คลังกิจกรรม P4P</h2><p className="text-sm text-stone-600">{seeAll ? 'รายการกิจกรรมแยกตามสายงาน' : 'กิจกรรมของสายงานตำแหน่งคุณ'}</p></div>
       {isAdmin && <button className="btn" onClick={() => { if (showAdd) cancelForm(); else { setFormLine(line || ''); setForm(emptyForm(line || '')); setShowAdd(true); setMsg('') } }}>{showAdd ? 'ปิดแบบฟอร์ม' : '+ เพิ่มกิจกรรม'}</button>}</div>
       {msg && <p role="status" className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">{msg}</p>}
       {showAdd && isAdmin && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
-        <h3 className="font-bold">{editingCode ? `แก้ไขกิจกรรม ${editingCode}` : 'เพิ่มกิจกรรมเข้าคลัง'}</h3>
+        <h3 className="font-bold">{editingCode ? 'แก้ไขกิจกรรม' : 'เพิ่มกิจกรรมเข้าคลัง'}</h3>
         <div className="grid sm:grid-cols-2 gap-3">
-          <label className="field-label">1. เลือกตำแหน่งสายงาน<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({...form, eligible: l ? [l] : [], category:'', code:''}) }}><option value="">-- เลือกสายงานก่อน --</option>{groups.map((g: string) => <option key={g} value={g}>{g}</option>)}</select></label>
-          <label className="field-label">2. เลือกหมวดหมู่กิจกรรม<select className="inp mt-1" value={form.category} disabled={!formLine || Boolean(editingCode)} onChange={e => { const c = e.target.value; const existing = (acts || []).find((a: any) => (a.eligible || []).includes(formLine) && (a.category || '') === c && String(a.code || '').split('-').length === 3); const inferredDomain = existing ? ({ ADM:'บริหาร', SVC:'บริการ', ACD:'วิชาการ' } as any)[String(existing.code).split('-')[0].toUpperCase()] || form.domain : form.domain; setForm({...form, category:c, domain:inferredDomain, code:c ? nextActivityCode(formLine,c,inferredDomain) : ''}) }}><option value="">-- เลือกหมวดหมู่ --</option>{formCategories.map((c: string) => <option key={c} value={c}>{c}</option>)}</select><span className="mt-1 block text-xs text-stone-500">เลือกสายงานก่อน ระบบจะแสดงหมวดหมู่ที่มีในสายงานนั้น</span></label>
-          <label className="field-label">รหัสกิจกรรม (สร้างอัตโนมัติ)<input className="inp mt-1" value={form.code} readOnly placeholder="เลือกรายการสายงานและหมวดหมู่ก่อน" /><span className="mt-1 block text-xs text-stone-500">ระบบสร้างรหัสต่อจากรหัสล่าสุดในชุดกิจกรรม</span></label>
-          <label className="field-label">กิจกรรมหลัก<input className="inp mt-1" list="main-options" value={form.main_activity} onChange={e => setForm({...form, main_activity:e.target.value})} placeholder="เช่น การเคลื่อนย้ายผู้ป่วย" /></label>
-          <label className="field-label">ด้านในใบสรุปคะแนน<select className="inp mt-1" value={form.domain} onChange={e => setForm({...form, domain:e.target.value, code:form.category && !editingCode ? nextActivityCode(formLine,form.category,e.target.value) : form.code})}>{['บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></label>
-          <datalist id="cat-options">{catsOfLine.map(c => <option key={c} value={c} />)}</datalist><datalist id="main-options">{mainsOfLine.map(c => <option key={c} value={c} />)}</datalist>
-          <label className="field-label sm:col-span-2">ชื่อกิจกรรมย่อย (ใช้ค้นหาตอนบันทึก)<input className="inp mt-1" value={form.title} onChange={e => setForm({...form, title:e.target.value})} /></label>
+          <label className="field-label">เลือกสายงาน<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({...form, eligible: l ? [l] : [], code: l ? nextActivityCode(l) : ''}) }}><option value="">-- เลือกสายงาน --</option>{groups.map((g: string) => <option key={g} value={g}>{LINE_LABEL[g] || g}</option>)}</select></label>
+          <label className="field-label">ชื่อกิจกรรม<input className="inp mt-1" value={form.title} onChange={e => setForm({...form, title:e.target.value})} /></label>
           <label className="field-label">หน่วยนับ<input className="inp mt-1" value={form.uom} onChange={e => setForm({...form, uom:e.target.value})} placeholder="เช่น ครั้ง, ราย, ชั่วโมง" /></label>
           <label className="field-label">นาทีต่อหน่วย<input type="number" min="0.01" step="0.01" className="inp mt-1" value={form.minutes} onChange={e => setForm({...form, minutes:e.target.value})} /></label>
           <label className="field-label">จำกัดจำนวนต่อวัน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_day} onChange={e => setForm({...form, max_day:e.target.value})} /></label>
           <label className="field-label">จำกัดจำนวนต่อเดือน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_month} onChange={e => setForm({...form, max_month:e.target.value})} /></label>
         </div>
-        <div><p className="field-label mb-2">สายงานที่มีสิทธิ์ทำกิจกรรม</p><p className="text-sm text-stone-700">{formLine || 'กรุณาเลือกสายงานด้านบนก่อน'}</p><p className="mt-1 text-xs text-stone-500">กิจกรรมใหม่จะผูกกับสายงานที่เลือกเพียงสายงานเดียว</p></div>
+        {formLine === 'ผู้ช่วยเหลือคนไข้' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={String(form.code || '').startsWith('AID-MED-')} disabled={Boolean(editingCode)} onChange={e => setForm({...form, code: nextActivityCode(formLine, e.target.checked)})} />เฉพาะศูนย์เครื่องมือแพทย์</label>}
+        <div><p className="field-label mb-1">รหัสภายใน (สร้างอัตโนมัติ)</p><p className="text-sm text-stone-700">{form.code || 'เลือกสายงานก่อน'}</p><p className="mt-1 text-xs text-stone-500">กิจกรรมของผู้ช่วยเหลือคนไข้และผู้ช่วยช่างทั่วไปใช้ชุดเดียวกัน</p></div>
+        <div><p className="field-label mb-1">สายงานที่มีสิทธิ์</p><p className="text-sm text-stone-700">{LINE_LABEL[formLine] || formLine || 'กรุณาเลือกสายงานก่อน'}</p></div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.need_evidence} onChange={e => setForm({...form, need_evidence:e.target.checked})} />บังคับแนบหลักฐานประกอบ</label>
-        <label className="field-label">รายละเอียดกิจกรรม / หลักฐานที่ต้องใช้<textarea className="inp mt-1 min-h-24" value={form.definition} onChange={e => setForm({...form, definition:e.target.value})} placeholder="อธิบายขอบเขต เกณฑ์การนับ และเอกสาร/หลักฐานที่ต้องแนบให้ตรวจสอบได้" /></label>
-        <label className="field-label">หมายเหตุ / เงื่อนไขเพิ่มเติม<textarea className="inp mt-1 min-h-16" value={form.note} onChange={e => setForm({...form, note:e.target.value})} /></label>
+        <label className="field-label">รายละเอียดหลักฐานที่ต้องใช้<textarea className="inp mt-1 min-h-24" value={form.definition} onChange={e => setForm({...form, definition:e.target.value})} /></label>
+        <label className="field-label">หมายเหตุ<textarea className="inp mt-1 min-h-16" value={form.note} onChange={e => setForm({...form, note:e.target.value})} /></label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.use_role_mult} onChange={e => setForm({...form, use_role_mult:e.target.checked})} />คำนวณตัวคูณตามบทบาท (ประธาน / เลขานุการ-กรรมการ / ผู้เข้าร่วม)</label>
         <div className="flex flex-wrap gap-2"><button className="btn" disabled={busy} onClick={editingCode ? saveActivityEdit : add}>{busy ? 'กำลังบันทึก…' : editingCode ? 'บันทึกการแก้ไข' : 'บันทึกกิจกรรมใหม่'}</button><button className="btn sec" disabled={busy} onClick={cancelForm}>ยกเลิก</button></div>
       </div>}
@@ -1236,31 +1180,20 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
         {lines.length > 1 ? <div className="flex flex-wrap gap-2" role="tablist" aria-label="สายงาน">{lines.map(l => { const on = line === l; const n = (acts || []).filter((a: any) => (a.eligible || []).includes(l)).length
           return <button key={l} type="button" role="tab" aria-selected={on} onClick={() => setLine(l)} className={'rounded-lg border px-3 py-1.5 text-sm font-semibold ' + (on ? 'border-teal-700 bg-teal-700 text-white' : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50')}>{LINE_LABEL[l] || l}<span className="ml-1.5 text-xs opacity-80">{n}</span></button> })}</div>
           : <p className="text-sm text-stone-700">ชุดกิจกรรมของตำแหน่งคุณ: <b className="text-teal-900">{LINE_LABEL[line] || line || 'ยังไม่กำหนด'}</b>{!line && ' · ตำแหน่งนี้ยังไม่มีชุดกิจกรรม โปรดแจ้งผู้ดูแลระบบ'}</p>}
-        <input className="inp" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหา: รหัส หมวด กิจกรรมหลัก กิจกรรมย่อย หรือหลักฐาน (พิมพ์หลายคำได้)…" />
-        <div className="flex flex-wrap gap-2 border-b border-stone-200" role="tablist" aria-label="หมวดของสายงาน">
-          {['ทั้งหมด', ...catsOfLine].map(x => {
-            const count = x === 'ทั้งหมด' ? inLine.length : inLine.filter((a: any) => (a.category || 'อื่นๆ') === x).length
-            const active = category === x
-            return <button key={x} type="button" role="tab" aria-selected={active} onClick={() => setCategory(x)} className={'rounded-t-lg border-b-2 px-3 py-2 text-sm font-semibold transition-colors ' + (active ? 'border-teal-700 bg-teal-50 text-teal-900' : 'border-transparent text-stone-600 hover:bg-stone-50 hover:text-stone-900')}>{x}<span className={'ml-2 rounded-full px-2 py-0.5 text-xs ' + (active ? 'bg-teal-100 text-teal-900' : 'bg-stone-100 text-stone-600')}>{count}</span></button>
-          })}
-        </div>
+        <input className="inp" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหาชื่อกิจกรรม รายละเอียด หรือหลักฐาน…" />
       </div>
-      <p className="text-xs text-stone-500">หมวด{domain} · แสดง {filtered.length} จาก {(acts || []).filter((a: any) => a.domain === domain).length} กิจกรรม</p>
+      <p className="text-xs text-stone-500">แสดง {filtered.length} จาก {inLine.length} กิจกรรม</p>
     </div>
     {filtered.length === 0 ? <div className="card text-center text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหา</div> :
       <div className="card overflow-x-auto p-0">
-        <table className="w-full min-w-[1100px] border-collapse text-sm">
-          <thead><tr>
-            <th className="whitespace-nowrap">รหัส</th><th>กิจกรรมหลัก / กิจกรรมย่อย</th><th>หมวด</th><th className="whitespace-nowrap">นาที / หน่วย</th><th>ข้อจำกัด</th><th>หลักฐานและเกณฑ์</th><th>สายงานที่มีสิทธิ์</th><th>หมายเหตุ</th>{isAdmin && <th>จัดการ</th>}
-          </tr></thead>
+        <table className="w-full min-w-[900px] border-collapse text-sm">
+          <thead><tr><th>ชื่อกิจกรรม</th><th className="whitespace-nowrap">นาที / หน่วย</th><th>ข้อจำกัด</th><th>หลักฐานและเกณฑ์</th><th>สายงานที่มีสิทธิ์</th><th>หมายเหตุ</th>{isAdmin && <th>จัดการ</th>}</tr></thead>
           <tbody>{filtered.map((a: any) => <tr key={a.code} className="align-top">
-            <td className="whitespace-nowrap font-semibold text-teal-900">{a.code}</td>
-            <td className="min-w-[190px]">{a.main_activity && <div className="text-xs font-semibold text-teal-800">{a.main_activity}</div>}<div className="font-semibold">{a.title}</div>{a.need_evidence && <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">ต้องมีหลักฐาน</span>}</td>
-            <td className="min-w-[140px]">{a.category || '—'}</td>
+            <td className="min-w-[220px]"><div className="font-semibold">{a.title}</div>{a.need_evidence && <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">ต้องมีหลักฐาน</span>}</td>
             <td className="whitespace-nowrap">{a.minutes} / {a.uom || 'ไม่ระบุ'}</td>
             <td className="min-w-[130px]">{a.max_day ? <div>ต่อวัน: {a.max_day}</div> : null}{a.max_month ? <div>ต่อเดือน: {a.max_month}</div> : null}{!a.max_day && !a.max_month ? 'ไม่กำหนด' : null}</td>
-            <td className="min-w-[260px]"><div className="whitespace-pre-wrap leading-relaxed">{a.definition?.trim() || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ โปรดสอบถามผู้ดูแลระบบก่อนบันทึกกิจกรรมนี้'}</div>{a.use_role_mult && <div className="mt-1 text-xs text-teal-800">คำนวณตัวคูณตามบทบาท</div>}</td>
-            <td className="min-w-[180px]">{(a.eligible || []).join(', ') || 'ไม่ได้ระบุ'}</td>
+            <td className="min-w-[260px]"><div className="whitespace-pre-wrap leading-relaxed">{a.definition?.trim() || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ'}</div>{a.use_role_mult && <div className="mt-1 text-xs text-teal-800">คำนวณตัวคูณตามบทบาท</div>}</td>
+            <td className="min-w-[180px]">{(a.eligible || []).map((x: string) => LINE_LABEL[x] || x).join(', ') || 'ไม่ได้ระบุ'}</td>
             <td className="min-w-[160px] whitespace-pre-wrap">{a.note || '—'}</td>
             {isAdmin && <td className="whitespace-nowrap"><div className="flex flex-col items-start gap-1"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div></td>}
           </tr>)}</tbody>
@@ -1467,11 +1400,10 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     return sortedRoster.map((p: any, index: number) => {
     const rs = rows.filter((r: any) => r.person_id === p.id); const g = guaranteeForPosition(p.position, positions, p.org_role)
     const approved = rs.filter((r: any) => r.status === 'approved')
-    const d = (x: string) => rs.filter((r: any) => r.domain === x).reduce((s: number, r: any) => s + Number(r.counted_points), 0)
-    const tot = d('บริหาร') + d('บริการ') + d('วิชาการ')
+    const tot = rs.reduce((s: number, r: any) => s + Number(r.counted_points || 0), 0)
     const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
     const excess = Math.max(0, workPoints - g)
-    return { p, order: index + 1, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, excess, rate: unitRate, payout: excess * unitRate, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
+    return { p, order: index + 1, tot, workPoints, excess, rate: unitRate, payout: excess * unitRate, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
   }, [rows, roster, positions, unitRate])
@@ -1619,7 +1551,7 @@ const GLOBAL_SETTINGS: [string, string, string][] = [
   ['mult_chair', 'ตัวคูณบทบาท – ประธาน', 'ใช้กับกิจกรรมประเภทประชุม/คณะกรรมการที่เลือกบทบาท "ประธาน"'],
   ['mult_sec', 'ตัวคูณบทบาท – เลขานุการ/กรรมการ', ''],
   ['mult_member', 'ตัวคูณบทบาท – สมาชิก/ผู้เข้าร่วม', 'ใช้เมื่อไม่ได้ระบุบทบาทด้วย'],
-  ['cap_shift_points', 'เพดานคะแนนต่อเวร (คะแนน) รวมแสตนด์เช้า', 'สูงสุด 90 คะแนนต่อเวร คะแนนเกินเพดานบันทึกได้แต่ไม่นับ นับรวมทุกด้าน (บริหาร บริการ วิชาการ)'],
+  ['cap_shift_points', 'เพดานคะแนนต่อเวร (คะแนน) รวมแสตนด์เช้า', 'สูงสุด 90 คะแนนต่อเวร คะแนนเกินเพดานบันทึกได้แต่ไม่นับ นับรวมทุกกิจกรรม'],
   ['cap_day_points', 'เพดานคะแนนรวมต่อวัน (คะแนน)', 'เวรผลัดรวมทุกเวรในวันเดียวกัน (เวรดึก 00.00–08.00 นับเป็นวันที่นั้น)']
 ]
 
