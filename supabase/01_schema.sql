@@ -13,7 +13,11 @@ create table activities(
   code text primary key, domain text not null check (domain in ('บริหาร','บริการ','วิชาการ')), title text not null,
   uom text, minutes numeric not null, use_role_mult bool default false, max_day numeric, max_month numeric,
   need_evidence bool default false, definition text, no_dup_group text, eligible text[] not null, note text, active bool default true);
-create table app_settings(key text primary key, value numeric not null, label text);
+create table app_settings(
+  key text primary key, value numeric not null, label text,
+  constraint app_settings_cap_shift_points_max_90 check (key <> 'cap_shift_points' or value <= 90),
+  constraint app_settings_cap_day_points_max_180 check (key <> 'cap_day_points' or value <= 180)
+);
 create table unit_settings(
   unit_id int references units(id), month date, budget numeric default 0, baht_per_point numeric default 0,
   deduct_guarantee bool default true, primary key(unit_id, month));
@@ -121,10 +125,10 @@ with b as (
   from logs l join people p on p.id = l.person_id join positions pos on pos.name = p.position
   join activities a on a.code = l.activity_code
 ), c as (
-  select *, l_min as total_min, round(l_min * rate, 2) points,
+  select *, qty * minutes as total_min, round(l_min * rate, 2) points,
     sum(qty) over (partition by person_id, activity_code, work_date) day_qty,
     sum(qty) over (partition by person_id, activity_code, date_trunc('month', work_date)) mon_qty,
-    sum(l_min) over (partition by person_id, work_date) day_min,
+    sum(case when status <> 'rejected' then qty * minutes else 0 end) over (partition by person_id, work_date) day_min,
     count(*) over (partition by person_id, work_date, split_part(no_dup_group, ':', 1)) grp_cnt,
     count(*) over (partition by person_id, work_date, no_dup_group) var_cnt
   from (select b.*, qty * minutes * mult l_min from b) b
@@ -138,8 +142,8 @@ with b as (
       case when need_evidence and coalesce(evidence,'') = '' then 'ไม่ระบุหลักฐาน' end,
       case when max_day > 0 and day_qty > max_day then 'เกินเพดาน/วัน (' || max_day || ')' end,
       case when max_month > 0 and mon_qty > max_month then 'เกินเพดาน/เดือน (' || max_month || ')' end,
-      case when no_dup_group is not null and grp_cnt > var_cnt then 'ซ้ำซ้อนกับกิจกรรมทดแทนกันในวันเดียวกัน' end,
-      case when day_min > (select value from app_settings where key = 'max_day_minutes') then 'เวลารวมในวันนี้เกินกำหนด' end ], null) warnings
+      case when no_dup_group is not null and grp_cnt > var_cnt then 'ซ้ำซ้อนกับกิจกรรมทดแทนกันในวันเดียวกัน' end
+      ], null) warnings
   from c)
 select d.*, case when cardinality(errors) > 0 or status = 'rejected' then 0 else points end counted_points,
        date_trunc('month', work_date)::date as month from d;
