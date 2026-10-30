@@ -67,7 +67,7 @@ select.inp optgroup { color:#0b7a6a; font-weight:700; font-style:normal; backgro
 select.inp option { color:#182b3d; font-weight:400; background:#fff; }
 /* รายการกิจกรรม */
 .act-list { max-height:23rem; overflow-y:auto; border:1px solid #d7e0e9; border-radius:.7rem; background:#fff; }
-.edit-activity-options { overscroll-behavior: contain; }
+.edit-activity-options { position:absolute; inset-inline:0; top:calc(100% + .25rem); z-index:30; box-sizing:border-box; display:block; max-height:min(16rem, 38vh); overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; background:#fff; }
 .edit-activity-option { display:grid; grid-template-columns:minmax(3.5rem,auto) minmax(0,1fr); gap:.6rem; align-items:start; width:100%; padding:.65rem .75rem; text-align:left; white-space:normal; border-bottom:1px solid #edf1f5; }
 .edit-activity-option:hover,.edit-activity-option[aria-selected="true"] { background:#effaf7; }
 .edit-activity-code { font-size:.78rem; font-weight:700; color:#0b7a6a; }
