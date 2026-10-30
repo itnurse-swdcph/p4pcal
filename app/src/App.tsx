@@ -421,7 +421,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   // หัวหน้ากลุ่มงานบางบัญชีมี staff_directory_id แล้ว แต่ยังไม่มี people record
   // จึงเตรียม/เชื่อมระเบียนจาก staff_directory ก่อนเปิดให้บันทึกกิจกรรมของตนเอง
   useEffect(() => {
-    if (!picker || entryMode !== 'self' || ownPerson || currentUserStaffDirectoryId == null) return
+    if (!picker || entryMode !== 'self' || ownPerson?.user_id === currentUserId || currentUserStaffDirectoryId == null) return
     let alive = true
     ;(async () => {
       const { data: personId, error: ensureError } = await sb.rpc('ensure_person_from_directory', {
