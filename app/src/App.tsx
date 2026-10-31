@@ -1098,12 +1098,12 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const nextActivityCode = (selectedLine: string, selectedDomain: string) => {
     const prefix = ({ 'บริหาร': 'ADM', 'บริการ': 'SVC', 'วิชาการ': 'ACD' } as Record<string, string>)[selectedDomain] || 'ACT'
     const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && String(a.code || '').toUpperCase().startsWith(prefix + '-'))
-    const structured = matching.map((a: any) => String(a.code || '').trim().match(/^([A-Z]+)-(\\d+)-(\\d+)$/i)).filter(Boolean)
+    const structured = matching.map((a: any) => String(a.code || '').trim().match(/^([A-Z]+)-(\d+)-(\d+)$/i)).filter(Boolean)
     if (structured.length) {
       const latest = structured.map((m: any) => ({ group: Number(m[2]), item: Number(m[3]) })).sort((a: any, b: any) => b.group - a.group || b.item - a.item)[0]
       return prefix + '-' + String(latest.group).padStart(2, '0') + '-' + String(latest.item + 1).padStart(2, '0')
     }
-    const simple = matching.map((a: any) => Number(String(a.code || '').match(/(\\d+)$/)?.[1] || 0)).reduce((a: number, b: number) => Math.max(a, b), 0)
+    const simple = matching.map((a: any) => Number(String(a.code || '').match(/(\d+)$/)?.[1] || 0)).reduce((a: number, b: number) => Math.max(a, b), 0)
     return prefix + '-01-' + String(simple + 1).padStart(2, '0')
   }
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
