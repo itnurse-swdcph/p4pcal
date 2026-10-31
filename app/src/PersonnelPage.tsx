@@ -66,11 +66,11 @@ export default function PersonnelPage({ sb, positions = [], units = [], reload }
     const required: (keyof Staff)[] = ['prefix', 'first_name', 'last_name', 'position', 'org_role', 'staff_group', 'staff_type', 'nursing_group']
     const missing = required.find(k => !String(editing[k] ?? '').trim())
     if (missing) { setMessage('กรุณากรอกข้อมูลที่จำเป็นให้ครบ โดยเฉพาะตำแหน่ง บทบาท กลุ่มบุคลากร ประเภท และกลุ่มงาน'); return }
-    if (!String(editing.unit_name ?? '').trim()) { setMessage('กรุณาเลือกหน่วยงาน'); return }
+    if (!String(editing.unit_name ?? '').trim() && editing.org_role !== 'หัวหน้ากลุ่มงาน') { setMessage('กรุณาเลือกหน่วยงานหลัก หรือระบุบทบาทหัวหน้ากลุ่มงานเพื่อคงสถานะเฉพาะกลุ่มงาน'); return }
     const payload: any = {
       prefix: String(editing.prefix).trim(), first_name: String(editing.first_name).trim(), last_name: String(editing.last_name).trim(),
       position: String(editing.position).trim(), org_role: String(editing.org_role).trim(), staff_group: String(editing.staff_group).trim(),
-      staff_type: String(editing.staff_type).trim(), unit_name: String(editing.unit_name).trim(),
+      staff_type: String(editing.staff_type).trim(), unit_name: String(editing.unit_name ?? '').trim() || null,
       extra_unit_names: String(editing.extra_unit_names ?? '').trim() || null, nursing_group: String(editing.nursing_group).trim(),
       extra_nursing_group_names: String(editing.extra_nursing_group_names ?? '').trim() || null, active: Boolean(editing.active)
     }
