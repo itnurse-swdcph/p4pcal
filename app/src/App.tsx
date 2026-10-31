@@ -1071,7 +1071,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const summaryHeaders = ['ลำดับ', 'กิจกรรม', 'หน่วยนับ', 'เวลามาตรฐาน (นาที)', 'คะแนนต่อนาที', 'คุณค่างาน', 'คะแนนปรับแล้ว (Workpoint)']
   const ratePerMinute = Number(positions.find((p: any) => p.grp === line)?.rate || 0)
   const activityDescription = (a: any) => [String(a.main_activity || '').trim(), String(a.title || '').trim().replace(/\s+(?=\d+\s*[.)]\s*\S)/g, '\n')].filter(Boolean).join('\n')
-  const activityRows = (items: any[]) => items.map((a, index) => [index + 1, activityDescription(a), a.uom || '', Number(a.minutes || 0), ratePerMinute, 1, Math.round(Number(a.minutes || 0) * ratePerMinute * 100) / 100])
+  const activityRows = (items: any[]) => items.map((a, index) => [index + 1, activityDescription(a), a.uom || '', Math.round(Number(a.minutes || 0)), ratePerMinute, 1, Math.round(Number(a.minutes || 0) * ratePerMinute * 100) / 100])
   const catsOfLine = [...new Set([...inLine].sort(byCode).map((a: any) => a.category || 'อื่นๆ'))] as string[]
   const mainsOfLine = [...new Set(inLine.map((a: any) => a.main_activity).filter(Boolean))] as string[]
   const formLineActivities = (acts || []).filter((a: any) => (a.eligible || []).includes(formLine))
@@ -1271,7 +1271,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
           <tbody>{filtered.map((a: any, index: number) => <tr key={a.code} className="align-top">
             <td className="whitespace-nowrap text-center">{index + 1}</td>
             <td><div className="whitespace-pre-line font-medium">{activityDescription(a)}</div></td>
-            <td>{a.uom || '—'}</td><td className="text-right">{Number(a.minutes || 0)}</td><td className="text-right">{ratePerMinute.toFixed(3)}</td><td className="text-right">1</td><td className="text-right">{(Number(a.minutes || 0) * ratePerMinute).toFixed(2)}</td>
+            <td>{a.uom || '—'}</td><td className="text-right">{Math.round(Number(a.minutes || 0))}</td><td className="text-right">{ratePerMinute.toFixed(3)}</td><td className="text-right">1</td><td className="text-right">{(Number(a.minutes || 0) * ratePerMinute).toFixed(2)}</td>
             {isAdmin && <td className="whitespace-nowrap"><div className="flex flex-col items-start gap-1"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div></td>}
           </tr>)}</tbody>
         </table>
