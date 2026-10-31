@@ -906,6 +906,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
     { label: 'แต้มปฏิบัติงานที่ได้', value: nf(earned), color: 'text-slate-900' },
     { label: 'แต้มที่ยืนยัน', value: nf(confirmed), color: 'text-emerald-700' },
     { label: 'แต้มส่วนต่าง', value: (difference > 0 ? '+' : '') + nf(difference), color: difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-slate-700' },
+    { label: 'จำนวนเงินตามผลงาน', value: !closed ? 'รอปิดงวด' : payoutAvailable ? nf(payoutResult.base_amount) + ' บาท' : 'รอตรวจสอบข้อมูล', color: closed && payoutAvailable ? 'text-emerald-700' : 'text-slate-700' },
     { label: 'เงินเพิ่มจากแต้มส่วนเกิน', value: !closed ? 'รอปิดงวด' : payoutAvailable ? nf(extraPay) + ' บาท' : 'รอตรวจสอบข้อมูล', color: closed && payoutAvailable ? 'text-emerald-700' : 'text-slate-700' }
   ]
   return <div className="space-y-1" aria-label="สรุปแต้มและเงินเพิ่มประจำเดือน">
