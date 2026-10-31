@@ -60,9 +60,16 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
           sb.from('staff_directory').select('source_row,prefix,first_name,last_name,position').eq('first_name', 'มัณฑนา').eq('last_name', 'เพชรคำ').eq('position', 'พยาบาลวิชาชีพชำนาญการพิเศษ').maybeSingle()
         ])
         if (!alive) return
-        if (!profileResult.error) setAvailableProfiles(profileResult.data || [])
         if (!staffResult.error) setManthanaStaff(staffResult.data || null)
         else setError(staffResult.error.message || 'ไม่สามารถโหลดทะเบียนบุคลากรได้')
+        let candidates = profileResult.data || []
+        if (staffResult.data?.source_row) {
+          const linked = await sb.from('profiles').select('user_id,full_name,username,role,org_role,position,unit_id,staff_directory_id').eq('staff_directory_id', staffResult.data.source_row).maybeSingle()
+          if (!alive) return
+          if (linked.data && !candidates.some((p: any) => p.user_id === linked.data.user_id)) candidates = [...candidates, linked.data]
+          if (linked.error) setError(linked.error.message || 'ไม่สามารถตรวจสอบบัญชีบุคลากรได้')
+        }
+        if (!profileResult.error) setAvailableProfiles(candidates)
       }
       setLoading(false)
     }
