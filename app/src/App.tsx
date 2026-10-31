@@ -1085,7 +1085,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const [msg, setMsg] = useState('')
   const groups = [...new Set((positions || []).map((p: any) => p.grp).filter((g: any) => g && g !== NO_LINE))] as string[]
   const [formLine, setFormLine] = useState<string>(line || '')
-  const emptyForm = (selectedLine: string = formLine) => ({ code: '', title: '', domain: 'บริการ', category: '', main_activity: '', uom: '', minutes: '1', max_day: '', max_month: '', eligible: selectedLine ? [selectedLine] : [], need_evidence: false, definition: '', use_role_mult: false, note: '' })
+  const emptyForm = (selectedLine: string = formLine) => ({ code: '', title: '', domain: 'บริการ', category: '', main_activity: '', uom: '', minutes: '1', max_day: '', max_month: '', eligible: selectedLine ? [selectedLine] : [], need_evidence: false, definition: '', note: '' })
   const [form, setForm] = useState<any>(() => emptyForm(line || ''))
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
@@ -1200,7 +1200,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
       minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
       max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
       need_evidence: form.need_evidence, definition: form.definition.trim() || null,
-      use_role_mult: form.use_role_mult, note: form.note.trim() || null, active: true
+      use_role_mult: false, note: form.note.trim() || null, active: true
     }
     const { error } = await sb.from('activities').insert(payload)
     setBusy(false)
@@ -1210,7 +1210,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const beginEditActivity = (a: any) => {
     setEditingCode(a.code)
     setFormLine((a.eligible || [])[0] || line || '')
-    setForm({ code: a.code, title: a.title || '', domain: a.domain || 'บริการ', category: a.category || '', main_activity: a.main_activity || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), eligible: Array.isArray(a.eligible) ? a.eligible : [], need_evidence: Boolean(a.need_evidence), definition: a.definition || '', use_role_mult: Boolean(a.use_role_mult), note: a.note || '' })
+    setForm({ code: a.code, title: a.title || '', domain: a.domain || 'บริการ', category: a.category || '', main_activity: a.main_activity || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), eligible: Array.isArray(a.eligible) ? a.eligible : [], need_evidence: Boolean(a.need_evidence), definition: a.definition || '', note: a.note || '' })
     setShowAdd(true)
     setMsg('')
   }
@@ -1231,7 +1231,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
       minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
       max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
       need_evidence: form.need_evidence, definition: form.definition.trim() || null,
-      use_role_mult: form.use_role_mult, note: form.note.trim() || null
+      use_role_mult: false, note: form.note.trim() || null
     }
     const { error } = await sb.from('activities').update(payload).eq('code', editingCode)
     setBusy(false)
@@ -1269,7 +1269,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.need_evidence} onChange={e => setForm({...form, need_evidence:e.target.checked})} />บังคับแนบหลักฐานประกอบ</label>
         <label className="field-label">รายละเอียดกิจกรรม / หลักฐานที่ต้องใช้<textarea className="inp mt-1 min-h-24" value={form.definition} onChange={e => setForm({...form, definition:e.target.value})} placeholder="อธิบายขอบเขต เกณฑ์การนับ และเอกสาร/หลักฐานที่ต้องแนบให้ตรวจสอบได้" /></label>
         <label className="field-label">หมายเหตุ / เงื่อนไขเพิ่มเติม<textarea className="inp mt-1 min-h-16" value={form.note} onChange={e => setForm({...form, note:e.target.value})} /></label>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.use_role_mult} onChange={e => setForm({...form, use_role_mult:e.target.checked})} />คำนวณตัวคูณตามบทบาท (ประธาน / เลขานุการ-กรรมการ / ผู้เข้าร่วม)</label>
+        
         <div className="flex flex-wrap gap-2"><button className="btn" disabled={busy} onClick={editingCode ? saveActivityEdit : add}>{busy ? 'กำลังบันทึก…' : editingCode ? 'บันทึกการแก้ไข' : 'บันทึกกิจกรรมใหม่'}</button><button className="btn sec" disabled={busy} onClick={cancelForm}>ยกเลิก</button></div>
       </div>}
       <div className="grid gap-3">
