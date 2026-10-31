@@ -807,16 +807,15 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet ps-individual-landscape">
-      <h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1>
-      <div className="ps-meta">
-        <div>{groupName || '................................'} &nbsp;&nbsp; {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div>
-        <div>ชื่อ-สกุล {person.name || '................................'} &nbsp;&nbsp; ตำแหน่ง {person.position || '................................'} &nbsp;&nbsp; ระดับการบริหาร {String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : String(person.org_role || '').includes('หัวหน้างาน') ? 'หัวหน้างาน' : '—'}</div>
-      </div>
-      <div className="ps-leave-row">ลากิจ = {Number(leaveData.personal_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาป่วย = {Number(leaveData.sick_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาพักผ่อน = {Number(leaveData.annual_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน</div>
       <table className="pt ps-individual-table">
-        <thead><tr>
+        <thead>
+          <tr className="ps-repeat-heading"><th colSpan={dayCount + 10}><h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1></th></tr>
+          <tr className="ps-repeat-meta"><th colSpan={dayCount + 10}><div className="ps-meta"><div>{groupName || '................................'} &nbsp;&nbsp; {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div><div>ชื่อ-สกุล {person.name || '................................'} &nbsp;&nbsp; ตำแหน่ง {person.position || '................................'} &nbsp;&nbsp; ระดับการบริหาร {String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : String(person.org_role || '').includes('หัวหน้างาน') ? 'หัวหน้างาน' : '—'}</div></div></th></tr>
+          <tr className="ps-repeat-leave"><th colSpan={dayCount + 10}><div className="ps-leave-row">ลากิจ = {Number(leaveData.personal_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาป่วย = {Number(leaveData.sick_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาพักผ่อน = {Number(leaveData.annual_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน</div></th></tr>
+          <tr>
           <th rowSpan={2}>ลำดับ</th><th rowSpan={2}>กิจกรรม</th><th rowSpan={2}>หน่วยนับ</th><th rowSpan={2}>เวลา<br/>(นาที)</th><th rowSpan={2}>คะแนน/<br/>นาที</th><th rowSpan={2}>ค่างาน</th><th rowSpan={2}>คะแนน<br/>ปรับ</th><th colSpan={dayCount}>วันที่</th><th rowSpan={2}>รวม<br/>หน่วย</th><th rowSpan={2}>รวม<br/>แต้ม</th><th rowSpan={2}>แหล่ง<br/>อ้างอิง</th>
-        </tr><tr>{Array.from({length:dayCount},(_,i)=><th key={i}>{i+1}</th>)}</tr></thead>
+          </tr><tr>{Array.from({length:dayCount},(_,i)=><th key={i}>{i+1}</th>)}</tr>
+        </thead>
         <tbody>
           {groups.map((g: any,i: number)=><tr key={g.code}>
             <td className="c">{i+1}</td><td className="ps-activity-name">{g.title}</td><td className="c">{g.uom || '—'}</td><td className="r">{nf(g.minutes,0)}</td><td className="r">{nf(g.rate,3)}</td><td className="r">1</td><td className="r">{nf(g.minutes*g.rate)}</td>
