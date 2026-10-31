@@ -338,7 +338,7 @@ function Main({ sb, session }: any) {
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'; const isHeadRole = role === 'head' || role === 'group_head'
-  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ...(isHeadRole || role === 'admin' ? [['certify', 'รับรองกิจกรรม']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(isHeadRole || role === 'admin' ? [['review', 'สรุปรายงานหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [['personal', 'แก้ไขข้อมูลส่วนตัว']])]
+  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ...(isHeadRole || role === 'admin' ? [['certify', 'รับรองกิจกรรม']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(isHeadRole || role === 'admin' ? [['review', 'สรุปรายงานหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [])]
   const cur = tab || (role === 'admin' ? 'review' : role === 'committee' ? 'audit' : tabs[0]?.[0])  // แสดงเฉพาะหน่วยงานที่มีอยู่ใน staff_directory ล่าสุด และจับคู่ชื่อแบบตรงตัวกับ units
   // ไม่สร้าง/เปลี่ยน unit_id และไม่แก้หรือรวมข้อมูลในฐานข้อมูล
   // ซ่อนชื่อหน่วยงานเดิมเสมอ แม้โหลด staff_directory ไม่สำเร็จหรือมีข้อมูลเก่าค้างใน units
