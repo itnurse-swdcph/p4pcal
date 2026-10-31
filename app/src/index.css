@@ -1103,3 +1103,38 @@ body.unit-report-preview-open .unit-report-print * {
   body.print-unit-report .unit-report-table .unit-col-signature { width: 5% !important; }
   body.print-unit-report .unit-report-table .unit-col-date { width: 4% !important; }
 }
+
+
+/* Unit report: compact position and payment columns, with more room for payment date. */
+.unit-report-table .unit-col-order { width: 3% !important; }
+.unit-report-table .unit-col-name { width: 14% !important; }
+.unit-report-table .unit-col-position { width: 11% !important; }
+.unit-report-table .unit-col-guarantee { width: 6% !important; }
+.unit-report-table .unit-col-days { width: 5% !important; }
+.unit-report-table .unit-col-role-guarantee { width: 6% !important; }
+.unit-report-table .unit-col-work { width: 7% !important; }
+.unit-report-table .unit-col-performance-total { width: 7% !important; }
+.unit-report-table .unit-col-excess { width: 8% !important; }
+.unit-report-table .unit-col-rate { width: 6% !important; }
+.unit-report-table .unit-col-base-pay { width: 6% !important; }
+.unit-report-table .unit-col-payout { width: 7% !important; }
+.unit-report-table .unit-col-signature { width: 5% !important; }
+.unit-report-table .unit-col-date { width: 9% !important; }
+.unit-report-table .unit-col-payout-received { white-space: normal !important; }
+.unit-report-table td:nth-child(3) { line-height: 1.25 !important; }
+@media print {
+  body.print-unit-report .unit-report-table .unit-col-order { width: 3% !important; }
+  body.print-unit-report .unit-report-table .unit-col-name { width: 14% !important; }
+  body.print-unit-report .unit-report-table .unit-col-position { width: 11% !important; }
+  body.print-unit-report .unit-report-table .unit-col-guarantee { width: 6% !important; }
+  body.print-unit-report .unit-report-table .unit-col-days { width: 5% !important; }
+  body.print-unit-report .unit-report-table .unit-col-role-guarantee { width: 6% !important; }
+  body.print-unit-report .unit-report-table .unit-col-work { width: 7% !important; }
+  body.print-unit-report .unit-report-table .unit-col-performance-total { width: 7% !important; }
+  body.print-unit-report .unit-report-table .unit-col-excess { width: 8% !important; }
+  body.print-unit-report .unit-report-table .unit-col-rate { width: 6% !important; }
+  body.print-unit-report .unit-report-table .unit-col-base-pay { width: 6% !important; }
+  body.print-unit-report .unit-report-table .unit-col-payout { width: 7% !important; }
+  body.print-unit-report .unit-report-table .unit-col-signature { width: 5% !important; }
+  body.print-unit-report .unit-report-table .unit-col-date { width: 9% !important; }
+}
