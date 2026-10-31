@@ -808,6 +808,19 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
     </div>
     <div className="print-sheet ps-individual-landscape">
       <table className="pt ps-individual-table">
+        <colgroup>
+          <col style={{ width: '7mm' }} />
+          <col style={{ width: '72mm' }} />
+          <col style={{ width: '13mm' }} />
+          <col style={{ width: '10mm' }} />
+          <col style={{ width: '11mm' }} />
+          <col style={{ width: '9mm' }} />
+          <col style={{ width: '11mm' }} />
+          {Array.from({ length: dayCount }, (_, i) => <col key={i} style={{ width: `calc((100% - 169mm) / ${dayCount})` }} />)}
+          <col style={{ width: '12mm' }} />
+          <col style={{ width: '12mm' }} />
+          <col style={{ width: '12mm' }} />
+        </colgroup>
         <thead>
           <tr className="ps-repeat-heading"><th colSpan={dayCount + 10}><h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1></th></tr>
           <tr className="ps-repeat-meta"><th colSpan={dayCount + 10}><div className="ps-meta"><div>{groupName || '................................'} &nbsp;&nbsp; {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div><div>ชื่อ-สกุล {person.name || '................................'} &nbsp;&nbsp; ตำแหน่ง {person.position || '................................'} &nbsp;&nbsp; ระดับการบริหาร {String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : String(person.org_role || '').includes('หัวหน้างาน') ? 'หัวหน้างาน' : '—'}</div></div></th></tr>
