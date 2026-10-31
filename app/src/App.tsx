@@ -722,6 +722,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const [head, setHead] = useState<any>(null)
   const [headLoaded, setHeadLoaded] = useState(false)
   const [leaveData, setLeaveData] = useState<any>({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 })
+  const [leaveLoaded, setLeaveLoaded] = useState(false)
   useEffect(() => {
     const afterPrint = () => { document.body.classList.remove('print-individual-report'); onClose?.() }
     window.addEventListener('afterprint', afterPrint)
@@ -730,10 +731,11 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   useEffect(() => {
     let alive = true
     const staffId = person.staff_directory_id ?? person.directory_source_row
-    if (!staffId) { setLeaveData({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); return () => { alive = false } }
+    setLeaveLoaded(false)
+    if (!staffId) { setLeaveData({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); setLeaveLoaded(true); return () => { alive = false } }
     sb.from('p4p_monthly_leave').select('personal_leave_days,sick_leave_days,annual_leave_days')
       .eq('staff_directory_id', staffId).eq('month', month + '-01').maybeSingle()
-      .then(({ data, error }: any) => { if (alive) setLeaveData(!error && data ? data : { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }) })
+      .then(({ data, error }: any) => { if (alive) { setLeaveData(!error && data ? data : { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); setLeaveLoaded(true) } })
     return () => { alive = false }
   }, [sb, person.staff_directory_id, person.directory_source_row, month])
   useEffect(() => {
@@ -758,13 +760,13 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
     return () => { alive = false }
   }, [sb, person.id])
   useEffect(() => {
-    if (!autoPrint || !headLoaded) return
+    if (!autoPrint || !headLoaded || !leaveLoaded) return
     const frame = window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
       document.body.classList.add('print-individual-report')
       window.print()
     }))
     return () => window.cancelAnimationFrame(frame)
-  }, [autoPrint, headLoaded])
+  }, [autoPrint, headLoaded, leaveLoaded])
   const unit = units.find((u: any) => Number(u.id) === Number(person.unit_id))
   const monthStart = new Date(month + '-01T00:00:00')
   const dayCount = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate()
@@ -798,7 +800,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   return createPortal(<div className="print-overlay">
     <div className="print-toolbar no-print">
       <span className="text-sm text-stone-600 mr-auto self-center">ตัวอย่างเอกสาร A4 แนวนอน · แสดงเฉพาะรายการที่ผ่านการรับรอง</span>
-      <button className="btn" onClick={startPrint}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button>
+      <button className="btn" disabled={!leaveLoaded} onClick={startPrint}><Printer size={16} className="inline mr-1 -mt-0.5" />{leaveLoaded ? "พิมพ์" : "กำลังโหลดข้อมูล…"}</button>
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet ps-individual-landscape">
