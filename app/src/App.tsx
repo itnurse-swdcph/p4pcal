@@ -735,7 +735,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
     if (!staffId) { setLeaveData({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); setLeaveLoaded(true); return () => { alive = false } }
     sb.from('p4p_monthly_leave').select('personal_leave_days,sick_leave_days,annual_leave_days')
       .eq('staff_directory_id', staffId).eq('month', month + '-01').maybeSingle()
-      .then(({ data, error }: any) => { if (alive) { setLeaveData(!error && data ? data : { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); setLeaveLoaded(true) } })
+      .then(({ data, error }: any) => { if (alive) { setLeaveData(!error && data ? data : { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); setLeaveLoaded(true) } }).catch(() => { if (alive) { setLeaveData({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); setLeaveLoaded(true) } })
     return () => { alive = false }
   }, [sb, person.staff_directory_id, person.directory_source_row, month])
   useEffect(() => {
@@ -1655,7 +1655,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       </div>
       {leaveReportOpen && reportOnly && <div className="space-y-3">
         <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันปฏิบัติงานนับจากวันที่มีการส่งบันทึกกิจกรรม (ไม่นับแบบร่าง)</p></div>
-        <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1050px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนวันปฏิบัติงาน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>จัดการ</th></tr></thead><tbody>
+        <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1050px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนวันปฏิบัติงาน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
           {sum.map((x: any) => {
             const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
             const key = String(staffId || '')
@@ -1667,10 +1667,11 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
               <td><input aria-label={'ลากิจของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.personal_leave_days} onChange={e => setLeave('personal_leave_days', e.target.value)} /></td>
               <td><input aria-label={'ลาป่วยของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.sick_leave_days} onChange={e => setLeave('sick_leave_days', e.target.value)} /></td>
               <td><input aria-label={'ลาพักผ่อนของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.annual_leave_days} onChange={e => setLeave('annual_leave_days', e.target.value)} /></td>
-              <td><div className="flex flex-wrap gap-1"><button type="button" className="btn !py-1" disabled={!staffId || !!leaveSaving[key]} onClick={() => saveLeaveData(x.p)}>{leaveSaving[key] ? 'กำลังบันทึก…' : 'บันทึกข้อมูล'}</button><button type="button" className="btn sec !py-1" onClick={() => setPrintingPerson({ ...x.p, staff_directory_id: staffId || x.p.staff_directory_id })}>พิมพ์</button></div>{leaveMessages[key] && <div className={'mt-1 text-xs ' + (leaveMessages[key].startsWith('บันทึกแล้ว') ? 'text-emerald-700' : 'text-red-700')}>{leaveMessages[key]}</div>}</td>
+              <td><button type="button" className="btn !py-1" disabled={!staffId || !!leaveSaving[key]} onClick={() => saveLeaveData(x.p)}>{leaveSaving[key] ? 'กำลังบันทึก…' : 'บันทึกข้อมูล'}</button>{leaveMessages[key] && <div className={'mt-1 text-xs ' + (leaveMessages[key].startsWith('บันทึกแล้ว') ? 'text-emerald-700' : 'text-red-700')}>{leaveMessages[key]}</div>}</td>
+              <td><button type="button" className="btn sec !py-1" onClick={() => setPrintingPerson({ ...x.p, staff_directory_id: staffId || x.p.staff_directory_id })}>พิมพ์</button></td>
             </tr>
           })}
-          {!sum.length && <tr><td colSpan={8} className="py-6 text-center text-stone-500">ไม่พบรายชื่อบุคลากรในหน่วยงานนี้</td></tr>}
+          {!sum.length && <tr><td colSpan={9} className="py-6 text-center text-stone-500">ไม่พบรายชื่อบุคลากรในหน่วยงานนี้</td></tr>}
         </tbody></table></div>
       </div>}
       {!leaveReportOpen && <>
