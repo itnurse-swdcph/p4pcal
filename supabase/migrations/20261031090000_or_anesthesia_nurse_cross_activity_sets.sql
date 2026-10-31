@@ -8,7 +8,7 @@ with b as (
          a.domain, a.title, a.uom, a.minutes, a.max_day, a.max_month, a.need_evidence, a.no_dup_group,
          case
            when pos.grp = 'พยาบาล'
-             and u.name in ('หน่วยงานการพยาบาลผู้ป่วยห้องผ่าตัด', 'งานการพยาบาลวิสัญญี')
+             and u.name in ('งานการพยาบาลผู้ป่วยห้องผ่าตัด', 'งานการพยาบาลวิสัญญี')
            then array['พยาบาล', 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก']::text[]
            else a.eligible
          end as eligible,
