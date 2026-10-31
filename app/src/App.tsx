@@ -601,7 +601,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         setSavingActivity(false); return
       }
     }
-    const { data: inserted, error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: act?.use_role_mult ? role : null, qty: +qty, evidence: ev.trim() || (evidenceFile ? 'แนบรูปถ่าย' : null), sub_activity: subActivity.trim() || null, shift }).select('id').single()
+    const { data: inserted, error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: null, qty: +qty, evidence: ev.trim() || (evidenceFile ? 'แนบรูปถ่าย' : null), sub_activity: subActivity.trim() || null, shift }).select('id').single()
     if (error) {
       setSavingActivity(false);
       if (error.code === '23514' && /เกินจำนวนสูงสุดต่อวัน/.test(error.message || '')) {
@@ -694,7 +694,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       </div></div>}
       {modalOpen && act && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title"><div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4"><div className="flex items-start justify-between gap-3 border-b pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-teal-700">บันทึกกิจกรรม P4P</p><h2 id="activity-modal-title" className="text-lg font-bold text-slate-900">{act.code} {act.title}</h2><p className="mt-1 text-xs text-slate-600">{act.minutes} นาที/{act.uom}{act.max_day ? ` · สูงสุด ${act.max_day}/วัน` : ''}{act.max_month ? ` · ${act.max_month}/เดือน` : ''}</p><p className="mt-2 inline-flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-1.5 text-sm font-semibold text-teal-900"><span aria-hidden="true">📅</span> วันที่บันทึก: {formatThaiShortDate(date)}</p></div><button type="button" className="rounded-lg border px-3 py-1.5 text-sm" onClick={() => { setModalOpen(false); setErr('') }}>ปิด</button></div>
       {act.need_evidence ? <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3"><p className="font-bold text-amber-900">หลักฐานที่ต้องใช้สำหรับกิจกรรมนี้ (จำเป็น)</p><p className="mt-1 whitespace-pre-wrap text-sm text-amber-950">{act.definition?.trim() || 'กรุณาตรวจสอบแนวทาง/เกณฑ์ P4P ของกิจกรรมนี้ และระบุหลักฐานอ้างอิงที่ตรวจสอบได้ก่อนบันทึก'}</p><p className="mt-2 text-xs text-amber-900">ต้องกรอกคำอธิบายหลักฐาน หรือแนบรูปถ่ายอย่างน้อย 1 อย่าง</p></div> : <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="font-semibold text-slate-800">หลักฐานประกอบ</p><p className="text-sm text-slate-700">{act.definition?.trim() || 'หากมีเอกสารอ้างอิงหรือรูปถ่ายประกอบ สามารถระบุเพิ่มเติมได้'}</p></div>}
-      {act.use_role_mult && <div className="space-y-1"><label className="field-label">บทบาทในการดำเนินกิจกรรม</label><select className="inp" value={role} onChange={e => setRole(e.target.value)}>{ROLES.map(r => <option key={r}>{r}</option>)}</select></div>}
+      
       <div className="space-y-1"><label className="field-label">จำนวน <span className="uom-chip">หน่วยนับ: {act.uom}</span></label><div className="qty-wrap"><input type="number" min="0" step="0.5" className="inp" value={qty} onChange={e => setQty(e.target.value)} placeholder="ระบุจำนวน" /><span className="qty-unit">{act.uom}</span></div></div>
       <div className="space-y-1"><label className="field-label">กิจกรรมย่อย / รายละเอียดการดำเนินงาน <span className="required-mark">*</span></label><textarea required aria-required="true" className="inp min-h-24" placeholder="จำเป็นต้องกรอก: ระบุชื่องานย่อย รายละเอียดสิ่งที่ทำ ผลลัพธ์ หรือขอบเขตงาน" value={subActivity} onChange={e => { setSubActivity(e.target.value); if (e.target.value.trim()) setErr('') }} /></div>
       <div className="space-y-1"><label className="field-label">รายละเอียดหลักฐาน {act.need_evidence && <span className="text-red-700">* จำเป็น</span>}</label><textarea className="inp min-h-24" placeholder={act.need_evidence ? 'ระบุหลักฐานตามรายการที่แสดงด้านบน เช่น เลขที่เอกสาร วันที่ ผู้รับรอง หรือชื่อเอกสาร' : 'ระบุเอกสารอ้างอิงหรือคำอธิบายหลักฐาน (ถ้ามี)'} value={ev} onChange={e => setEv(e.target.value)} /></div>
@@ -797,7 +797,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
             <td className="r">{n2(g.qty)}</td><td className="r">{nf(g.points)}</td><td></td>
           </tr>)}
           {!groups.length && <tr><td colSpan={dayCount+10} className="c">ไม่มีรายการกิจกรรมที่ผ่านการรับรองในเดือนนี้</td></tr>}
-          {groups.length>0 && <tr className="b"><td colSpan={dayCount+8} className="r">รวมทั้งหมด</td><td className="r">{n2(groups.reduce((v,g)=>v+g.qty,0))}</td><td className="r">{nf(groups.reduce((v,g)=>v+g.points,0))}</td><td></td></tr>}
+          {groups.length>0 && <tr className="b"><td colSpan={dayCount+7} className="r">รวมทั้งหมด</td><td className="r">{n2(groups.reduce((v,g)=>v+g.qty,0))}</td><td className="r">{nf(groups.reduce((v,g)=>v+g.points,0))}</td><td></td></tr>}
         </tbody>
       </table>
       <div className="ps-certification">ขอรับรองว่าผู้มีรายนามข้างต้นได้ปฏิบัติงานจริง</div>
@@ -980,7 +980,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       activity_code: form.activity_code,
       qty: Number(form.qty),
       shift: form.shift || 'เช้า',
-      role: activity.use_role_mult ? (form.role || null) : null,
+      role: null,
       evidence: String(form.evidence || '').trim() || ((editEvidenceFile || editing.evidence_image_path) ? 'แนบรูปถ่าย' : null),
       sub_activity: String(form.sub_activity || '').trim() || null
     }
