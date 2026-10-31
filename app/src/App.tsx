@@ -1104,7 +1104,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
       return prefix + '-' + String(latest.group).padStart(2, '0') + '-' + String(latest.item + 1).padStart(2, '0')
     }
     const simple = matching.map((a: any) => Number(String(a.code || '').match(/(\\d+)$/)?.[1] || 0)).reduce((a: number, b: number) => Math.max(a, b), 0)
-    return prefix + '-' + String(simple + 1).padStart(3, '0')
+    return prefix + '-01-' + String(simple + 1).padStart(2, '0')
   }
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const filtered = inLine.filter((a: any) => terms.every(t => [a.code, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
@@ -1223,11 +1223,11 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
       {showAdd && isAdmin && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
         <h3 className="font-bold">{editingCode ? `แก้ไขกิจกรรม ${editingCode}` : 'เพิ่มกิจกรรมเข้าคลัง'}</h3>
         <div className="grid sm:grid-cols-2 gap-3">
-          <label className="field-label">1. เลือกตำแหน่งสายงาน<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({...form, eligible: l ? [l] : [], code:''}) }}><option value="">-- เลือกสายงานก่อน --</option>{groups.map((g: string) => <option key={g} value={g}>{g}</option>)}</select></label>
+          <label className="field-label">1. เลือกตำแหน่งสายงาน<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({...form, eligible: l ? [l] : [], code:l ? nextActivityCode(l,form.domain) : ''}) }}><option value="">-- เลือกสายงานก่อน --</option>{groups.map((g: string) => <option key={g} value={g}>{g}</option>)}</select></label>
           <label className="field-label">รหัสกิจกรรม (สร้างอัตโนมัติ)<input className="inp mt-1" value={form.code} readOnly placeholder="เลือกสายงานก่อน" /><span className="mt-1 block text-xs text-stone-500">ระบบสร้างรหัสต่อจากรายการล่าสุดของสายงานและด้านที่เลือก</span></label>
           <label className="field-label">กิจกรรมหลัก<input className="inp mt-1" list="main-options" value={form.main_activity} onChange={e => setForm({...form, main_activity:e.target.value})} placeholder="เช่น การเคลื่อนย้ายผู้ป่วย" /></label>
           <label className="field-label">ด้านในใบสรุปคะแนน<select className="inp mt-1" value={form.domain} onChange={e => setForm({...form, domain:e.target.value, code:formLine && !editingCode ? nextActivityCode(formLine,e.target.value) : form.code})}>{['บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></label>
-          <datalist id="cat-options">{catsOfLine.map(c => <option key={c} value={c} />)}</datalist><datalist id="main-options">{mainsOfLine.map(c => <option key={c} value={c} />)}</datalist>
+          <datalist id="main-options">{mainsOfLine.map(c => <option key={c} value={c} />)}</datalist>
           <label className="field-label sm:col-span-2">ชื่อกิจกรรมย่อย (ใช้ค้นหาตอนบันทึก)<input className="inp mt-1" value={form.title} onChange={e => setForm({...form, title:e.target.value})} /></label>
           <label className="field-label">หน่วยนับ<input className="inp mt-1" value={form.uom} onChange={e => setForm({...form, uom:e.target.value})} placeholder="เช่น ครั้ง, ราย, ชั่วโมง" /></label>
           <label className="field-label">นาทีต่อหน่วย<input type="number" min="0.01" step="0.01" className="inp mt-1" value={form.minutes} onChange={e => setForm({...form, minutes:e.target.value})} /></label>
