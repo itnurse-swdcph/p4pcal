@@ -1549,7 +1549,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         ['พนักงานธุรการ'],
         ['ผู้ช่วยช่างทั่วไป']
       ]
-      const idx = ordered.findIndex((titles) => titles.every((title) => pos.includes(normalize(title))))
+      const idx = ordered.findIndex((titles) => titles.every((title) => title === 'พยาบาลวิชาชีพ' ? pos.includes('พยาบาลวิชาชีพ') && !pos.includes('นักวิชาการสาธารณสุข') : pos.includes(normalize(title))))
       return idx < 0 ? 99 : idx + 2
     }
     const sortedRoster = [...roster].sort((a: any, b: any) => positionRank(a) - positionRank(b) || String(a.name || '').localeCompare(String(b.name || ''), 'th'))
