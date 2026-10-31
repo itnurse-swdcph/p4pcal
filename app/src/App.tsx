@@ -902,7 +902,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const scoring = scoreBreakdown(person.position, positions, person.org_role, earned)
   const performanceTotal = scoring.performance
   const difference = performanceTotal - guarantee
-  const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\\s+/g, '').trim() === String(person.position || '').replace(/\\s+/g, '').trim())
+  const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(person.position || '').replace(/\s+/g, '').trim())
   const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
   const performancePay = allocation > 0 ? allocation * (performanceTotal >= guarantee ? 0.97 : 0.77) : null
   const closed = payoutResult?.closed === true
