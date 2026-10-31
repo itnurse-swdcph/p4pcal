@@ -77,11 +77,11 @@ select.inp option { color:#182b3d; font-weight:400; background:#fff; }
 .edit-activity-title { color:#334155; }
 .edit-activity-selected { min-width:0; overflow-wrap:anywhere; line-height:1.55; }
 .act-head { position:sticky; top:0; z-index:1; padding:.35rem .8rem; background:#e4f3ef; color:#0b7a6a; font-size:.8rem; font-weight:700; letter-spacing:.05em; border-bottom:1px solid #cfe5df; }
-.act-item { display:grid; grid-template-columns:minmax(0,1fr); row-gap:.15rem; width:100%; min-width:0; padding:.55rem .8rem; text-align:left; font-size:.9rem; border-bottom:1px solid #eef2f6; border-left:3px solid transparent; }
+.act-item { display:grid; grid-template-columns:4.2rem 1fr; column-gap:.6rem; width:100%; padding:.5rem .8rem; text-align:left; font-size:.9rem; border-bottom:1px solid #eef2f6; border-left:3px solid transparent; }
 .act-item:hover { background:#f2f9f7; }
 .act-item.on { background:#e2f4f0; border-left-color:#0d8976; }
 .act-code { grid-row:1 / span 2; color:#0b7a6a; font-weight:700; font-size:.8rem; padding-top:.1rem; }
-.act-title { color:#243a4d; line-height:1.4; display:block; white-space:normal; overflow:visible; overflow-wrap:anywhere; }
+.act-title { color:#243a4d; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .act-uom { color:#7a8b9b; font-size:.75rem; }
 /* จำนวน + หน่วยนับ */
 .qty-wrap { position:relative; }
@@ -883,6 +883,41 @@ body.unit-report-preview-open .unit-report-toolbar {
   body.print-individual-report .print-toolbar,
   body.print-individual-report .no-print { display: none !important; }
   body.print-individual-report .ps-acts thead { display: table-header-group !important; }
+}
+
+/* Activity library printout: one profession's complete active set, in landscape. */
+.activity-library-print { display: none; }
+@page activityLibrary { size: A4 landscape; margin: 8mm; }
+@media print {
+  body.print-activity-library #root { display: none !important; }
+  body.print-activity-library .activity-library-print {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #111 !important;
+    font-family: 'Sarabun', 'Noto Sans Thai', sans-serif !important;
+    font-size: 9pt !important;
+    page: activityLibrary;
+  }
+  body.print-activity-library .activity-library-print h1 { margin: 0; text-align: center; font-size: 16pt; }
+  body.print-activity-library .activity-library-print h2 { margin: 1mm 0; text-align: center; font-size: 12pt; }
+  body.print-activity-library .activity-library-print p { margin: 0 0 4mm; text-align: center; font-size: 9pt; }
+  body.print-activity-library .activity-library-print table { width: 100% !important; border-collapse: collapse !important; table-layout: fixed !important; }
+  body.print-activity-library .activity-library-print th,
+  body.print-activity-library .activity-library-print td { border: .5pt solid #333 !important; padding: 1.5mm !important; color: #111 !important; text-align: left !important; vertical-align: top !important; white-space: pre-wrap !important; overflow-wrap: anywhere !important; font-size: 8pt !important; }
+  body.print-activity-library .activity-library-print th { background: #e9eef3 !important; font-weight: 700 !important; }
+  body.print-activity-library .activity-library-print th:nth-child(1), body.print-activity-library .activity-library-print td:nth-child(1) { width: 11% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(2), body.print-activity-library .activity-library-print td:nth-child(2) { width: 12% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(3), body.print-activity-library .activity-library-print td:nth-child(3) { width: 20% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(4), body.print-activity-library .activity-library-print td:nth-child(4) { width: 9% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(5), body.print-activity-library .activity-library-print td:nth-child(5) { width: 10% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(6), body.print-activity-library .activity-library-print td:nth-child(6) { width: 28% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(7), body.print-activity-library .activity-library-print td:nth-child(7) { width: 10% !important; }
+  body.print-activity-library .activity-library-print tr { break-inside: avoid; page-break-inside: avoid; }
 }
 
 /* Unit report column widths: narrow order number, wider staff name. */
