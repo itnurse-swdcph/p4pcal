@@ -736,11 +736,13 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       const role = String(h.approver_org_role || '').trim()
       const unitName = String(h.approver_unit_name || '').trim()
       const groupName = String(h.approver_nursing_group || '').trim()
-      const compact = role.replace(/\\s+/g, '')
+      const normalizedRole = role.replace(/\\s+/g, '')
       const managerial = role.includes('หัวหน้ากลุ่มงาน')
-        ? (compact === 'หัวหน้ากลุ่มงาน' ? 'หัวหน้ากลุ่มงาน' + groupName : role)
-        : role.includes('หัวหน้างาน') ? (compact === 'หัวหน้างาน' ? 'หัวหน้างาน' + unitName.replace(/^งาน/, '') : role) : role
-      setHead({ name: h.approver_name, position: [h.approver_professional_position, managerial].filter(Boolean).join('\\n'), label: role.includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : 'หัวหน้างาน' })
+        ? (groupName ? 'หัวหน้า' + groupName.replace(/^กลุ่มงาน/, '') : role)
+        : role.includes('หัวหน้างาน')
+          ? (unitName && !role.includes(unitName) ? 'หัวหน้างาน' + unitName.replace(/^งาน/, '') : role)
+          : role
+      setHead({ name: h.approver_name, professional: h.approver_professional_position || '', managerial, label: role.includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : role.includes('หัวหน้างาน') ? 'หัวหน้างาน' : 'หัวหน้าพยาบาล/รักษาการหัวหน้าพยาบาล' })
     })
     return () => { alive = false }
   }, [sb, person.id])
@@ -749,7 +751,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const dayCount = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate()
   const monthText = monthStart.toLocaleDateString('th-TH', { month: 'long' })
   const buddhistYear = monthStart.getFullYear() + 543
-  const groupName = person.nursing_group || person.group_name || person.staff_group || ''
+  const groupName = String(person.nursing_group || person.group_name || person.staff_group || '').trim() || String(unit?.parent_group || '').trim()
   const unitName = unit?.name || person.unit_name || person.sub_unit || ''
   const groups = useMemo(() => {
     const map = new Map<string, any>()
@@ -780,12 +782,12 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet ps-individual-landscape">
-      <h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล</h1>
-      <div className="ps-hospital">โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div>
+      <h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1>
       <div className="ps-meta">
-        <div>กลุ่มงาน {groupName || '................................'} &nbsp;&nbsp; งาน {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div>
+        <div>{groupName || '................................'} &nbsp;&nbsp; {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div>
         <div>ชื่อ-สกุล {person.name || '................................'} &nbsp;&nbsp; ตำแหน่ง {person.position || '................................'} &nbsp;&nbsp; ระดับการบริหาร {String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : String(person.org_role || '').includes('หัวหน้างาน') ? 'หัวหน้างาน' : '—'}</div>
       </div>
+      <div className="ps-leave-row">ลากิจ = ........ วัน &nbsp;&nbsp; ลาป่วย = ........ วัน &nbsp;&nbsp; ลาพักผ่อน = ........ วัน</div>
       <table className="pt ps-individual-table">
         <thead><tr>
           <th rowSpan={2}>ลำดับ</th><th rowSpan={2}>กิจกรรม</th><th rowSpan={2}>หน่วยนับ</th><th rowSpan={2}>เวลา<br/>(นาที)</th><th rowSpan={2}>คะแนน/<br/>นาที</th><th rowSpan={2}>ค่างาน</th><th rowSpan={2}>คะแนน<br/>ปรับ</th><th colSpan={dayCount}>วันที่</th><th rowSpan={2}>รวม<br/>หน่วย</th><th rowSpan={2}>รวม<br/>แต้ม</th><th rowSpan={2}>แหล่ง<br/>อ้างอิง</th>
@@ -804,8 +806,8 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       <div className="ps-single-sign">
         <div>ลงชื่อ ........................................................</div>
         <div className="ps-sign-name">({head?.name || '................................................'})</div>
-        <div>{head?.position || 'หัวหน้าผู้รับรอง'}</div>
-        <div>{head?.label || 'หัวหน้าผู้รับรอง'}</div>
+        <div>{head?.professional || '................................................'}</div>
+        <div>{head?.managerial || head?.label || 'หัวหน้าผู้รับรอง'}</div>
       </div>
     </div>
   </div>, document.body)
