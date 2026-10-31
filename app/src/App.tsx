@@ -352,7 +352,7 @@ function Main({ sb, session }: any) {
         </div>
         <p className="text-xs text-stone-600">{role === 'admin' ? 'ผู้ดูแลระบบสามารถเลือกหน่วยงานได้ทั้งหมด' : 'แสดงเฉพาะหน่วยงานที่บัญชีของคุณได้รับมอบหมายให้รับผิดชอบ'}</p>
       </div>
-      {reviewGroup && (unit != null || cur === 'review') ? (unit != null ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'review' ? <GroupHeadsReport sb={sb} groupName={reviewGroup} people={scope} allPeople={people} month={month} positions={positions} units={units} /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกหน่วยงานเพื่อรับรองกิจกรรม</div>) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
+      {reviewGroup ? (unit != null ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'certify' ? <GroupHeadsCertification sb={sb} groupName={reviewGroup} people={people} month={month} acts={acts} /> : <GroupHeadsReport sb={sb} groupName={reviewGroup} people={scope} allPeople={people} month={month} positions={positions} units={units} />) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
     </div>}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
@@ -1591,6 +1591,51 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
     </>}
     {printFor && <PrintSheet sb={sb} person={printFor} rows={rows.filter((r: any) => r.person_id === printFor.id || (printFor.person_id && r.person_id === printFor.person_id))} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
+  </div>
+}
+
+function GroupHeadsCertification({ sb, groupName, people, month, acts }: any) {
+  const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
+  const [directoryRows, setDirectoryRows] = useState<any[]>([])
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    sb.rpc('directory_group_staff', { p_group_name: groupName }).then(({ data, error }: any) => {
+      if (!alive) return
+      if (error) { console.error('โหลดหัวหน้ากลุ่มงานไม่สำเร็จ', error); setDirectoryRows([]) }
+      else setDirectoryRows(Array.isArray(data) ? data.filter((d: any) => d.active !== false) : [])
+      setLoading(false)
+    })
+    return () => { alive = false }
+  }, [sb, groupName])
+  const norm = (v: any) => String(v || '').normalize('NFC').replace(/\\s+/g, '').toLocaleLowerCase('th')
+  const groupHeads = useMemo(() => {
+    const candidates = (people || []).filter((p: any) => Number(ap?.personLevel?.[p.id] || 0) === 2)
+    return directoryRows.map((d: any) => {
+      const name = d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`.trim()
+      return candidates.find((p: any) =>
+        (d.person_id && String(p.id) === String(d.person_id)) ||
+        (d.source_row != null && p.staff_directory_id != null && Number(p.staff_directory_id) === Number(d.source_row)) ||
+        (name && norm(p.name) === norm(name))
+      )
+    }).filter(Boolean).filter((p: any, i: number, a: any[]) => a.findIndex((x: any) => String(x.id) === String(p.id)) === i)
+  }, [people, directoryRows, ap?.personLevel])
+  const ids = useMemo(() => groupHeads.map((p: any) => String(p.id)), [groupHeads])
+  const [rows, reload] = useLogs(sb, month, ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
+  const filtered = rows.filter((r: any) => r.status === 'pending' && canDecideRow(ap, me, r) &&
+    (!search.trim() || String(r.person_name || groupHeads.find((p: any) => String(p.id) === String(r.person_id))?.name || '').toLocaleLowerCase('th').includes(search.trim().toLocaleLowerCase('th'))))
+  return <div className="space-y-4">
+    <div className="card space-y-3">
+      <div><h2 className="font-bold text-lg">รายการกิจกรรมของหัวหน้ากลุ่มงานที่รอรับรอง</h2><p className="text-sm text-stone-600">กลุ่มงาน {groupName} · รับรองได้โดยผู้มีสิทธิ์ระดับเหนือกว่าหัวหน้ากลุ่มงานเท่านั้น และไม่สามารถรับรองรายการของตนเอง</p></div>
+      <input className="inp w-full" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหาชื่อหัวหน้ากลุ่มงาน" />
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span>หัวหน้ากลุ่มงาน {groupHeads.length} คน · รายการที่รับรองได้ {filtered.length.toLocaleString('th-TH')} รายการ</span><button type="button" className="btn sec" onClick={() => setSearch('')}>ล้างคำค้นหา</button></div>
+      {loading && <p className="text-sm text-stone-500">กำลังโหลดรายชื่อหัวหน้ากลุ่มงาน…</p>}
+      {!loading && groupHeads.length === 0 && <p className="text-sm text-amber-800">ไม่พบรายชื่อหัวหน้ากลุ่มงานที่เชื่อมโยงกับบัญชีบุคลากรในกลุ่มงานนี้ กรุณาตรวจสอบทะเบียนบุคลากรและสิทธิ์ระดับการรับรอง</p>}
+      {!loading && groupHeads.length > 0 && filtered.length === 0 && <p className="text-sm text-stone-500">ไม่พบรายการกิจกรรมที่รอรับรองในขอบเขตสิทธิ์ของคุณ</p>}
+    </div>
+    <LogTable sb={sb} rows={filtered} reload={reload} canApprove={true} acts={acts} month={month} />
   </div>
 }
 
