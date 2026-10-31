@@ -471,7 +471,10 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const selectedUnitName = String((unitOptions || []).find((u: any) => Number(u.id) === Number(person?.unit_id))?.name || '').trim()
   const isMedicalCenterStaff = selectedUnitName === 'ศูนย์เครื่องมือแพทย์'
   const isMedicalCenterOnly = (a: any) => String(a?.title || '').startsWith('[เฉพาะศูนย์เครื่องมือแพทย์]')
-  const eligibleActs = acts.filter((a: any) => (!pos || a.eligible.includes(pos.grp)) && (!isMedicalCenterOnly(a) || isMedicalCenterStaff))
+  const specialCrossLineUnits = ['หน่วยงานการพยาบาลผู้ป่วยห้องผ่าตัด', 'งานการพยาบาลวิสัญญี']
+  const isSpecialCrossLineNurse = pos?.grp === 'พยาบาล' && specialCrossLineUnits.includes(selectedUnitName)
+  const crossLineGroups = ['พยาบาล', 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก']
+  const eligibleActs = acts.filter((a: any) => ((!pos || a.eligible.includes(pos.grp)) || (isSpecialCrossLineNurse && crossLineGroups.some(g => a.eligible.includes(g)))) && (!isMedicalCenterOnly(a) || isMedicalCenterStaff))
   const activityCategories = [...new Set(eligibleActs.map((a: any) => String(a.category || 'อื่นๆ')))].sort((a: string, b: string) => a.localeCompare(b, 'th'))
   const showActivityChoices = !!categoryFilter || q.trim().length >= 2
   const list = eligibleActs.filter((a: any) => (!categoryFilter || String(a.category || 'อื่นๆ') === categoryFilter) && terms.every(t => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(t))).sort(byCode)
