@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import PersonnelPage from './PersonnelPage'
+import P4PCommitteePage from './P4PCommitteePage'
 import { createPortal } from 'react-dom'
-import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardList, LibraryBig, ClipboardCheck, Users, Wallet, Settings, LogOut, ChevronLeft, CalendarDays, Building2, Shield } from 'lucide-react'
+import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardList, LibraryBig, ClipboardCheck, Users, Settings, LogOut, ChevronLeft, CalendarDays, Building2, Shield } from 'lucide-react'
 
 const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_publishable_8qxOgD-AHGnv9RWWAZTUQQ_I0MPIMv3' }
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ว่าที่ร้อยตรี', 'ว่าที่ร้อยตรีหญิง']
@@ -336,8 +337,8 @@ function Main({ sb, session }: any) {
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'; const isHeadRole = role === 'head' || role === 'group_head'
-  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(isHeadRole || role === 'admin' ? [['certify', 'รับรองกิจกรรม'], ['review', 'สรุปรายงานหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ'], ['payout', 'จ่ายเงิน P4P']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [['personal', 'แก้ไขข้อมูลส่วนตัว']])]
-  const cur = tab || (role === 'admin' ? 'review' : tabs[0]?.[0])  // แสดงเฉพาะหน่วยงานที่มีอยู่ใน staff_directory ล่าสุด และจับคู่ชื่อแบบตรงตัวกับ units
+  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ['activities', 'คลังกิจกรรม'], ...(isHeadRole || role === 'admin' ? [['certify', 'รับรองกิจกรรม'], ['review', 'สรุปรายงานหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [['personal', 'แก้ไขข้อมูลส่วนตัว']])]
+  const cur = tab || (role === 'admin' ? 'review' : role === 'committee' ? 'audit' : tabs[0]?.[0])  // แสดงเฉพาะหน่วยงานที่มีอยู่ใน staff_directory ล่าสุด และจับคู่ชื่อแบบตรงตัวกับ units
   // ไม่สร้าง/เปลี่ยน unit_id และไม่แก้หรือรวมข้อมูลในฐานข้อมูล
   // ซ่อนชื่อหน่วยงานเดิมเสมอ แม้โหลด staff_directory ไม่สำเร็จหรือมีข้อมูลเก่าค้างใน units
   const directoryUnits = units.filter(u => {
@@ -362,7 +363,7 @@ function Main({ sb, session }: any) {
     </aside>
     <div className="p4p-main">
       <header className="app-topbar"><button className="sidebar-icon menu-toggle" aria-label="เปิดเมนู" onClick={() => setMobileNav(true)}><Menu size={22}/></button><div className="topbar-heading"><span className="topbar-eyebrow">P4P NURSING SYSTEM</span><h1>{pageTitle}</h1></div><div className="topbar-actions">
-      {(role === 'committee' || (role === 'head' && unitOptions.length > 1)) && <label className="topbar-unit"><Building2 size={16}/><select className="inp" aria-label="หน่วยงาน" value={unit ?? ''} onChange={e => setUnit(e.target.value ? +e.target.value : null)}>{role === 'admin' && <option value="">เลือกหน่วยงานก่อน</option>}{unitOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>}
+      {(role === 'head' && unitOptions.length > 1) && <label className="topbar-unit"><Building2 size={16}/><select className="inp" aria-label="หน่วยงาน" value={unit ?? ''} onChange={e => setUnit(e.target.value ? +e.target.value : null)}>{role === 'admin' && <option value="">เลือกหน่วยงานก่อน</option>}{unitOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>}
       <label className="topbar-month"><CalendarDays size={17}/><input type="month" aria-label="เดือนที่แสดง" className="inp" value={month} onChange={e => setMonth(e.target.value)} /></label>
       </div></header>
       <main className="app-content">
@@ -405,13 +406,9 @@ function Main({ sb, session }: any) {
     </div>}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
-    {cur === 'payout' && <PayoutPage sb={sb} month={month} isAdmin={role === 'admin'} />}
     {cur === 'settings' && <SettingsPage sb={sb} />}
     {cur === 'activities' && <ActivityLibrary myLine={positions.find((x: any) => x.name === profile.position)?.grp} seeAll={role !== 'staff'} sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
-    {cur === 'audit' && <div className="space-y-3">
-      {role === 'admin' && <div className="card space-y-2"><label className="field-label" htmlFor="admin-audit-unit">หน่วยงานที่ต้องการตรวจสอบ</label><select id="admin-audit-unit" className="inp w-full" value={unit ?? ''} onChange={e => setUnit(e.target.value ? Number(e.target.value) : null)}><option value="">เลือกหน่วยงาน</option>{unitOptions.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>}
-      {unit || role !== 'admin' ? <ReviewPage units={units} canPrint={role !== 'committee'} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} audit /> : <div className="card text-center text-sm text-stone-600">กรุณาเลือกหน่วยงานเพื่อแสดงรายการตรวจสอบ</div>}
-    </div>}
+    {cur === 'audit' && <P4PCommitteePage sb={sb} month={month} isAdmin={role === 'admin'} currentUserId={session.user.id} />}
       </main>
       <footer className="app-footer">{FOOTER_TEXT}</footer>
     </div>
@@ -880,41 +877,26 @@ function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, act
   return { insurance, roleGuarantee, performance, excess: Math.min(Math.max(0, performance - insurance), insurance * 0.5) }
 }
 
-function ActivitySummary({ sb, rows, person, positions, month, units }: any) {
-  const [unitRate, setUnitRate] = useState(0)
-  const [payGroups, setPayGroups] = useState<any[]>([])
+function ActivitySummary({ sb, rows, person, positions, month }: any) {
+  const [payoutResult, setPayoutResult] = useState<any>(null)
   useEffect(() => {
     let alive = true
-    sb.from('pay_groups').select('id,name,full_amount,fixed_pay,guarantee,rate,reserve_pct').order('id')
-      .then(({ data, error }: any) => { if (alive) setPayGroups(!error && Array.isArray(data) ? data : []) })
-    return () => { alive = false }
-  }, [sb])
-  useEffect(() => {
-    let alive = true
-    if (!person?.unit_id) { setUnitRate(0); return }
-    sb.from('unit_settings').select('baht_per_point').eq('unit_id', person.unit_id).eq('month', month + '-01').maybeSingle().then(({ data, error }: any) => {
-      if (alive) setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0)
+    sb.rpc('p4p_my_payout', { p_month: month + '-01' }).then(({ data, error }: any) => {
+      if (alive) setPayoutResult(!error && data ? data : null)
     })
     return () => { alive = false }
-  }, [sb, person?.unit_id, month])
+  }, [sb, month, person?.id])
   if (!person) return null
-  const position = (positions || []).find((x: any) => String(x.name || '').trim() === String(person.position || '').trim())
-  const payGroupId = Number(position?.pay_group || 0)
-  const payGroup = payGroups.find((g: any) => Number(g.id) === payGroupId)
-  const allocation = Number(payGroup?.full_amount || 0)
   const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
   const roleGuarantee = roleGuaranteeForPosition(person.position, positions, person.org_role)
-  // แต้มปฏิบัติงานที่ได้ = รายการที่ส่งแล้วและยังรอรับรองหรือรับรองแล้ว
-  // แต้มที่ยืนยัน = เฉพาะรายการที่หัวหน้ารับรองแล้ว
   const earned = (rows || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const confirmed = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const scoring = scoreBreakdown(person.position, positions, person.org_role, confirmed)
   const performanceTotal = scoring.performance
   const difference = performanceTotal - guarantee
-  const basePercent = performanceTotal >= guarantee ? 0.97 : 0.77
-  const basePay = allocation > 0 ? allocation * basePercent : 0
-  const extraPay = scoring.excess * unitRate
-  const payout = basePay + extraPay
+  const closed = payoutResult?.closed === true
+  const payoutAvailable = payoutResult?.payout_available === true
+  const extraPay = payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
   const cards = [
     { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
     { label: 'แต้มการันตี', value: nf(roleGuarantee), color: 'text-slate-900' },
@@ -922,18 +904,17 @@ function ActivitySummary({ sb, rows, person, positions, month, units }: any) {
     { label: 'แต้มปฏิบัติงานที่ได้', value: nf(earned), color: 'text-slate-900' },
     { label: 'แต้มที่ยืนยัน', value: nf(confirmed), color: 'text-emerald-700' },
     { label: 'แต้มส่วนต่าง', value: (difference > 0 ? '+' : '') + nf(difference), color: difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-slate-700' },
-    { label: 'ประมาณเงินที่ได้', value: allocation > 0 ? nf(payout) + ' บาท' : 'รอตั้งค่ากลุ่มวิชาชีพ', color: 'text-slate-900' }
+    { label: 'เงินเพิ่มจากแต้มส่วนเกิน', value: !closed ? 'รอปิดงวด' : payoutAvailable ? nf(extraPay) + ' บาท' : 'รอตรวจสอบข้อมูล', color: closed && payoutAvailable ? 'text-emerald-700' : 'text-slate-700' }
   ]
-  return <div className="space-y-1" aria-label="สรุปแต้มและประมาณเงินประจำเดือน">
+  return <div className="space-y-1" aria-label="สรุปแต้มและเงินเพิ่มประจำเดือน">
     <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
       {cards.map((item) => <div key={item.label} className="card !p-3 sm:!p-4 min-w-0"><div className="text-xs sm:text-sm text-stone-600">{item.label}</div><div className={'mt-1 text-xl sm:text-2xl font-bold tabular-nums ' + item.color}>{item.value}</div>
-        {item.label === 'ประมาณเงินที่ได้' && <div className="mt-1 text-xs text-stone-500">{allocation > 0 ? <>เงินพื้นฐาน {nf(basePay)} บาท ({Math.round(basePercent * 100)}% ของยอดจัดสรร {nf(allocation)} บาท) + เงินเพิ่ม {nf(extraPay)} บาท{!position?.pay_group && <span className="block text-amber-700">ไม่พบการจับคู่กลุ่มวิชาชีพของตำแหน่งนี้</span>}</> : 'ไม่พบยอดจัดสรรของกลุ่มวิชาชีพ กรุณาตรวจสอบการจับคู่ตำแหน่ง'}</div>}
+        {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!closed ? 'เงินเพิ่มจะแสดงหลังประธานคณะกรรมการยืนยันปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · อัตรา {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
       </div>)}
     </div>
-    <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: ประมาณการจากค่าคะแนนและยอดจัดสรรตามกลุ่มวิชาชีพที่มีการบันทึกข้อมูลในปัจจุบัน</p>
+    <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: คะแนนแสดงตามสถานะรายการกิจกรรม ส่วนเงินเพิ่มจะแสดงเฉพาะผลที่บันทึกปิดงวดแล้วเท่านั้น</p>
   </div>
 }
-
 function Totals({ rows, people, positions }: any) {
   if (people.length !== 1) return null
   const g = guaranteeForPosition(people[0].position, positions, people[0].org_role)
