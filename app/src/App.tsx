@@ -1542,7 +1542,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     for (const d of directoryPeople) {
       const fullName = String(d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`).trim()
       const found = result.find((p: any) => (d.person_id && p.id === d.person_id) || (p.staff_directory_id && Number(p.staff_directory_id) === Number(d.source_row)) || String(p.name || '').trim() === fullName)
-      if (found) { found.org_role = found.org_role || d.org_role; found.staff_directory_id = found.staff_directory_id || d.source_row; if (!found.position) found.position = d.position }
+      if (found) { found.org_role = found.org_role || d.org_role; found.staff_directory_id = found.staff_directory_id || d.source_row; found.fromDirectory = d.registered !== true; if (!found.position) found.position = d.position }
       else result.push({ id: d.person_id || `dir:${d.source_row}`, directory_source_row: d.source_row, staff_directory_id: d.source_row, name: fullName, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, position: d.position, org_role: d.org_role, unit_id: unit, active: true, fromDirectory: d.registered !== true })
     }
     return result.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
