@@ -1070,7 +1070,8 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const activityPrintSet = [...inLine].sort(byCode)
   const summaryHeaders = ['ลำดับ', 'กิจกรรม', 'หน่วยนับ', 'เวลามาตรฐาน (นาที)', 'คะแนนต่อนาที', 'คุณค่างาน', 'คะแนนปรับแล้ว (Workpoint)']
   const ratePerMinute = Number(positions.find((p: any) => p.grp === line)?.rate || 0)
-  const activityRows = (items: any[]) => items.map((a, index) => [index + 1, [a.main_activity, a.title].filter(Boolean).join(' / '), a.uom || '', Number(a.minutes || 0), ratePerMinute, 1, Math.round(Number(a.minutes || 0) * ratePerMinute * 100) / 100])
+  const activityDescription = (a: any) => [String(a.main_activity || '').trim(), String(a.title || '').trim().replace(/\s+(?=\d+\s*[.)]\s*\S)/g, '\n')].filter(Boolean).join('\n')
+  const activityRows = (items: any[]) => items.map((a, index) => [index + 1, activityDescription(a), a.uom || '', Number(a.minutes || 0), ratePerMinute, 1, Math.round(Number(a.minutes || 0) * ratePerMinute * 100) / 100])
   const catsOfLine = [...new Set([...inLine].sort(byCode).map((a: any) => a.category || 'อื่นๆ'))] as string[]
   const mainsOfLine = [...new Set(inLine.map((a: any) => a.main_activity).filter(Boolean))] as string[]
   const formLineActivities = (acts || []).filter((a: any) => (a.eligible || []).includes(formLine))
@@ -1265,12 +1266,13 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     </div>
     {filtered.length === 0 ? <div className="card text-center text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหา</div> :
       <div className="card overflow-x-auto p-0">
-        <table className="activity-library-table w-full min-w-[760px] border-collapse text-sm">
-          <thead><tr>{summaryHeaders.map(h => <th key={h}>{h}</th>)}</tr></thead>
+        <table className={`activity-library-table w-full ${isAdmin ? 'admin-table min-w-[960px]' : 'min-w-[760px]'} border-collapse text-sm`}>
+          <thead><tr>{summaryHeaders.map(h => <th key={h}>{h}</th>)}{isAdmin && <th>จัดการ</th>}</tr></thead>
           <tbody>{filtered.map((a: any, index: number) => <tr key={a.code} className="align-top">
             <td className="whitespace-nowrap text-center">{index + 1}</td>
-            <td><div className="whitespace-pre-wrap font-medium">{[a.main_activity, a.title].filter(Boolean).join(' / ')}</div>{isAdmin && <div className="no-print mt-1 flex gap-2"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div>}</td>
+            <td><div className="whitespace-pre-line font-medium">{activityDescription(a)}</div></td>
             <td>{a.uom || '—'}</td><td className="text-right">{Number(a.minutes || 0)}</td><td className="text-right">{ratePerMinute.toFixed(3)}</td><td className="text-right">1</td><td className="text-right">{(Number(a.minutes || 0) * ratePerMinute).toFixed(2)}</td>
+            {isAdmin && <td className="whitespace-nowrap"><div className="flex flex-col items-start gap-1"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div></td>}
           </tr>)}</tbody>
         </table>
       </div>}
