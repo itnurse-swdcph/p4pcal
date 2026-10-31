@@ -18,6 +18,7 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
   const [committeeProfiles, setCommitteeProfiles] = useState<any[]>([])
   const [availableProfiles, setAvailableProfiles] = useState<any[]>([])
   const [manthanaStaff, setManthanaStaff] = useState<any>(null)
+  const [manthanaPreappointment, setManthanaPreappointment] = useState<any>(null)
   const [selectedUser, setSelectedUser] = useState('')
   const [comment, setComment] = useState('')
   const [message, setMessage] = useState('')
@@ -60,8 +61,15 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
           sb.from('staff_directory').select('source_row,prefix,first_name,last_name,position').eq('first_name', 'มัณฑนา').eq('last_name', 'เพชรคำ').eq('position', 'พยาบาลวิชาชีพชำนาญการพิเศษ').maybeSingle()
         ])
         if (!alive) return
-        if (!staffResult.error) setManthanaStaff(staffResult.data || null)
-        else setError(staffResult.error.message || 'ไม่สามารถโหลดทะเบียนบุคลากรได้')
+        if (!staffResult.error) {
+          setManthanaStaff(staffResult.data || null)
+          if (staffResult.data?.source_row) {
+            const pre = await sb.from('p4p_committee_preappointments').select('staff_directory_source_row,active,linked_user_id,appointed_at').eq('staff_directory_source_row', staffResult.data.source_row).maybeSingle()
+            if (!alive) return
+            if (!pre.error) setManthanaPreappointment(pre.data || null)
+            else setError(pre.error.message || 'ไม่สามารถโหลดสถานะแต่งตั้งล่วงหน้าได้')
+          }
+        } else setError(staffResult.error.message || 'ไม่สามารถโหลดทะเบียนบุคลากรได้')
         let candidates = profileResult.data || []
         if (staffResult.data?.source_row) {
           const linked = await sb.from('profiles').select('user_id,full_name,username,role,org_role,position,unit_id,staff_directory_id').eq('staff_directory_id', staffResult.data.source_row).maybeSingle()
@@ -268,17 +276,18 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
 
       {isAdmin && <div className="card space-y-3">
         <div className="font-semibold">จัดการรายชื่อคณะกรรมการ P4P</div>
-        <p className="text-xs text-stone-500">ดึงรายชื่อหัวหน้ากลุ่มงานจากบัญชีผู้ใช้ และแสดงบุคลากรที่ยังไม่มีบัญชีเป็นรายการรอสมัคร โดยจะแต่งตั้งได้เมื่อมีบัญชีที่เชื่อมกับทะเบียนบุคลากรแล้ว</p>
+        <p className="text-xs text-stone-500">สามารถแต่งตั้งบุคลากรที่ยังไม่มีบัญชีผู้ใช้ไว้ล่วงหน้าได้ เมื่อสมัครและเลือกชื่อจากทะเบียนบุคลากร ระบบจะผูกบัญชีและเพิ่มเป็นกรรมการ P4P โดยอัตโนมัติ</p>
         <div className="flex flex-wrap gap-2">
           <select className="inp min-w-[16rem]" value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
             <option value="">เลือกบุคลากรเพื่อแต่งตั้ง</option>\n            {manthanaStaff && !availableProfiles.some(p => p.staff_directory_id === manthanaStaff.source_row) && <option value="" disabled>{[manthanaStaff.prefix, manthanaStaff.first_name, manthanaStaff.last_name].filter(Boolean).join(" ")} · {manthanaStaff.position} (รอสมัครบัญชี)</option>}
             {availableProfiles.filter(p => !members.some(m => m.user_id === p.user_id && m.active)).map(p => <option key={p.user_id} value={p.user_id}>{p.full_name || p.username || p.user_id}{p.position ? ` · ${p.position}` : ''}</option>)}
           </select>
           <button type="button" className="btn sec" disabled={!selectedUser || busy} onClick={() => { setMember(selectedUser, true, false); setSelectedUser('') }}>เพิ่มกรรมการ</button>
+          {manthanaStaff && <button type="button" className="btn sec" disabled={busy || !!manthanaPreappointment?.active} onClick={() => runAction('แต่งตั้งนางสาวมัณฑนา เพชรคำ เป็นกรรมการล่วงหน้าแล้ว', () => sb.from('p4p_committee_preappointments').upsert({ staff_directory_source_row: manthanaStaff.source_row, active: true }).select().single())}>{manthanaPreappointment?.active ? (manthanaPreappointment.linked_user_id ? 'แต่งตั้งแล้วและเชื่อมบัญชีแล้ว' : 'แต่งตั้งกรรมการแล้ว · รอสมัครบัญชี') : 'แต่งตั้งนางสาวมัณฑนา เพชรคำ ล่วงหน้า'}</button>}
         </div>
         <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead><tr className="border-b text-left"><th className="p-2">กรรมการ</th><th className="p-2">สถานะ</th><th className="p-2">ตำแหน่ง</th><th className="p-2">จัดการ</th></tr></thead>
-          <tbody>{members.map(m => <tr key={m.user_id} className="border-b last:border-0">
+          <tbody>{manthanaStaff && manthanaPreappointment?.active && !manthanaPreappointment.linked_user_id && <tr className="border-b bg-amber-50"><td className="p-2">{[manthanaStaff.prefix,manthanaStaff.first_name,manthanaStaff.last_name].filter(Boolean).join(' ')}</td><td className="p-2">แต่งตั้งแล้ว · รอสมัครบัญชี</td><td className="p-2">กรรมการ</td><td className="p-2">ระบบจะเชื่อมบัญชีอัตโนมัติ</td></tr>}{members.map(m => <tr key={m.user_id} className="border-b last:border-0">
             <td className="p-2">{profileName(m.user_id)}</td>
             <td className="p-2">{m.active ? 'ปฏิบัติหน้าที่' : 'ไม่ปฏิบัติหน้าที่'}</td>
             <td className="p-2">{m.active && m.is_chair ? <span className="font-semibold text-teal-800">ประธานคณะกรรมการ</span> : 'กรรมการ'}</td>
