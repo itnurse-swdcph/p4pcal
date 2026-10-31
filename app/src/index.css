@@ -1238,3 +1238,25 @@ body.unit-report-preview-open .unit-report-print * {
   body.print-individual-report .ps-individual-table .ps-repeat-meta th,
   body.print-individual-report .ps-individual-table .ps-repeat-leave th { border:0 !important; }
 }
+
+
+/* Individual report: wider day cells for clear two-digit dates on A4 landscape. */
+.ps-individual-table col:nth-child(1) { width:6mm !important; }
+.ps-individual-table col:nth-child(2) { width:46mm !important; }
+.ps-individual-table col:nth-child(3) { width:10mm !important; }
+.ps-individual-table col:nth-child(4) { width:8mm !important; }
+.ps-individual-table col:nth-child(5) { width:9mm !important; }
+.ps-individual-table col:nth-child(6) { width:7mm !important; }
+.ps-individual-table col:nth-child(7) { width:9mm !important; }
+.ps-individual-table col:nth-last-child(-n+3) { width:10mm !important; }
+.ps-individual-table .ps-day-cell {
+  width:auto !important; min-width:0 !important;
+  padding:1px 0.4mm !important; text-align:center !important;
+  white-space:nowrap !important; overflow-wrap:normal !important;
+  word-break:normal !important; font-size:7pt !important; line-height:1.15 !important;
+}
+@media print {
+  body.print-individual-report .ps-individual-table .ps-day-cell {
+    padding:1px 0.4mm !important; font-size:7pt !important; white-space:nowrap !important;
+  }
+}
