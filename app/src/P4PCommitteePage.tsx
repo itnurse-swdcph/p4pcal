@@ -14,6 +14,7 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
   const [review, setReview] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
   const [votes, setVotes] = useState<any[]>([])
+  const [pendingCountLive, setPendingCountLive] = useState<number | null>(null)
   const [committeeProfiles, setCommitteeProfiles] = useState<any[]>([])
   const [availableProfiles, setAvailableProfiles] = useState<any[]>([])
   const [selectedUser, setSelectedUser] = useState('')
@@ -31,12 +32,13 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
     const load = async () => {
       setLoading(true)
       setError('')
-      const [calcResult, reviewResult, memberResult, voteResult, rosterResult] = await Promise.all([
+      const [calcResult, reviewResult, memberResult, voteResult, rosterResult, pendingResult] = await Promise.all([
         sb.rpc('p4p_committee_calc', { p_month: monthDate }),
         sb.from('p4p_monthly_reviews').select('*').eq('month', monthDate).maybeSingle(),
         sb.from('p4p_committee_members').select('user_id,active,is_chair,appointed_at').order('appointed_at'),
         sb.from('p4p_monthly_review_votes').select('month,user_id,decision,comment,voted_at').eq('month', monthDate).order('voted_at'),
-        sb.rpc('p4p_committee_roster')
+        sb.rpc('p4p_committee_roster'),
+        sb.from('v_logs').select('*', { count: 'exact', head: true }).eq('month', monthDate).eq('status', 'pending')
       ])
       if (!alive) return
       if (calcResult.error) setError(calcResult.error.message || 'ไม่สามารถโหลดผลคำนวณ P4P ได้')
@@ -49,6 +51,8 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
       else setVotes(voteResult.data || [])
       if (rosterResult.error) setError(rosterResult.error.message || 'ไม่สามารถโหลดทะเบียนกรรมการได้')
       else setCommitteeProfiles(rosterResult.data || [])
+      if (pendingResult.error) { setPendingCountLive(null); setError('ไม่สามารถตรวจสอบจำนวนรายการรอรับรองจากฐานข้อมูลได้') }
+      else setPendingCountLive(Number(pendingResult.count || 0))
       if (isAdmin) {
         const profileResult = await sb.from('profiles').select('user_id,full_name,username,role').eq('role', 'committee').order('full_name')
         if (!alive) return
@@ -67,7 +71,8 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
   const myVote = votes.find(x => x.user_id === currentUserId)
   const expectedVotes = Number(review?.expected_members?.length || 0)
   const approvedVotes = votes.filter(x => x.decision === 'approved').length
-  const pendingCount = Number(calc?.warnings?.pending_rows ?? review?.pending_count ?? 0)
+  const pendingCountKnown = pendingCountLive !== null
+  const pendingCount = Number(pendingCountLive ?? calc?.warnings?.pending_rows ?? review?.pending_count ?? 0)
   const viewCalc = review?.status === 'reviewing' || review?.status === 'approved' ? (review.snapshot || calc) : calc
   const groups = viewCalc?.groups || []
   const lines = viewCalc?.lines || []
@@ -219,11 +224,12 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
           <div className="font-semibold">การรับรองผลและปิดงวด</div>
           <div className="text-sm text-stone-600">รายการรอรับรอง: <b className={pendingCount > 0 ? 'text-red-700' : 'text-emerald-700'}>{number(pendingCount)}</b></div>
         </div>
-        {pendingCount > 0 && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle size={16} className="inline mr-1"/>ต้องรับรองรายการกิจกรรมทั้งหมดก่อน เริ่มลงมติและปิดงวดไม่ได้</div>}
-        {pendingCount === 0 && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={16} className="inline mr-1"/>ไม่มีรายการรอรับรองค้างอยู่</div>}
+        {!pendingCountKnown && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><AlertTriangle size={16} className="inline mr-1"/>ยังยืนยันจำนวนรายการรอรับรองไม่ได้ จึงปิดการลงมติและปิดงวดไว้ก่อน</div>}
+        {pendingCountKnown && pendingCount > 0 && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle size={16} className="inline mr-1"/>ต้องรับรองรายการกิจกรรมทั้งหมดก่อน เริ่มลงมติและปิดงวดไม่ได้</div>}
+        {pendingCountKnown && pendingCount === 0 && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={16} className="inline mr-1"/>ไม่มีรายการรอรับรองค้างอยู่</div>}
 
         {isAdmin && review?.status !== 'closed' && <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn" disabled={busy || pendingCount > 0 || activeMembers.length === 0 || activeMembers.filter(x => x.is_chair).length !== 1 || review?.status === 'reviewing'} onClick={startReview}>
+          <button type="button" className="btn" disabled={busy || !pendingCountKnown || pendingCount > 0 || activeMembers.length === 0 || activeMembers.filter(x => x.is_chair).length !== 1 || review?.status === 'reviewing'} onClick={startReview}>
             {review?.status === 'approved' ? 'เริ่มรับรองใหม่ (ล้างมติเดิม)' : 'เริ่มกระบวนการรับรอง'}
           </button>
           <span className="text-xs text-stone-500">Admin เริ่มกระบวนการได้ แต่ไม่มีสิทธิ์ยืนยันปิดงวด</span>
@@ -233,14 +239,14 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
           <p className="text-sm font-semibold">กรุณาตรวจสอบข้อมูลและลงมติในฐานะกรรมการ</p>
           <textarea className="inp min-h-20 w-full" value={comment} onChange={e => setComment(e.target.value)} placeholder="หมายเหตุ/เหตุผล (จำเป็นเมื่อไม่เห็นชอบ)" />
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn" disabled={busy || pendingCount > 0} onClick={() => castVote('approved')}>อนุมัติผลการจัดสรร</button>
+            <button type="button" className="btn" disabled={busy || !pendingCountKnown || pendingCount > 0} onClick={() => castVote('approved')}>อนุมัติผลการจัดสรร</button>
             <button type="button" className="btn sec" disabled={busy || pendingCount > 0 || comment.trim().length < 5} onClick={() => castVote('rejected')}>ไม่เห็นชอบ / ส่งกลับแก้ไข</button>
           </div>
         </div>}
         {myVote && <p className="text-sm text-teal-800">คุณลงมติแล้ว: {myVote.decision === 'approved' ? 'อนุมัติ' : 'ไม่เห็นชอบ'} · {myVote.voted_at ? new Date(myVote.voted_at).toLocaleString('th-TH') : ''}</p>}
         {review?.status === 'reviewing' && <div className="text-sm text-stone-600">รอกรรมการอนุมัติครบทุกคน: {approvedVotes}/{expectedVotes} คน</div>}
         {review?.status === 'approved' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={16} className="inline mr-1"/>กรรมการอนุมัติครบทุกคนแล้ว รอประธานยืนยันปิดงวด</div>}
-        {review?.status === 'approved' && isChair && <button type="button" className="btn" disabled={busy || pendingCount > 0} onClick={closeMonth}><LockKeyhole size={16} className="inline mr-1"/>ประธานยืนยันปิดงวด</button>}
+        {review?.status === 'approved' && isChair && <button type="button" className="btn" disabled={busy || !pendingCountKnown || pendingCount > 0} onClick={closeMonth}><LockKeyhole size={16} className="inline mr-1"/>ประธานยืนยันปิดงวด</button>}
         {review?.status === 'approved' && !isChair && <p className="text-sm text-stone-600">ขั้นตอนถัดไปให้ประธานคณะกรรมการยืนยันปิดงวดเพียงคนเดียว</p>}
         {review?.status === 'closed' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">ปิดงวดแล้ว · บุคลากรสามารถเห็นผลเงินเพิ่มของตนเองได้</div>}
         {review?.status === 'rejected' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">มีกรรมการไม่เห็นชอบ Admin ต้องตรวจสอบและเริ่มกระบวนการรับรองใหม่</div>}
