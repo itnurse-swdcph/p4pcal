@@ -676,7 +676,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       {pid && <p role="status" className={'text-xs ' + (room <= 0 ? 'text-amber-800 font-bold' : 'text-stone-600')}>{shiftName}วันนี้ใช้ {nf(usedShift)}/{nf(capS, 0)} คะแนน · รวมทั้งวัน {nf(dayUsed)}/{nf(capD, 0)}{room <= 0 && ' · เต็มเพดาน บันทึกเพิ่มได้แต่ไม่นับคะแนน'}</p>}
       <div className="activity-step-grid"><div className="space-y-1 relative"><label className="field-label" htmlFor="activity-search">เลือกกิจกรรม</label><input id="activity-search" className="inp" autoComplete="off" placeholder="คลิกเพื่อเลือกรายการ หรือพิมพ์เพื่อค้นหา" value={q} onFocus={() => setActivityDropdownOpen(true)} onClick={() => setActivityDropdownOpen(true)} onBlur={() => setActivityDropdownOpen(false)} onChange={e => { setQ(e.target.value); setActivityDropdownOpen(true) }} onKeyDown={e => { if (e.key === 'Escape') setActivityDropdownOpen(false); if (e.key === 'ArrowDown') setActivityDropdownOpen(true) }} aria-expanded={activityDropdownOpen} aria-controls="activity-options-list" role="combobox" aria-autocomplete="list" />
         {activityDropdownOpen && <div id="activity-options-list" className="act-list absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl" role="listbox" aria-label="เลือกกิจกรรม">
-          {list.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={[a.main_activity, a.title].filter(Boolean).join(' › ')} onMouseDown={e => e.preventDefault()} onClick={() => { setQ([a.code, a.title].filter(Boolean).join(' — ')); setActivityDropdownOpen(false); void chooseActivity(a) }} className={'act-item' + (code === a.code ? ' on' : '')}><span className="act-code">{a.code}</span><span className="act-body">{a.main_activity && <span className="act-main">{a.main_activity}</span>}<span className="act-title">{a.title}</span></span><span className="act-uom">{a.minutes} นาที/{a.uom}</span></button>)}</div>)}
+          {list.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={[a.main_activity, a.title].filter(Boolean).join(' › ')} onMouseDown={e => e.preventDefault()} onClick={() => { setQ([a.code, a.title].filter(Boolean).join(' — ')); setActivityDropdownOpen(false); void chooseActivity(a) }} className={'act-item' + (code === a.code ? ' on' : '')}><span className="act-code">{a.code}</span><span className="act-body">{a.main_activity && <span className="act-main">{a.main_activity}</span>}<span className="act-title">{a.title}</span></span><span className="act-uom">{a.minutes} นาที/{a.uom}</span></button> )}
           {!list.length && <p className="p-4 text-sm text-slate-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหาหรือสิทธิ์ของตำแหน่งนี้</p>}
           <div className="border-t border-slate-100 p-2 text-xs text-slate-500">{list.length} รายการ · คลิกกิจกรรมเพื่อเลือก</div>
         </div>}
@@ -943,7 +943,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
   const editPointsPerUnit = selectedEditActivity && editing ? Number(selectedEditActivity.minutes || 0) * Number(editing.rate || 0) : 0
   const editPointsTotal = editPointsPerUnit * Number(form.qty || 0)
   const editActivityTerms = editActivityQuery.toLowerCase().split(/\s+/).filter(Boolean)
-  const editActivityOptions = (acts || []).filter((a: any) => a.active !== false && editActivityTerms.every((term: string) => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(term))).sort((a: any, b: any) => String(a.code).localeCompare(String(b.code), 'th'))
+  const editActivityOptions = (acts || []).filter((a: any) => a.active !== false && editActivityTerms.every((term: string) => [a.code, a.main_activity, a.title].join(' ').toLowerCase().includes(term))).sort((a: any, b: any) => String(a.code).localeCompare(String(b.code), 'th'))
   useEffect(() => { if (!editTargetRow) return; if (editTargetRow.status === 'pending') beginEdit(editTargetRow); else alert('รายการนี้รับรองแล้ว จึงไม่สามารถแก้ไขได้'); clearEditTarget() }, [editTargetRow, clearEditTarget])
   const beginEdit = (r: any) => {
     setEditing(r)
@@ -1197,7 +1197,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     }
     setBusy(true)
     const payload = {
-      title: form.title.trim(), domain: form.domain, category: form.category.trim() || null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
+      title: form.title.trim(), domain: form.domain, category: null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
       minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
       max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
       need_evidence: form.need_evidence, definition: form.definition.trim() || null,
