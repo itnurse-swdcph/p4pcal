@@ -520,7 +520,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const list = eligibleActs.filter((a: any) => (!categoryFilter || String(a.category || 'อื่นๆ') === categoryFilter) && terms.every(t => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(t))).sort(byCode)
   const catGroups: [string, any[]][] = (() => { const m = new Map<string, any[]>(); list.forEach((a: any) => { const k = a.category || 'อื่นๆ'; m.set(k, [...(m.get(k) || []), a]) }); return [...m.entries()] })()
   const act = acts.find((a: any) => a.code === code)
-  const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate * (act.use_role_mult ? (role === ROLES[0] ? 2 : role === ROLES[1] ? 1.5 : 1) : 1) : 0
+  const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate : 0
   const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
   // ใช้ข้อมูลบุคลากรและชุดรายการแบบเดียวกับหน้าสรุปรายบุคคลก่อนเปิดใบพิมพ์
   const printPerson = person ? (() => {
@@ -720,124 +720,93 @@ const statusLabel = (st: any) => {
 }
 // ใบสรุปผลงาน P4P รายบุคคล (A4) แสดงเป็นหน้าตัวอย่างก่อนพิมพ์ ผ่าน portal เพื่อให้สั่งพิมพ์เฉพาะใบนี้
 function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose }: any) {
-  // แบบฟอร์มรายบุคคลใช้ข้อมูลชุดเดียวกันทุกหน้าที่เรียกพิมพ์ และแสดงเฉพาะกิจกรรมที่รับรองแล้ว
-  // เพื่อให้รายละเอียดกิจกรรมตรงกับแต้มรวมในใบสรุปประจำเดือน
   const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status === 'approved'), [rowsIn])
   const [head, setHead] = useState<any>(null)
-  const [unitRate, setUnitRate] = useState(0)
-  const [payGroups, setPayGroups] = useState<any[]>([])
   useEffect(() => {
-    let alive = true
-    sb.from('pay_groups').select('id,name,full_amount,fixed_pay,guarantee,rate,reserve_pct').order('id')
-      .then(({ data, error }: any) => { if (alive) setPayGroups(!error && Array.isArray(data) ? data : []) })
-    return () => { alive = false }
-  }, [sb])
-  useEffect(() => {
-    const afterPrint = () => {
-      document.body.classList.remove('print-individual-report')
-      onClose?.()
-    }
+    const afterPrint = () => { document.body.classList.remove('print-individual-report'); onClose?.() }
     window.addEventListener('afterprint', afterPrint)
     return () => window.removeEventListener('afterprint', afterPrint)
   }, [onClose])
   useEffect(() => {
     let alive = true
-    const loadSigner = async () => {
-      const { data: rpcRows } = await sb.rpc('approver_print_details_of', { p_person: person.id })
-      const approvedSigner = rpcRows?.[0] || null
+    sb.rpc('approver_print_details_of', { p_person: person.id }).then(({ data }: any) => {
       if (!alive) return
-      if (!approvedSigner?.approver_name) { setHead(null); return }
-      const role = String(approvedSigner.approver_org_role || '').trim()
-      const unitName = String(approvedSigner.approver_unit_name || '').trim()
-      const groupName = String(approvedSigner.approver_nursing_group || '').trim()
-      const compactRole = role.replace(/\s+/g, '')
+      const h = data?.[0]
+      if (!h?.approver_name) { setHead(null); return }
+      const role = String(h.approver_org_role || '').trim()
+      const unitName = String(h.approver_unit_name || '').trim()
+      const groupName = String(h.approver_nursing_group || '').trim()
+      const compact = role.replace(/\\s+/g, '')
       const managerial = role.includes('หัวหน้ากลุ่มงาน')
-        ? (compactRole === 'หัวหน้ากลุ่มงาน' ? 'หัวหน้ากลุ่มงาน' + groupName : role)
-        : role.includes('หัวหน้างาน')
-          ? (compactRole === 'หัวหน้างาน' ? 'หัวหน้างาน' + unitName.replace(/^งาน/, '') : role)
-          : role
-      const approvalRole = String(approvedSigner.approver_position || '')
-      const signerLabel = approvalRole.includes('กลุ่มงาน') ? 'หัวหน้ากลุ่มงานรับรอง'
-        : approvalRole.includes('หัวหน้าพยาบาล') || approvalRole.includes('ภารกิจด้านการพยาบาล') ? 'รักษาการหัวหน้าพยาบาลรับรอง'
-          : 'หัวหน้างานรับรอง'
-      setHead({
-        approver_name: approvedSigner.approver_name,
-        approver_position: [approvedSigner.approver_professional_position, managerial].filter(Boolean).join(String.fromCharCode(10)),
-        approver_label: signerLabel,
-      })
-    }
-    loadSigner()
-    if (person.unit_id && month) sb.from('unit_settings').select('baht_per_point').eq('unit_id', person.unit_id).eq('month', month + '-01').maybeSingle().then(({ data, error }: any) => { if (alive) setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0) })
-    else setUnitRate(0)
+        ? (compact === 'หัวหน้ากลุ่มงาน' ? 'หัวหน้ากลุ่มงาน' + groupName : role)
+        : role.includes('หัวหน้างาน') ? (compact === 'หัวหน้างาน' ? 'หัวหน้างาน' + unitName.replace(/^งาน/, '') : role) : role
+      setHead({ name: h.approver_name, position: [h.approver_professional_position, managerial].filter(Boolean).join('\\n'), label: role.includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : 'หัวหน้างาน' })
+    })
     return () => { alive = false }
-  }, [sb, person.id, person.unit_id, month, units])
+  }, [sb, person.id])
   const unit = units.find((u: any) => Number(u.id) === Number(person.unit_id))
-  const position = (positions || []).find((p: any) => String(p.name || '').trim() === String(person.position || '').trim())
-  const payGroup = payGroups.find((g: any) => Number(g.id) === Number(position?.pay_group || 0))
-  const allocation = Number(payGroup?.full_amount || 0)
-  const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
-  const roleGuarantee = roleGuaranteeForPosition(person.position, positions, person.org_role)
-  const monthText = new Date(month + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
-  const total = rows.filter((r: any) => r.status === 'approved').reduce((a: number, r: any) => a + Number(r.counted_points || 0), 0)
-  const scoring = scoreBreakdown(person.position, positions, person.org_role, total)
-  const performanceTotal = scoring.performance
-  const difference = performanceTotal - guarantee
-  const excess = scoring.excess
-  // แต้มประกันเป็นเกณฑ์ฐาน ส่วนแต้มการันตีตามบทบาทบวกกับแต้มกิจกรรมก่อนคำนวณ
-  const basePercent = performanceTotal >= guarantee ? 0.97 : 0.77
-  const basePay = allocation > 0 ? allocation * basePercent : 0
-  const extraPay = excess * unitRate
-  const payout = basePay + extraPay
+  const monthStart = new Date(month + '-01T00:00:00')
+  const dayCount = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate()
+  const monthText = monthStart.toLocaleDateString('th-TH', { month: 'long' })
+  const buddhistYear = monthStart.getFullYear() + 543
+  const groupName = person.nursing_group || person.group_name || person.staff_group || ''
+  const unitName = unit?.name || person.unit_name || person.sub_unit || ''
   const groups = useMemo(() => {
-    const m = new Map<string, any>()
+    const map = new Map<string, any>()
     rows.forEach((r: any) => {
-      const key = `${r.domain || 'อื่น ๆ'}::${r.activity_code}`
-      const g = m.get(key) || { code: r.activity_code, title: r.title, uom: r.uom, domain: r.domain || 'อื่น ๆ', qty: 0, pts: 0 }
-      g.qty += Number(r.qty || 0)
-      g.pts += Number(r.counted_points || 0)
-      m.set(key, g)
+      const key = String(r.activity_code || '')
+      const item = map.get(key) || { code: key, title: r.title || key, uom: r.uom || '', minutes: Number(r.minutes || 0), rate: Number(r.rate || 0), days: {}, qty: 0, points: 0 }
+      const day = Number(String(r.work_date || '').slice(8, 10))
+      if (day >= 1 && day <= 31) item.days[day] = (item.days[day] || 0) + Number(r.qty || 0)
+      item.qty += Number(r.qty || 0)
+      item.points += Number(r.counted_points || 0)
+      map.set(key, item)
     })
-    const domainOrder: Record<string, number> = { 'บริหาร': 0, 'บริการ': 1, 'วิชาการ': 2 }
-    return [...m.values()].sort((a, b) => (domainOrder[a.domain] ?? 99) - (domainOrder[b.domain] ?? 99) || a.code.localeCompare(b.code, 'th'))
+    const order: Record<string, number> = { บริหาร: 0, บริการ: 1, วิชาการ: 2 }
+    return [...map.values()].sort((a, b) => {
+      const ar = rows.find((r: any) => r.activity_code === a.code)
+      const br = rows.find((r: any) => r.activity_code === b.code)
+      return (order[ar?.domain] ?? 9) - (order[br?.domain] ?? 9) || a.code.localeCompare(b.code, 'th')
+    })
   }, [rows])
-  const activityRows = useMemo(() => {
-    const out: any[] = []
-    let currentDomain = ''
-    groups.forEach((g: any) => {
-      if (g.domain !== currentDomain) {
-        currentDomain = g.domain
-        out.push({ type: 'domain', key: `domain-${currentDomain}`, domain: currentDomain })
-      }
-      out.push({ type: 'activity', key: `${g.domain}-${g.code}`, ...g })
-    })
-    return out
-  }, [groups])
-  const startIndividualReportPrint = () => {
-    document.body.classList.remove('unit-report-preview-open', 'print-unit-report')
+  const startPrint = () => {
     document.body.classList.add('print-individual-report')
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()))
   }
-  const sign = (title: string, name?: string, pos?: string) => <div className="sign-box">
-    <div>ลงชื่อ ........................................ {title}</div>
-    <div className="sign-name">({name || <span className="sign-blank" />})</div>
-    <div className="sign-pos" style={{ whiteSpace: 'pre-line' }}>ตำแหน่ง {pos || <span className="sign-blank wide" />}</div>
-  </div>
   return createPortal(<div className="print-overlay">
     <div className="print-toolbar no-print">
-      <span className="text-sm text-stone-600 mr-auto self-center">ตัวอย่างก่อนพิมพ์ (ขนาด A4) · เลือก "บันทึกเป็น PDF" ในหน้าต่างพิมพ์ได้</span>
-      <button className="btn" onClick={startIndividualReportPrint}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button>
+      <span className="text-sm text-stone-600 mr-auto self-center">ตัวอย่างเอกสาร A4 แนวนอน · แสดงเฉพาะรายการที่ผ่านการรับรอง</span>
+      <button className="btn" onClick={startPrint}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button>
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
-    <div className="print-sheet">
-      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th colSpan={5} className="ps-repeat-heading"><div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div><h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1><div className="ps-top"><div className="ps-info"><div><b>ชื่อ-สกุล</b> {person.name}</div><div><b>ตำแหน่ง</b> {person.position}</div><div><b>หน่วยงาน/งาน</b> {unit?.name || person.unit_name || (String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? (person.group_name || person.nursing_group || person.extra_nursing_group_names || '-') : '- ')}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div><div><b>เดือน</b> {monthText}</div></div><table className="pt ps-sum"><thead><tr><th>รายการสรุป</th><th>จำนวน</th></tr></thead><tbody><tr><td>แต้มประกัน/เดือน</td><td className="r">{nf(guarantee, 0)}</td></tr><tr><td>แต้มการันตีตามบทบาท</td><td className="r">{nf(roleGuarantee, 0)}</td></tr><tr><td>แต้มกิจกรรมที่รับรอง</td><td className="r">{nf(total)}</td></tr><tr><td>แต้มผลงานรวม</td><td className="r">{nf(performanceTotal)}</td></tr><tr><td>แต้มส่วนต่าง</td><td className="r">{nf(difference)}</td></tr><tr><td>อัตราเงินเพิ่ม</td><td className="r">{nf(unitRate)} บาท/แต้ม</td></tr><tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{allocation > 0 ? nf(payout) + ' บาท' : 'รอตั้งค่ากลุ่มวิชาชีพ'}</td></tr></tbody></table></div></th></tr><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
-        <tbody>{activityRows.map((item: any) => item.type === 'domain'
-          ? <tr key={item.key} className="ps-domain-row"><th colSpan={5}>{item.domain}</th></tr>
-          : <tr key={item.key}><td className="nw">{item.code}</td><td className="ps-activity-name">{item.title}</td><td className="c">{item.uom || '—'}</td><td className="r">{n2(item.qty)}</td><td className="r">{nf(item.pts)}</td></tr>)}
-          {!groups.length && <tr><td colSpan={5} className="c">ไม่มีกิจกรรมที่บันทึกในเดือนนี้ หรือ ยังไม่ได้รับการรับรองกิจกรรม กรุณาตรวจสอบ</td></tr>}
-          {groups.length > 0 && <tr className="b"><td colSpan={4} className="r">รวมคะแนน</td><td className="r">{nf(groups.reduce((a, g) => a + g.pts, 0))}</td></tr>}
-        </tbody></table>
-      <div className="sign-row ps-sign-row">{sign('ผู้บันทึก', person.name, person.position)}{sign(head?.approver_label || 'หัวหน้างานรับรอง', head?.approver_name, head?.approver_position)}</div>
-      <div className="ps-foot">พิมพ์เมื่อ {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} · ระบบ P4P กลุ่มการพยาบาล</div>
+    <div className="print-sheet ps-individual-landscape">
+      <h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล</h1>
+      <div className="ps-hospital">โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div>
+      <div className="ps-meta">
+        <div>กลุ่มงาน {groupName || '................................'} &nbsp;&nbsp; งาน {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div>
+        <div>ชื่อ-สกุล {person.name || '................................'} &nbsp;&nbsp; ตำแหน่ง {person.position || '................................'} &nbsp;&nbsp; ระดับการบริหาร {String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : String(person.org_role || '').includes('หัวหน้างาน') ? 'หัวหน้างาน' : '—'}</div>
+      </div>
+      <table className="pt ps-individual-table">
+        <thead><tr>
+          <th rowSpan={2}>ลำดับ</th><th rowSpan={2}>กิจกรรม</th><th rowSpan={2}>หน่วยนับ</th><th rowSpan={2}>เวลา<br/>(นาที)</th><th rowSpan={2}>คะแนน/<br/>นาที</th><th rowSpan={2}>ค่างาน</th><th rowSpan={2}>คะแนน<br/>ปรับ</th><th colSpan={dayCount}>วันที่</th><th rowSpan={2}>รวม<br/>หน่วย</th><th rowSpan={2}>รวม<br/>แต้ม</th><th rowSpan={2}>แหล่ง<br/>อ้างอิง</th>
+        </tr><tr>{Array.from({length:dayCount},(_,i)=><th key={i}>{i+1}</th>)}</tr></thead>
+        <tbody>
+          {groups.map((g: any,i: number)=><tr key={g.code}>
+            <td className="c">{i+1}</td><td className="ps-activity-name">{g.title}</td><td className="c">{g.uom || '—'}</td><td className="r">{nf(g.minutes,0)}</td><td className="r">{nf(g.rate,3)}</td><td className="r">1</td><td className="r">{nf(g.minutes*g.rate)}</td>
+            {Array.from({length:dayCount},(_,d)=><td key={d} className="r">{g.days[d+1] ? n2(g.days[d+1]) : ''}</td>)}
+            <td className="r">{n2(g.qty)}</td><td className="r">{nf(g.points)}</td><td></td>
+          </tr>)}
+          {!groups.length && <tr><td colSpan={dayCount+10} className="c">ไม่มีรายการกิจกรรมที่ผ่านการรับรองในเดือนนี้</td></tr>}
+          {groups.length>0 && <tr className="b"><td colSpan={dayCount+8} className="r">รวมทั้งหมด</td><td className="r">{n2(groups.reduce((v,g)=>v+g.qty,0))}</td><td className="r">{nf(groups.reduce((v,g)=>v+g.points,0))}</td><td></td></tr>}
+        </tbody>
+      </table>
+      <div className="ps-certification">ขอรับรองว่าผู้มีรายนามข้างต้นได้ปฏิบัติงานจริง</div>
+      <div className="ps-single-sign">
+        <div>ลงชื่อ ........................................................</div>
+        <div className="ps-sign-name">({head?.name || '................................................'})</div>
+        <div>{head?.position || 'หัวหน้าผู้รับรอง'}</div>
+        <div>{head?.label || 'หัวหน้าผู้รับรอง'}</div>
+      </div>
     </div>
   </div>, document.body)
 }
