@@ -729,8 +729,9 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   }, [onClose])
   useEffect(() => {
     let alive = true
-    sb.rpc('approver_print_details_of', { p_person: person.id }).then(({ data }: any) => {
+    sb.rpc('approver_print_details_of', { p_person: person.id }).then(({ data, error }: any) => {
       if (!alive) return
+      if (error) { console.error('โหลดข้อมูลหัวหน้าผู้รับรองไม่สำเร็จ:', error); setHead(null); return }
       const h = data?.[0]
       if (!h?.approver_name) { setHead(null); return }
       const role = String(h.approver_org_role || '').trim()
