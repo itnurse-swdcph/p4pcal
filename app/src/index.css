@@ -885,9 +885,19 @@ body.unit-report-preview-open .unit-report-toolbar {
   body.print-individual-report .ps-acts thead { display: table-header-group !important; }
 }
 
-/* Activity library printout: one profession's complete active set, in landscape. */
+/* Activity library: match the seven-column profession workbook format. */
 .activity-library-print { display: none; }
-@page activityLibrary { size: A4 landscape; margin: 8mm; }
+.activity-library-table th,
+.activity-library-table td { border: 1px solid #777; padding: .45rem .5rem; vertical-align: top; }
+.activity-library-table th { background: #404040; color: #fff; font-weight: 700; text-align: center; }
+.activity-library-table th:nth-child(1), .activity-library-table td:nth-child(1) { width: 7%; }
+.activity-library-table th:nth-child(2), .activity-library-table td:nth-child(2) { width: 40%; }
+.activity-library-table th:nth-child(3), .activity-library-table td:nth-child(3) { width: 13%; }
+.activity-library-table th:nth-child(4), .activity-library-table td:nth-child(4) { width: 12%; }
+.activity-library-table th:nth-child(5), .activity-library-table td:nth-child(5) { width: 10%; }
+.activity-library-table th:nth-child(6), .activity-library-table td:nth-child(6) { width: 8%; }
+.activity-library-table th:nth-child(7), .activity-library-table td:nth-child(7) { width: 10%; }
+@page activityLibrary { size: A4 portrait; margin: 0.7in; }
 @media print {
   body.print-activity-library #root { display: none !important; }
   body.print-activity-library .activity-library-print {
@@ -908,15 +918,19 @@ body.unit-report-preview-open .unit-report-toolbar {
   body.print-activity-library .activity-library-print p { margin: 0 0 4mm; text-align: center; font-size: 9pt; }
   body.print-activity-library .activity-library-print table { width: 100% !important; border-collapse: collapse !important; table-layout: fixed !important; }
   body.print-activity-library .activity-library-print th,
-  body.print-activity-library .activity-library-print td { border: .5pt solid #333 !important; padding: 1.5mm !important; color: #111 !important; text-align: left !important; vertical-align: top !important; white-space: pre-wrap !important; overflow-wrap: anywhere !important; font-size: 8pt !important; }
-  body.print-activity-library .activity-library-print th { background: #e9eef3 !important; font-weight: 700 !important; }
-  body.print-activity-library .activity-library-print th:nth-child(1), body.print-activity-library .activity-library-print td:nth-child(1) { width: 11% !important; }
-  body.print-activity-library .activity-library-print th:nth-child(2), body.print-activity-library .activity-library-print td:nth-child(2) { width: 20% !important; }
-  body.print-activity-library .activity-library-print th:nth-child(3), body.print-activity-library .activity-library-print td:nth-child(3) { width: 10% !important; }
-  body.print-activity-library .activity-library-print th:nth-child(4), body.print-activity-library .activity-library-print td:nth-child(4) { width: 9% !important; }
+  body.print-activity-library .activity-library-print td { border: .5pt solid #333 !important; padding: 1.2mm !important; color: #111 !important; text-align: left !important; vertical-align: top !important; white-space: pre-wrap !important; overflow-wrap: anywhere !important; font-size: 8pt !important; }
+  body.print-activity-library .activity-library-print th { border: .5pt solid #333 !important; padding: 1.2mm !important; color: #fff !important; background: #404040 !important; font-weight: 700 !important; text-align: center !important; vertical-align: middle !important; white-space: normal !important; font-size: 8pt !important; }
+  body.print-activity-library .activity-library-print th:nth-child(1), body.print-activity-library .activity-library-print td:nth-child(1) { width: 7% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(2), body.print-activity-library .activity-library-print td:nth-child(2) { width: 40% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(3), body.print-activity-library .activity-library-print td:nth-child(3) { width: 13% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(4), body.print-activity-library .activity-library-print td:nth-child(4) { width: 12% !important; }
   body.print-activity-library .activity-library-print th:nth-child(5), body.print-activity-library .activity-library-print td:nth-child(5) { width: 10% !important; }
-  body.print-activity-library .activity-library-print th:nth-child(6), body.print-activity-library .activity-library-print td:nth-child(6) { width: 25% !important; }
-  body.print-activity-library .activity-library-print th:nth-child(7), body.print-activity-library .activity-library-print td:nth-child(7) { width: 9% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(6), body.print-activity-library .activity-library-print td:nth-child(6) { width: 8% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(7), body.print-activity-library .activity-library-print td:nth-child(7) { width: 10% !important; }
+  body.print-activity-library .activity-library-print .activity-number { text-align: right !important; white-space: nowrap !important; }
+  body.print-activity-library .activity-library-print td:nth-child(1) { text-align: center !important; }
+  body.print-activity-library .activity-library-print .activity-description { white-space: pre-wrap !important; }
+  body.print-activity-library .no-print { display: none !important; }
   body.print-activity-library .activity-library-print th:nth-child(8), body.print-activity-library .activity-library-print td:nth-child(8) { width: 6% !important; }
   body.print-activity-library .activity-library-print tr { break-inside: avoid; page-break-inside: avoid; }
 }
