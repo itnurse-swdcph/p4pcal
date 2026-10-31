@@ -1547,7 +1547,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     const roleGuarantee = scoring.roleGuarantee
     const performancePoints = scoring.performance
     const excess = scoring.excess
-    const days = new Set(rs.map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
+    const days = new Set(approved.map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
     const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
