@@ -1169,3 +1169,38 @@ body.unit-report-preview-open .unit-report-print * {
 
 .ps-leave-row { margin:1.5mm 0 3mm; font-size:9pt; }
 .ps-single-sign > div { white-space:pre-line; }
+
+
+/* Individual report: repeat all pre-table heading information on every printed page. */
+.ps-individual-table { border-collapse: collapse !important; }
+.ps-individual-table thead { display: table-header-group !important; }
+.ps-individual-table tfoot { display: table-footer-group !important; }
+.ps-individual-table .ps-repeat-heading th,
+.ps-individual-table .ps-repeat-meta th,
+.ps-individual-table .ps-repeat-leave th {
+  border: 0 !important;
+  background: #fff !important;
+  text-align: left !important;
+  padding: 0 !important;
+  font-weight: 400 !important;
+}
+.ps-individual-table .ps-repeat-heading .ps-title { margin: 0 0 2mm !important; }
+.ps-individual-table .ps-repeat-meta .ps-meta { margin: 1mm 0 !important; text-align: left !important; }
+.ps-individual-table .ps-repeat-leave .ps-leave-row { margin: 1mm 0 2mm !important; text-align: left !important; }
+.ps-individual-table td.r,
+.ps-individual-table td.c,
+.ps-individual-table tbody td:not(.ps-activity-name) { text-align: center !important; }
+.ps-individual-table .ps-activity-name { text-align: left !important; }
+@media print {
+  @page { size: A4 landscape !important; margin: 7mm; }
+  body.print-individual-report .ps-individual-table thead { display: table-header-group !important; }
+  body.print-individual-report .ps-individual-table tr,
+  body.print-individual-report .ps-individual-table th,
+  body.print-individual-report .ps-individual-table td { break-inside: avoid !important; page-break-inside: avoid !important; }
+  body.print-individual-report .ps-individual-table .ps-repeat-heading th,
+  body.print-individual-report .ps-individual-table .ps-repeat-meta th,
+  body.print-individual-report .ps-individual-table .ps-repeat-leave th { display: table-cell !important; }
+  body.print-individual-report .ps-individual-table td.r,
+  body.print-individual-report .ps-individual-table td.c,
+  body.print-individual-report .ps-individual-table tbody td:not(.ps-activity-name) { text-align: center !important; }
+}
