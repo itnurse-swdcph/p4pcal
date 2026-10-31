@@ -819,21 +819,21 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
     <div className="print-sheet ps-individual-landscape">
       <table className="pt ps-individual-table">
         <colgroup>
-          <col style={{ width: '6mm' }} />
-          <col style={{ width: '46mm' }} />
-          <col style={{ width: '10mm' }} />
+          <col style={{ width: '5mm' }} />
+          <col style={{ width: '38mm' }} />
           <col style={{ width: '8mm' }} />
-          <col style={{ width: '9mm' }} />
           <col style={{ width: '7mm' }} />
+          <col style={{ width: '7mm' }} />
+          <col style={{ width: '6mm' }} />
+          <col style={{ width: '7mm' }} />
+          {Array.from({ length: dayCount }, (_, i) => <col key={i} style={{ width: `calc((100% - 105mm) / ${dayCount})` }} />)}
           <col style={{ width: '9mm' }} />
-          {Array.from({ length: dayCount }, (_, i) => <col key={i} style={{ width: `calc((100% - 125mm) / ${dayCount})` }} />)}
-          <col style={{ width: '10mm' }} />
-          <col style={{ width: '10mm' }} />
-          <col style={{ width: '10mm' }} />
+          <col style={{ width: '9mm' }} />
+          <col style={{ width: '9mm' }} />
         </colgroup>
         <thead>
           <tr className="ps-repeat-heading"><th colSpan={dayCount + 10}><h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1></th></tr>
-          <tr className="ps-repeat-meta"><th colSpan={dayCount + 10}><div className="ps-meta"><div>{groupName || '................................'} &nbsp;&nbsp; {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div><div>ชื่อ-สกุล {person.name || '................................'} &nbsp;&nbsp; ตำแหน่ง {person.position || '................................'} &nbsp;&nbsp; ระดับการบริหาร {String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : String(person.org_role || '').includes('หัวหน้างาน') ? 'หัวหน้างาน' : '—'}</div></div></th></tr>
+          <tr className="ps-repeat-meta"><th colSpan={dayCount + 10}><div className="ps-meta"><div>{groupName || '................................'} &nbsp;&nbsp; {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div><div className="ps-person-meta"><span>ชื่อ-สกุล {person.name || '................................'}</span> &nbsp;&nbsp; <span>ตำแหน่ง {person.position || '................................'}</span> &nbsp;&nbsp; <span>ระดับการบริหาร {String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : String(person.org_role || '').includes('หัวหน้างาน') ? 'หัวหน้างาน' : '—'}</span></div></div></th></tr>
           <tr className="ps-repeat-leave"><th colSpan={dayCount + 10}><div className="ps-leave-row">ลากิจ = {Number(leaveData.personal_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาป่วย = {Number(leaveData.sick_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาพักผ่อน = {Number(leaveData.annual_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน</div></th></tr>
           <tr>
           <th rowSpan={2}>ลำดับ</th><th rowSpan={2}>กิจกรรม</th><th rowSpan={2}>หน่วยนับ</th><th rowSpan={2}>เวลา<br/>(นาที)</th><th rowSpan={2}>คะแนน/<br/>นาที</th><th rowSpan={2}>ค่างาน</th><th rowSpan={2}>คะแนน<br/>ปรับ</th><th colSpan={dayCount}>วันที่</th><th rowSpan={2}>รวม<br/>หน่วย</th><th rowSpan={2}>รวม<br/>แต้ม</th><th rowSpan={2}>แหล่ง<br/>อ้างอิง</th>
