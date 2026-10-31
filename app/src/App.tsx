@@ -923,7 +923,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
   const [editEvidenceFile, setEditEvidenceFile] = useState<File | null>(null)
   const [editActivityQuery, setEditActivityQuery] = useState('')
   const [editActivityDropdownOpen, setEditActivityDropdownOpen] = useState(false)
-  const [editRoleMultipliers, setEditRoleMultipliers] = useState<any>({ 'ประธาน': 2, 'เลขานุการ/กรรมการ': 1.5, 'สมาชิก/ผู้เข้าร่วม': 1 })
+  
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
   const sortedRows = useMemo(() => [...(rows || [])].sort((a: any, b: any) => {
@@ -939,18 +939,10 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
   }), [rows])
   const displayedRows = useMemo(() => sortedRows.filter((r: any) => (!filterFrom || String(r.work_date || '') >= filterFrom) && (!filterTo || String(r.work_date || '') <= filterTo)), [sortedRows, filterFrom, filterTo])
   const selectedEditActivity = (acts || []).find((a: any) => a.code === form.activity_code)
-  const editRoleMultiplier = selectedEditActivity?.use_role_mult ? Number(editRoleMultipliers[form.role] ?? 1) : 1
-  const editPointsPerUnit = selectedEditActivity && editing
-    ? Number(selectedEditActivity.minutes || 0) * Number(editing.rate || 0) * editRoleMultiplier
-    : 0
+  const editPointsPerUnit = selectedEditActivity && editing ? Number(selectedEditActivity.minutes || 0) * Number(editing.rate || 0) : 0
   const editPointsTotal = editPointsPerUnit * Number(form.qty || 0)
   const editActivityTerms = editActivityQuery.toLowerCase().split(/\s+/).filter(Boolean)
   const editActivityOptions = (acts || []).filter((a: any) => a.active !== false && editActivityTerms.every((term: string) => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(term))).sort((a: any, b: any) => String(a.code).localeCompare(String(b.code), 'th'))
-  useEffect(() => {
-    sb.from('app_settings').select('key,value').in('key', ['mult_chair', 'mult_sec', 'mult_member']).then(({ data, error }: any) => {
-      if (!error && data) setEditRoleMultipliers((current: any) => ({ ...current, ...Object.fromEntries(data.map((x: any) => [x.key === 'mult_chair' ? 'ประธาน' : x.key === 'mult_sec' ? 'เลขานุการ/กรรมการ' : 'สมาชิก/ผู้เข้าร่วม', Number(x.value)])) }))
-    })
-  }, [sb])
   useEffect(() => { if (!editTargetRow) return; if (editTargetRow.status === 'pending') beginEdit(editTargetRow); else alert('รายการนี้รับรองแล้ว จึงไม่สามารถแก้ไขได้'); clearEditTarget() }, [editTargetRow, clearEditTarget])
   const beginEdit = (r: any) => {
     setEditing(r)
@@ -1061,8 +1053,8 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       </label>
       {(() => { const a = acts.find((x:any) => x.code === form.activity_code); return a ? <div className={`rounded-xl border p-3 text-sm ${a.need_evidence ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}><b>{a.need_evidence ? 'หลักฐานที่ต้องใช้สำหรับกิจกรรมนี้ (จำเป็น)' : 'หลักฐานประกอบ'}</b><p className="mt-1 whitespace-pre-wrap">{a.definition || (a.need_evidence ? 'กรุณาระบุหลักฐานอ้างอิงที่ตรวจสอบได้' : 'สามารถระบุเอกสารหรือรูปถ่ายประกอบได้')}</p>{a.need_evidence && <p className="mt-2 text-xs">ต้องกรอกรายละเอียดหลักฐาน หรือมีรูปหลักฐานอย่างน้อย 1 อย่าง</p>}</div> : null })()}
       <label className="field-label">จำนวน ({acts.find((a:any) => a.code === form.activity_code)?.uom || editing.uom || 'หน่วย'})<input type="number" min="0.01" step="0.5" className="inp mt-1" value={form.qty} onChange={e => setForm({...form, qty:e.target.value})} /></label>
-      {selectedEditActivity && <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm" aria-live="polite"><b>คะแนนตามกิจกรรมและจำนวนที่เลือก</b><div className="mt-1">อัตราคะแนนต่อหน่วย: {nf(editPointsPerUnit)} คะแนน</div><div>คะแนนรวมก่อนตรวจเพดานและเงื่อนไข: <b>{nf(editPointsTotal)} คะแนน</b></div><p className="mt-1 text-xs text-stone-600">คะแนนจะคำนวณใหม่จากกิจกรรม จำนวน ตำแหน่ง และบทบาทเมื่อบันทึก โดยระบบยังตรวจเงื่อนไขและเพดานคะแนนตามปกติ</p></div>}
-      {acts.find((a:any) => a.code === form.activity_code)?.use_role_mult && <label className="field-label">บทบาทในกิจกรรม<select className="inp mt-1" value={form.role} onChange={e => setForm({...form, role:e.target.value})}>{ROLES.map((r:string) => <option key={r}>{r}</option>)}</select></label>}
+      {selectedEditActivity && <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm" aria-live="polite"><b>คะแนนตามกิจกรรมและจำนวนที่เลือก</b><div className="mt-1">อัตราคะแนนต่อหน่วย: {nf(editPointsPerUnit)} คะแนน</div><div>คะแนนรวมก่อนตรวจเพดานและเงื่อนไข: <b>{nf(editPointsTotal)} คะแนน</b></div><p className="mt-1 text-xs text-stone-600">คะแนนคำนวณจากเวลามาตรฐานและคะแนนต่อนาทีของสายงาน โดยไม่ใช้ตัวคูณบทบาท โดยระบบยังตรวจเงื่อนไขและเพดานคะแนนตามปกติ</p></div>}
+      
       <label className="field-label">รายละเอียดกิจกรรมย่อย / รายละเอียดการดำเนินงาน <span className="required-mark">*</span><textarea required aria-required="true" className="inp mt-1 min-h-24" value={form.sub_activity} onChange={e => setForm({...form, sub_activity:e.target.value})} placeholder="จำเป็นต้องกรอก: ระบุชื่องานย่อย รายละเอียดสิ่งที่ทำ ผลลัพธ์ หรือขอบเขตงาน" /></label>
       <label className="field-label">รายละเอียดหลักฐาน {acts.find((a:any) => a.code === form.activity_code)?.need_evidence && <span className="text-red-700">* จำเป็น</span>}<textarea className="inp mt-1 min-h-24" value={form.evidence} onChange={e => setForm({...form, evidence:e.target.value})} placeholder={acts.find((a:any) => a.code === form.activity_code)?.need_evidence ? 'ระบุหลักฐานตามรายการที่แสดงด้านบน เช่น เลขที่เอกสาร วันที่ ผู้รับรอง หรือชื่อเอกสาร' : 'ระบุเอกสารอ้างอิงหรือคำอธิบายหลักฐาน (ถ้ามี)'} /></label>
       <div className="space-y-1"><label className="field-label">แนบรูปถ่ายหลักฐาน {acts.find((a:any) => a.code === form.activity_code)?.need_evidence && <span className="text-slate-600">(หรือกรอกรายละเอียดหลักฐานด้านบน)</span>}</label>
@@ -1731,9 +1723,6 @@ function PeoplePage({ sb, people, unit, positions, reload }: any) {
 }
 
 const GLOBAL_SETTINGS: [string, string, string][] = [
-  ['mult_chair', 'ตัวคูณบทบาท – ประธาน', 'ใช้กับกิจกรรมประเภทประชุม/คณะกรรมการที่เลือกบทบาท "ประธาน"'],
-  ['mult_sec', 'ตัวคูณบทบาท – เลขานุการ/กรรมการ', ''],
-  ['mult_member', 'ตัวคูณบทบาท – สมาชิก/ผู้เข้าร่วม', 'ใช้เมื่อไม่ได้ระบุบทบาทด้วย'],
   ['cap_shift_points', 'เพดานคะแนนต่อเวร (คะแนน) รวมแสตนด์เช้า', 'สูงสุด 90 คะแนนต่อเวร คะแนนเกินเพดานบันทึกได้แต่ไม่นับ นับรวมทุกด้าน (บริหาร บริการ วิชาการ)'],
   ['cap_day_points', 'เพดานคะแนนรวมต่อวัน (คะแนน)', 'เวรผลัดรวมทุกเวรในวันเดียวกัน (เวรดึก 00.00–08.00 นับเป็นวันที่นั้น)']
 ]
