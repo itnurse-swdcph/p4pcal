@@ -1260,3 +1260,49 @@ body.unit-report-preview-open .unit-report-print * {
     padding:1px 0.4mm !important; font-size:7pt !important; white-space:nowrap !important;
   }
 }
+
+
+/* Final readability tuning for individual P4P sheets. Keep identity details on one line
+   and reserve a slightly larger, predictable width for each calendar-day cell. */
+.ps-individual-table col:nth-child(1) { width:5mm !important; }
+.ps-individual-table col:nth-child(2) { width:38mm !important; }
+.ps-individual-table col:nth-child(3) { width:8mm !important; }
+.ps-individual-table col:nth-child(4) { width:7mm !important; }
+.ps-individual-table col:nth-child(5) { width:7mm !important; }
+.ps-individual-table col:nth-child(6) { width:6mm !important; }
+.ps-individual-table col:nth-child(7) { width:7mm !important; }
+.ps-individual-table col:nth-last-child(-n+3) { width:9mm !important; }
+.ps-individual-table .ps-day-cell {
+  padding:1px 0.35mm !important;
+  font-size:7.5pt !important;
+  font-weight:600 !important;
+  line-height:1.15 !important;
+  white-space:nowrap !important;
+  word-break:normal !important;
+  overflow-wrap:normal !important;
+  text-align:center !important;
+}
+.ps-individual-landscape .ps-person-meta {
+  display:block !important;
+  width:100% !important;
+  white-space:nowrap !important;
+  overflow-wrap:normal !important;
+  word-break:keep-all !important;
+  font-size:7.2pt !important;
+  letter-spacing:-0.15px !important;
+  line-height:1.2 !important;
+}
+.ps-individual-landscape .ps-person-meta > span {
+  display:inline !important;
+  white-space:nowrap !important;
+}
+@media print {
+  body.print-individual-report .ps-individual-table .ps-day-cell {
+    font-size:7.5pt !important;
+    white-space:nowrap !important;
+  }
+  body.print-individual-report .ps-individual-landscape .ps-person-meta {
+    white-space:nowrap !important;
+    font-size:7.2pt !important;
+  }
+}
