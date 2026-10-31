@@ -897,6 +897,14 @@ body.unit-report-preview-open .unit-report-toolbar {
 .activity-library-table th:nth-child(5), .activity-library-table td:nth-child(5) { width: 10%; }
 .activity-library-table th:nth-child(6), .activity-library-table td:nth-child(6) { width: 8%; }
 .activity-library-table th:nth-child(7), .activity-library-table td:nth-child(7) { width: 10%; }
+.activity-library-table.admin-table th:nth-child(1), .activity-library-table.admin-table td:nth-child(1) { width: 6%; }
+.activity-library-table.admin-table th:nth-child(2), .activity-library-table.admin-table td:nth-child(2) { width: 34%; }
+.activity-library-table.admin-table th:nth-child(3), .activity-library-table.admin-table td:nth-child(3) { width: 11%; }
+.activity-library-table.admin-table th:nth-child(4), .activity-library-table.admin-table td:nth-child(4) { width: 10%; }
+.activity-library-table.admin-table th:nth-child(5), .activity-library-table.admin-table td:nth-child(5) { width: 10%; }
+.activity-library-table.admin-table th:nth-child(6), .activity-library-table.admin-table td:nth-child(6) { width: 7%; }
+.activity-library-table.admin-table th:nth-child(7), .activity-library-table.admin-table td:nth-child(7) { width: 10%; }
+.activity-library-table.admin-table th:nth-child(8), .activity-library-table.admin-table td:nth-child(8) { width: 12%; }
 @page activityLibrary { size: A4 portrait; margin: 0.7in; }
 @media print {
   body.print-activity-library #root { display: none !important; }
