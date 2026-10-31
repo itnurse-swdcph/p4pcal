@@ -729,7 +729,7 @@ const statusLabel = (st: any) => {
   return parts.length === 1 ? parts[0][1] : parts.map(([k, l]) => `${l} ${st[k]}/${total}`).join(' · ')
 }
 // ใบสรุปผลงาน P4P รายบุคคล (A4) แสดงเป็นหน้าตัวอย่างก่อนพิมพ์ ผ่าน portal เพื่อให้สั่งพิมพ์เฉพาะใบนี้
-function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose, autoPrint = false }: any) {
+function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose, autoPrint = false, leaveDataOverride = null }: any) {
   const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status === 'approved'), [rowsIn])
   const [head, setHead] = useState<any>(null)
   const [headLoaded, setHeadLoaded] = useState(false)
@@ -744,12 +744,13 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
     let alive = true
     const staffId = person.staff_directory_id ?? person.directory_source_row
     setLeaveLoaded(false)
+    if (leaveDataOverride != null) { setLeaveData(leaveDataOverride); setLeaveLoaded(true); return () => { alive = false } }
     if (!staffId) { setLeaveData({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); setLeaveLoaded(true); return () => { alive = false } }
     sb.from('p4p_monthly_leave').select('personal_leave_days,sick_leave_days,annual_leave_days')
       .eq('staff_directory_id', staffId).eq('month', month + '-01').maybeSingle()
       .then(({ data, error }: any) => { if (alive) { setLeaveData(!error && data ? data : { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); setLeaveLoaded(true) } }).catch(() => { if (alive) { setLeaveData({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); setLeaveLoaded(true) } })
     return () => { alive = false }
-  }, [sb, person.staff_directory_id, person.directory_source_row, month])
+  }, [sb, person.staff_directory_id, person.directory_source_row, month, leaveDataOverride])
   useEffect(() => {
     let alive = true
     sb.rpc('approver_print_details_of', { p_person: person.id }).then(({ data, error }: any) => {
@@ -1342,6 +1343,12 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
   const [loading, setLoading] = useState(true)
   const [detailFor, setDetailFor] = useState<any>(null)
   const [printReport, setPrintReport] = useState(false)
+  const [leaveReportOpen, setLeaveReportOpen] = useState(false)
+  const [groupLeaveData, setGroupLeaveData] = useState<Record<string, any>>({})
+  const [groupLeaveDrafts, setGroupLeaveDrafts] = useState<Record<string, any>>({})
+  const [groupLeaveSaving, setGroupLeaveSaving] = useState<Record<string, boolean>>({})
+  const [groupLeaveMessages, setGroupLeaveMessages] = useState<Record<string, string>>({})
+  const [printingPerson, setPrintingPerson] = useState<any>(null)
   const [rates, setRates] = useState<Record<string, number>>({})
   const [rowsAll, reload] = useLogs(sb, month, null, null)
   useEffect(() => {
@@ -1378,6 +1385,45 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
     return () => { alive = false }
   }, [sb, groupName, month, units])
   const monthText = month ? new Date(month + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : ''
+  useEffect(() => {
+    let alive = true
+    if (!groupName || !month) { setGroupLeaveData({}); setGroupLeaveDrafts({}); return () => { alive = false } }
+    sb.from('p4p_group_monthly_leave').select('staff_directory_id,personal_leave_days,sick_leave_days,annual_leave_days')
+      .eq('group_name', groupName).eq('month', month + '-01')
+      .then(({ data, error }: any) => {
+        if (!alive) return
+        if (error) { console.error('โหลดข้อมูลวันลากลุ่มงานไม่สำเร็จ:', error); setGroupLeaveData({}); return }
+        const mapped = Object.fromEntries((data || []).map((x: any) => [String(x.staff_directory_id), {
+          personal_leave_days: Number(x.personal_leave_days || 0), sick_leave_days: Number(x.sick_leave_days || 0), annual_leave_days: Number(x.annual_leave_days || 0)
+        }]))
+        setGroupLeaveData(mapped)
+        setGroupLeaveDrafts(Object.fromEntries(Object.entries(mapped).map(([k, v]) => [k, {
+          personal_leave_days: String((v as any).personal_leave_days), sick_leave_days: String((v as any).sick_leave_days), annual_leave_days: String((v as any).annual_leave_days)
+        }])))
+      })
+    return () => { alive = false }
+  }, [sb, groupName, month])
+  const saveGroupLeave = async (person: any) => {
+    const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
+    if (!staffId) { alert('ไม่พบรหัสบุคลากรจากทะเบียนกลาง จึงยังบันทึกข้อมูลวันลาไม่ได้'); return }
+    const key = String(staffId)
+    const draft = groupLeaveDrafts[key] || { personal_leave_days: '0', sick_leave_days: '0', annual_leave_days: '0' }
+    const values: any = {}
+    for (const field of ['personal_leave_days', 'sick_leave_days', 'annual_leave_days']) {
+      const raw = String(draft[field] ?? '0').trim()
+      const value = raw === '' ? 0 : Number(raw)
+      if (!Number.isFinite(value) || value < 0) { setGroupLeaveMessages(v => ({ ...v, [key]: 'กรุณากรอกจำนวนวันลาเป็นตัวเลขตั้งแต่ 0 ขึ้นไป' })); return }
+      values[field] = value
+    }
+    setGroupLeaveSaving(v => ({ ...v, [key]: true })); setGroupLeaveMessages(v => ({ ...v, [key]: '' }))
+    const { error } = await sb.from('p4p_group_monthly_leave').upsert({ staff_directory_id: staffId, group_name: groupName, month: month + '-01', ...values }, { onConflict: 'staff_directory_id,group_name,month' })
+    setGroupLeaveSaving(v => ({ ...v, [key]: false }))
+    if (error) setGroupLeaveMessages(v => ({ ...v, [key]: 'บันทึกไม่สำเร็จ: ' + error.message }))
+    else {
+      setGroupLeaveData(v => ({ ...v, [key]: values }))
+      setGroupLeaveMessages(v => ({ ...v, [key]: 'บันทึกแล้ว' }))
+    }
+  }
   const groupRate = Object.values(rates).find((n: number) => Number.isFinite(n)) || 0
   const sum = useMemo(() => heads.map((p: any, index: number) => {
     const rs = rowsAll.filter((r: any) => r.person_id === p.id || (p.person_id && r.person_id === p.person_id))
@@ -1411,7 +1457,32 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
   const closePrintReport = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
   return <div className="card space-y-3">
     <div><h2 className="text-lg font-bold">สรุปรายงานหน่วยงาน · {groupName}</h2><p className="text-sm text-stone-600">แสดงเฉพาะรายชื่อหัวหน้ากลุ่มงาน โดยไม่รวมบุคลากรของหน่วยงานย่อย · ประจำเดือน {monthText}</p></div>
-    <div className="flex flex-wrap gap-2"><button type="button" className="btn" onClick={openPrintReport} disabled={loading || !sum.length}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์รายงานกลุ่มงาน</button></div>
+    <div className="flex flex-wrap gap-2">
+      <button type="button" className="btn" onClick={openPrintReport} disabled={loading || !sum.length}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์รายงานกลุ่มงาน</button>
+      <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)} disabled={loading || !sum.length}>{leaveReportOpen ? 'กลับสรุปรายงานกลุ่มงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>
+    </div>
+    {leaveReportOpen && <div className="space-y-3">
+      <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · แสดงเฉพาะหัวหน้ากลุ่มงาน</p></div>
+      <div className="overflow-x-auto rounded-xl border border-stone-200"><table className="w-full min-w-[900px] text-sm"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนวันปฏิบัติงาน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
+        {sum.map((x: any) => {
+          const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
+          const key = String(staffId || '')
+          const saved = groupLeaveData[key] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
+          const draft = groupLeaveDrafts[key] || { personal_leave_days: String(saved.personal_leave_days), sick_leave_days: String(saved.sick_leave_days), annual_leave_days: String(saved.annual_leave_days) }
+          const workDays = new Set((x.rs || []).filter((r: any) => r.status !== 'draft').map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
+          const setLeave = (field: string, value: string) => setGroupLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
+          return <tr key={x.p.id || key}>
+            <td className="p-2 text-center">{x.order}</td><td className="p-2 font-semibold">{x.p.displayName}</td><td className="p-2">{x.p.position || '—'}</td><td className="p-2 text-center font-semibold">{workDays}</td>
+            <td className="p-2"><input aria-label={'ลากิจของ ' + x.p.displayName} type="number" min="0" step="0.5" className="inp !w-24" value={draft.personal_leave_days} onChange={e => setLeave('personal_leave_days', e.target.value)} /></td>
+            <td className="p-2"><input aria-label={'ลาป่วยของ ' + x.p.displayName} type="number" min="0" step="0.5" className="inp !w-24" value={draft.sick_leave_days} onChange={e => setLeave('sick_leave_days', e.target.value)} /></td>
+            <td className="p-2"><input aria-label={'ลาพักผ่อนของ ' + x.p.displayName} type="number" min="0" step="0.5" className="inp !w-24" value={draft.annual_leave_days} onChange={e => setLeave('annual_leave_days', e.target.value)} /></td>
+            <td className="p-2"><button type="button" className="btn !py-1" disabled={!staffId || !!groupLeaveSaving[key]} onClick={() => saveGroupLeave(x.p)}>{groupLeaveSaving[key] ? 'กำลังบันทึก…' : 'บันทึกข้อมูล'}</button>{groupLeaveMessages[key] && <div className={'mt-1 text-xs ' + (groupLeaveMessages[key].startsWith('บันทึกแล้ว') ? 'text-emerald-700' : 'text-red-700')}>{groupLeaveMessages[key]}</div>}</td>
+            <td className="p-2"><button type="button" className="btn sec !py-1" disabled={!x.p.id} onClick={() => setPrintingPerson({ ...x.p, name: x.p.displayName, group_name: groupName, staff_directory_id: staffId || x.p.staff_directory_id })}>พิมพ์</button></td>
+          </tr>
+        })}
+        {!sum.length && <tr><td colSpan={9} className="py-6 text-center text-stone-500">ไม่พบรายชื่อหัวหน้ากลุ่มงาน</td></tr>}
+      </tbody></table></div>
+    </div>}
     {loading ? <p className="text-sm text-stone-500">กำลังโหลดรายชื่อ…</p> : sum.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th className="p-2">ลำดับ</th><th className="p-2 text-left">ชื่อ-สกุล</th><th className="p-2 text-left">ตำแหน่ง</th><th className="p-2">แต้มประกัน/เดือน</th><th className="p-2">แต้มการันตี</th><th className="p-2">แต้มกิจกรรม</th><th className="p-2">แต้มส่วนต่าง</th><th className="p-2">อัตราเงินเพิ่ม</th><th className="p-2">รวมจำนวนเงินที่ได้รับ</th></tr></thead><tbody>{sum.map((x: any) => <tr key={x.p.id || x.p.displayName} className={x.p.id ? "border-t cursor-pointer hover:bg-teal-50" : "border-t"} title={x.p.id ? "คลิกแถวนี้เพื่อดูรายการกิจกรรมและสถานะ" : undefined} onClick={() => x.p.id && setDetailFor(x.p)}><td className="p-2 text-center">{x.order}</td><td className="p-2"><b>{x.p.displayName}</b></td><td className="p-2">{String(x.p.position || '').replace(/[\\s　]+/g, '').includes('พยาบาลวิชาชีพชำนาญการพิเศษ') ? <>พยาบาลวิชาชีพ<br/>ชำนาญการพิเศษ</> : String(x.p.position || '').replace(/[\\s　]+/g, '').includes('พยาบาลวิชาชีพชำนาญการ') ? <>พยาบาลวิชาชีพ<br/>ชำนาญการ</> : String(x.p.position || '').replace(/[\\s　]+/g, '').includes('พยาบาลวิชาชีพปฏิบัติการ') ? <>พยาบาลวิชาชีพ<br/>ปฏิบัติการ</> : (x.p.position || '—')}</td><td className="p-2 text-center">{nf(x.g, 0)}</td><td className="p-2 text-center">{nf(x.roleGuarantee, 0)}</td><td className="p-2 text-center">{nf(x.workPoints)}</td><td className="p-2 text-center">{nf(x.excess)}</td><td className="p-2 text-center">{nf(x.rate)}</td><td className="p-2 text-center font-semibold">{nf(x.payout)}</td></tr>)}<tr className="border-t font-bold"><td colSpan={3} className="p-2">รวมกลุ่มงาน</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.g, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.roleGuarantee, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.workPoints, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.excess, 0))}</td><td className="p-2 text-center">—</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.payout, 0))} บาท</td></tr></tbody></table></div> : <p className="text-sm text-stone-600">ไม่พบรายชื่อหัวหน้ากลุ่มงานในกลุ่มงานนี้</p>}
     {printReport && createPortal(<div className="unit-report-print"><div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์</span><button type="button" className="btn" onClick={startPrintReport}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={closePrintReport}>ปิด</button></div><table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={9}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">กลุ่มงาน {groupName}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการันตี</th><th>แต้มกิจกรรม</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>ยอดเงินรวม</th></tr></thead><tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td>{x.p.displayName}</td><td>{(() => {
         const rawPosition = String(x.p.position || '')
@@ -1424,6 +1495,7 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
         return rawPosition || '—'
       })()}</td><td>{nf(x.g, 0)}</td><td>{nf(x.roleGuarantee, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)}</td><td>{nf(x.payout)}</td></tr>)}<tr className="unit-report-total"><td colSpan={3}>รวมกลุ่มงาน</td><td>{nf(sum.reduce((a: number, x: any) => a + x.g, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.roleGuarantee, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.workPoints, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((a: number, x: any) => a + x.payout, 0))} บาท</td></tr></tbody></table></div>, document.body)}
     {detailFor && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-2 sm:p-5" role="dialog" aria-modal="true" aria-label={`รายการกิจกรรมของ ${detailFor.displayName || detailFor.name}`}><div className="w-full max-w-[96rem] max-h-[94vh] overflow-y-auto rounded-2xl bg-white p-3 shadow-2xl sm:p-5 space-y-3"><div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-bold">รายการกิจกรรมรายบุคคล</h2><p className="text-sm text-stone-600">{detailFor.displayName || detailFor.name} · ประจำเดือน {monthText} · แสดงทุกสถานะ ยกเว้นฉบับร่าง</p></div><button type="button" className="btn sec" onClick={() => setDetailFor(null)}>ปิด</button></div><LogTable sb={sb} rows={rowsAll.filter((r: any) => r.status !== 'draft' && detailFor.id != null && String(r.person_id) === String(detailFor.id))} reload={reload} canApprove={true} acts={acts} month={month} showName={false} /></div></div>}
+    {printingPerson && <PrintSheet sb={sb} person={printingPerson} rows={rowsAll.filter((r: any) => String(r.person_id) === String(printingPerson.id))} month={month} units={units} positions={positions} leaveDataOverride={groupLeaveData[String(printingPerson.staff_directory_id ?? printingPerson.directory_source_row)] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }} onClose={() => setPrintingPerson(null)} />}
   </div>
 }
 
