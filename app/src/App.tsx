@@ -753,12 +753,15 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const payGroup = payGroups.find((g: any) => Number(g.id) === Number(position?.pay_group || 0))
   const allocation = Number(payGroup?.full_amount || 0)
   const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
+  const roleGuarantee = roleGuaranteeForPosition(person.position, positions, person.org_role)
   const monthText = new Date(month + '-01').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
   const total = rows.filter((r: any) => r.status === 'approved').reduce((a: number, r: any) => a + Number(r.counted_points || 0), 0)
-  const difference = total - guarantee
-  const excess = Math.max(0, difference)
-  // เงินเริ่มต้นที่ฐานพื้นฐาน 77% ของยอดจัดสรร และเป็น 97% เมื่อแต้มที่รับรองถึงเกณฑ์ประกัน
-  const basePercent = total >= guarantee ? 0.97 : 0.77
+  const scoring = scoreBreakdown(person.position, positions, person.org_role, total)
+  const performanceTotal = scoring.performance
+  const difference = performanceTotal - guarantee
+  const excess = scoring.excess
+  // แต้มประกันเป็นเกณฑ์ฐาน ส่วนแต้มการันตีตามบทบาทบวกกับแต้มกิจกรรมก่อนคำนวณ
+  const basePercent = performanceTotal >= guarantee ? 0.97 : 0.77
   const basePay = allocation > 0 ? allocation * basePercent : 0
   const extraPay = excess * unitRate
   const payout = basePay + extraPay
@@ -803,7 +806,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet">
-      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th colSpan={5} className="ps-repeat-heading"><div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div><h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1><div className="ps-top"><div className="ps-info"><div><b>ชื่อ-สกุล</b> {person.name}</div><div><b>ตำแหน่ง</b> {person.position}</div><div><b>หน่วยงาน/งาน</b> {unit?.name || person.unit_name || (String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? (person.group_name || person.nursing_group || person.extra_nursing_group_names || '-') : '- ')}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div><div><b>เดือน</b> {monthText}</div></div><table className="pt ps-sum"><thead><tr><th>รายการสรุป</th><th>จำนวน</th></tr></thead><tbody><tr><td>แต้มประกัน/เดือน</td><td className="r">{nf(guarantee, 0)}</td></tr><tr><td>แต้มการปฏิบัติงาน</td><td className="r">{nf(total)}</td></tr><tr><td>แต้มส่วนต่าง</td><td className="r">{nf(difference)}</td></tr><tr><td>อัตราเงินเพิ่ม</td><td className="r">{nf(unitRate)} บาท/แต้ม</td></tr><tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{allocation > 0 ? nf(payout) + ' บาท' : 'รอตั้งค่ากลุ่มวิชาชีพ'}</td></tr></tbody></table></div></th></tr><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
+      <table className="pt ps-acts"><colgroup><col className="ps-col-code" /><col className="ps-col-activity" /><col className="ps-col-uom" /><col className="ps-col-qty" /><col className="ps-col-points" /></colgroup><thead><tr><th colSpan={5} className="ps-repeat-heading"><div className="ps-hospital">กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div><h1 className="ps-title">ใบสรุปผลการปฏิบัติงานรายบุคคล (Pay for Performance:P4P)</h1><div className="ps-top"><div className="ps-info"><div><b>ชื่อ-สกุล</b> {person.name}</div><div><b>ตำแหน่ง</b> {person.position}</div><div><b>หน่วยงาน/งาน</b> {unit?.name || person.unit_name || (String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? (person.group_name || person.nursing_group || person.extra_nursing_group_names || '-') : '- ')}{person.sub_unit ? ` / ${person.sub_unit}` : ''}</div><div><b>เดือน</b> {monthText}</div></div><table className="pt ps-sum"><thead><tr><th>รายการสรุป</th><th>จำนวน</th></tr></thead><tbody><tr><td>แต้มประกัน/เดือน</td><td className="r">{nf(guarantee, 0)}</td></tr><tr><td>แต้มการันตีตามบทบาท</td><td className="r">{nf(roleGuarantee, 0)}</td></tr><tr><td>แต้มกิจกรรมที่รับรอง</td><td className="r">{nf(total)}</td></tr><tr><td>แต้มผลงานรวม</td><td className="r">{nf(performanceTotal)}</td></tr><tr><td>แต้มส่วนต่าง (ไม่เกิน 600)</td><td className="r">{nf(difference)}</td></tr><tr><td>อัตราเงินเพิ่ม</td><td className="r">{nf(unitRate)} บาท/แต้ม</td></tr><tr className="b"><td>รวมจำนวนเงินที่ได้รับ</td><td className="r">{allocation > 0 ? nf(payout) + ' บาท' : 'รอตั้งค่ากลุ่มวิชาชีพ'}</td></tr></tbody></table></div></th></tr><tr><th>รหัส</th><th>กิจกรรม</th><th>หน่วยนับ</th><th>จำนวน</th><th>คะแนนที่ได้</th></tr></thead>
         <tbody>{activityRows.map((item: any) => item.type === 'domain'
           ? <tr key={item.key} className="ps-domain-row"><th colSpan={5}>{item.domain}</th></tr>
           : <tr key={item.key}><td className="nw">{item.code}</td><td className="ps-activity-name">{item.title}</td><td className="c">{item.uom || '—'}</td><td className="r">{n2(item.qty)}</td><td className="r">{nf(item.pts)}</td></tr>)}
@@ -817,14 +820,23 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
 }
 
 function guaranteeForPosition(position: any, positions: any[] = [], orgRole?: any) {
-  // แต้มประกันกลุ่มพยาบาลต้องแยกตามบทบาทองค์กร ไม่ใช่ตำแหน่งวิชาชีพที่แสดงในทะเบียน
-  const role = String(orgRole || '').replace(/\s+/g, '').trim()
-  if (role.includes('หัวหน้ากลุ่มงาน')) return 960
-  if (role.includes('หัวหน้างาน')) return 1080
   const name = String(position || '').replace(/\s+/g, '').trim()
-  if (name.includes('หัวหน้ากลุ่มงาน')) return 960
-  if (name.includes('หัวหน้างาน')) return 1080
-  return Number(positions.find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === name)?.guarantee || 0)
+  return Number(positions.find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === name)?.guarantee || 1200)
+}
+function roleGuaranteeForPosition(position: any, positions: any[] = [], orgRole?: any) {
+  const name = String(position || '').replace(/\s+/g, '').trim()
+  const pos = positions.find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === name)
+  if (Number(pos?.pay_group || 0) !== 1 && !name.includes('พยาบาลวิชาชีพ')) return 0
+  const role = String(orgRole || '').replace(/\s+/g, '').trim()
+  if (role.includes('หัวหน้ากลุ่มงาน') || name.includes('หัวหน้ากลุ่มงาน')) return 240
+  if (role.includes('หัวหน้างาน') || name.includes('หัวหน้าหอผู้ป่วย') || name.includes('หัวหน้างาน')) return 120
+  return 0
+}
+function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, activityPoints = 0) {
+  const insurance = guaranteeForPosition(position, positions, orgRole)
+  const roleGuarantee = roleGuaranteeForPosition(position, positions, orgRole)
+  const performance = Number(activityPoints || 0) + roleGuarantee
+  return { insurance, roleGuarantee, performance, excess: Math.min(Math.max(0, performance - insurance), insurance * 0.5) }
 }
 
 function ActivitySummary({ sb, rows, person, positions, month, units }: any) {
@@ -850,24 +862,29 @@ function ActivitySummary({ sb, rows, person, positions, month, units }: any) {
   const payGroup = payGroups.find((g: any) => Number(g.id) === payGroupId)
   const allocation = Number(payGroup?.full_amount || 0)
   const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
+  const roleGuarantee = roleGuaranteeForPosition(person.position, positions, person.org_role)
   // แต้มปฏิบัติงานที่ได้ = รายการที่ส่งแล้วและยังรอรับรองหรือรับรองแล้ว
   // แต้มที่ยืนยัน = เฉพาะรายการที่หัวหน้ารับรองแล้ว
   const earned = (rows || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const confirmed = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
-  const difference = confirmed - guarantee
-  const basePercent = confirmed >= guarantee ? 0.97 : 0.77
+  const scoring = scoreBreakdown(person.position, positions, person.org_role, confirmed)
+  const performanceTotal = scoring.performance
+  const difference = performanceTotal - guarantee
+  const basePercent = performanceTotal >= guarantee ? 0.97 : 0.77
   const basePay = allocation > 0 ? allocation * basePercent : 0
-  const extraPay = Math.max(0, difference) * unitRate
+  const extraPay = scoring.excess * unitRate
   const payout = basePay + extraPay
   const cards = [
     { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
+    { label: 'แต้มการันตี', value: nf(roleGuarantee), color: 'text-slate-900' },
+    { label: 'แต้มผลงานรวม', value: nf(performanceTotal), color: 'text-slate-900' },
     { label: 'แต้มปฏิบัติงานที่ได้', value: nf(earned), color: 'text-slate-900' },
     { label: 'แต้มที่ยืนยัน', value: nf(confirmed), color: 'text-emerald-700' },
     { label: 'แต้มส่วนต่าง', value: (difference > 0 ? '+' : '') + nf(difference), color: difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-slate-700' },
     { label: 'ประมาณเงินที่ได้', value: allocation > 0 ? nf(payout) + ' บาท' : 'รอตั้งค่ากลุ่มวิชาชีพ', color: 'text-slate-900' }
   ]
   return <div className="space-y-1" aria-label="สรุปแต้มและประมาณเงินประจำเดือน">
-    <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
       {cards.map((item) => <div key={item.label} className="card !p-3 sm:!p-4 min-w-0"><div className="text-xs sm:text-sm text-stone-600">{item.label}</div><div className={'mt-1 text-xl sm:text-2xl font-bold tabular-nums ' + item.color}>{item.value}</div>
         {item.label === 'ประมาณเงินที่ได้' && <div className="mt-1 text-xs text-stone-500">{allocation > 0 ? <>เงินพื้นฐาน {nf(basePay)} บาท ({Math.round(basePercent * 100)}% ของยอดจัดสรร {nf(allocation)} บาท) + เงินเพิ่ม {nf(extraPay)} บาท{!position?.pay_group && <span className="block text-amber-700">ไม่พบการจับคู่กลุ่มวิชาชีพของตำแหน่งนี้</span>}</> : 'ไม่พบยอดจัดสรรของกลุ่มวิชาชีพ กรุณาตรวจสอบการจับคู่ตำแหน่ง'}</div>}
       </div>)}
@@ -879,9 +896,11 @@ function ActivitySummary({ sb, rows, person, positions, month, units }: any) {
 function Totals({ rows, people, positions }: any) {
   if (people.length !== 1) return null
   const g = guaranteeForPosition(people[0].position, positions, people[0].org_role)
+  const rg = roleGuaranteeForPosition(people[0].position, positions, people[0].org_role)
   const t = rows.reduce((s: number, r: any) => s + Number(r.counted_points), 0)
-  return <div className="grid grid-cols-3 gap-2 text-center">
-    {[['แต้มที่นับเดือนนี้', t], ['แต้มประกัน', g], ['ส่วนที่เกินประกัน', Math.max(0, t - g)]].map(([l, v]: any) => <div key={l} className="card"><div className="text-xs text-stone-600">{l}</div><div className="text-2xl font-bold">{nf(v)}</div></div>)}
+  const score = scoreBreakdown(people[0].position, positions, people[0].org_role, t)
+  return <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+    {[['แต้มกิจกรรมเดือนนี้', t], ['แต้มประกัน', g], ['แต้มการันตี', rg], ['แต้มผลงานรวม', score.performance], ['แต้มส่วนเกิน (สูงสุด 600)', score.excess]].map(([l, v]: any) => <div key={l} className="card"><div className="text-xs text-stone-600">{l}</div><div className="text-2xl font-bold">{nf(v)}</div></div>)}
   </div>
 }
 
@@ -1347,9 +1366,12 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
     const approved = rs.filter((r: any) => r.status === 'approved')
     const g = guaranteeForPosition(p.position, positions, p.org_role)
     const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
-    const excess = Math.max(0, workPoints - g)
+    const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints)
+    const roleGuarantee = scoring.roleGuarantee
+    const performancePoints = scoring.performance
+    const excess = scoring.excess
     const rate = p.unit_id != null && rates[String(p.unit_id)] != null ? rates[String(p.unit_id)] : groupRate
-    return { p, order: index + 1, g, workPoints, excess, rate, payout: excess * rate, rs }
+    return { p, order: index + 1, g, roleGuarantee, workPoints, performancePoints, excess, rate, payout: excess * rate, rs }
   }), [heads, rowsAll, positions, rates, groupRate])
   useEffect(() => {
     if (!printReport) return
@@ -1372,8 +1394,8 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
   return <div className="card space-y-3">
     <div><h2 className="text-lg font-bold">สรุปรายงานหน่วยงาน · {groupName}</h2><p className="text-sm text-stone-600">แสดงเฉพาะรายชื่อหัวหน้ากลุ่มงาน โดยไม่รวมบุคลากรของหน่วยงานย่อย · ประจำเดือน {monthText}</p></div>
     <div className="flex flex-wrap gap-2"><button type="button" className="btn" onClick={openPrintReport} disabled={loading || !sum.length}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์รายงานกลุ่มงาน</button></div>
-    {loading ? <p className="text-sm text-stone-500">กำลังโหลดรายชื่อ…</p> : sum.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th className="p-2">ลำดับ</th><th className="p-2 text-left">ชื่อ-สกุล</th><th className="p-2 text-left">ตำแหน่ง</th><th className="p-2">แต้มประกัน/เดือน</th><th className="p-2">แต้มการปฏิบัติงาน</th><th className="p-2">แต้มส่วนต่าง</th><th className="p-2">อัตราเงินเพิ่ม</th><th className="p-2">รวมจำนวนเงินที่ได้รับ</th></tr></thead><tbody>{sum.map((x: any) => <tr key={x.p.id} className="border-t"><td className="p-2 text-center">{x.order}</td><td className="p-2"><b>{x.p.displayName}</b><div><button type="button" className="btn sec !py-0.5 !px-2 !text-xs no-print" disabled={!x.p.id} title={!x.p.id ? 'ไม่พบรหัสบุคลากรที่เชื่อมกับรายการ P4P' : undefined} onClick={() => x.p.id && setPrintFor(x.p)}>ดูตัวอย่าง/พิมพ์รายบุคคล</button></div></td><td className="p-2">{x.p.position || '—'}</td><td className="p-2 text-center">{nf(x.g, 0)}</td><td className="p-2 text-center">{nf(x.workPoints)}</td><td className="p-2 text-center">{nf(x.excess)}</td><td className="p-2 text-center">{nf(x.rate)} บาท/แต้ม</td><td className="p-2 text-center font-semibold">{nf(x.payout)} บาท</td></tr>)}<tr className="border-t font-bold"><td colSpan={3} className="p-2">รวมกลุ่มงาน</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.g, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.workPoints, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.excess, 0))}</td><td className="p-2 text-center">—</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.payout, 0))} บาท</td></tr></tbody></table></div> : <p className="text-sm text-stone-600">ไม่พบรายชื่อหัวหน้ากลุ่มงานในกลุ่มงานนี้</p>}
-    {printReport && createPortal(<div className="unit-report-print"><div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์</span><button type="button" className="btn" onClick={startPrintReport}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={closePrintReport}>ปิด</button></div><table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">กลุ่มงาน {groupName}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มที่ปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>ยอดเงินรวม</th></tr></thead><tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td>{x.p.displayName}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}<tr className="unit-report-total"><td colSpan={3}>รวมกลุ่มงาน</td><td>{nf(sum.reduce((a: number, x: any) => a + x.g, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.workPoints, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((a: number, x: any) => a + x.payout, 0))} บาท</td></tr></tbody></table></div>, document.body)}
+    {loading ? <p className="text-sm text-stone-500">กำลังโหลดรายชื่อ…</p> : sum.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th className="p-2">ลำดับ</th><th className="p-2 text-left">ชื่อ-สกุล</th><th className="p-2 text-left">ตำแหน่ง</th><th className="p-2">แต้มประกัน/เดือน</th><th className="p-2">แต้มการปฏิบัติงาน</th><th className="p-2">แต้มส่วนต่าง</th><th className="p-2">อัตราเงินเพิ่ม</th><th className="p-2">รวมจำนวนเงินที่ได้รับ</th></tr></thead><tbody>{sum.map((x: any) => <tr key={x.p.id} className="border-t"><td className="p-2 text-center">{x.order}</td><td className="p-2"><b>{x.p.displayName}</b><div><button type="button" className="btn sec !py-0.5 !px-2 !text-xs no-print" disabled={!x.p.id} title={!x.p.id ? 'ไม่พบรหัสบุคลากรที่เชื่อมกับรายการ P4P' : undefined} onClick={() => x.p.id && setPrintFor(x.p)}>ดูตัวอย่าง/พิมพ์รายบุคคล</button></div></td><td className="p-2">{x.p.position || '—'}</td><td className="p-2 text-center">{nf(x.g, 0)}</td><td className="p-2 text-center">{nf(x.roleGuarantee, 0)}</td><td className="p-2 text-center">{nf(x.workPoints)}</td><td className="p-2 text-center">{nf(x.excess)}</td><td className="p-2 text-center">{nf(x.rate)} บาท/แต้ม</td><td className="p-2 text-center font-semibold">{nf(x.payout)} บาท</td></tr>)}<tr className="border-t font-bold"><td colSpan={3} className="p-2">รวมกลุ่มงาน</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.g, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.workPoints, 0))}</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.excess, 0))}</td><td className="p-2 text-center">—</td><td className="p-2 text-center">{nf(sum.reduce((a: number, x: any) => a + x.payout, 0))} บาท</td></tr></tbody></table></div> : <p className="text-sm text-stone-600">ไม่พบรายชื่อหัวหน้ากลุ่มงานในกลุ่มงานนี้</p>}
+    {printReport && createPortal(<div className="unit-report-print"><div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์</span><button type="button" className="btn" onClick={startPrintReport}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={closePrintReport}>ปิด</button></div><table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">กลุ่มงาน {groupName}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการันตี</th><th>แต้มกิจกรรม</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>ยอดเงินรวม</th></tr></thead><tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td>{x.p.displayName}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.roleGuarantee, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}<tr className="unit-report-total"><td colSpan={3}>รวมกลุ่มงาน</td><td>{nf(sum.reduce((a: number, x: any) => a + x.g, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.workPoints, 0))}</td><td>{nf(sum.reduce((a: number, x: any) => a + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((a: number, x: any) => a + x.payout, 0))} บาท</td></tr></tbody></table></div>, document.body)}
     {printFor && <PrintSheet sb={sb} person={printFor} rows={rowsAll.filter((r: any) => printFor.id != null && String(r.person_id) === String(printFor.id) || (printFor.person_id != null && String(r.person_id) === String(printFor.person_id)))} month={month} units={units} positions={positions} onClose={() => setPrintFor(null)} />}
   </div>
 }
@@ -1496,8 +1518,11 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     const d = (x: string) => rs.filter((r: any) => r.domain === x).reduce((s: number, r: any) => s + Number(r.counted_points), 0)
     const tot = d('บริหาร') + d('บริการ') + d('วิชาการ')
     const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
-    const excess = Math.max(0, workPoints - g)
-    return { p, order: index + 1, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, excess, rate: unitRate, payout: excess * unitRate, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
+    const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints)
+    const roleGuarantee = scoring.roleGuarantee
+    const performancePoints = scoring.performance
+    const excess = scoring.excess
+    return { p, order: index + 1, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, performancePoints, roleGuarantee, excess, rate: unitRate, payout: excess * unitRate, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
   }, [rows, roster, positions, unitRate])
@@ -1541,8 +1566,8 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     if (confirm(`รับรอง ${ids.length} รายการที่ผ่านการตรวจอัตโนมัติ (✓) ทั้งหมด?`)) { await sb.from('logs').update({ status: 'approved' }).in('id', ids); reload() }
   }
   const csv = () => {
-    const h = ['ลำดับ', 'ชื่อ-สกุล', 'ตำแหน่ง', 'แต้มประกัน/เดือน', 'แต้มการปฏิบัติงาน', 'แต้มส่วนต่าง', 'อัตราเงินเพิ่ม', 'รวมจำนวนเงินที่ได้รับ']
-    const b = sum.map((x: any) => [x.order, x.p.name, x.p.position, x.g, x.workPoints, x.excess, x.rate, x.payout])
+    const h = ['ลำดับ', 'ชื่อ-สกุล', 'ตำแหน่ง', 'แต้มประกัน/เดือน', 'แต้มการันตี', 'แต้มกิจกรรม', 'แต้มผลงานรวม', 'แต้มส่วนต่าง', 'อัตราเงินเพิ่ม', 'รวมจำนวนเงินที่ได้รับ']
+    const b = sum.map((x: any) => [x.order, x.p.name, x.p.position, x.g, x.roleGuarantee, x.workPoints, x.performancePoints, x.excess, x.rate, x.payout])
     const blob = new Blob(['\ufeff' + [h, ...b].map(r => r.join(',')).join('\n')], { type: 'text/csv' }); const a = document.createElement('a')
     a.href = URL.createObjectURL(blob); a.download = `p4p_${month}.csv`; a.click()
   }
@@ -1563,15 +1588,15 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         <button type="button" className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน</button>
         <button type="button" className="btn sec" onClick={csv}>ส่งออก CSV</button>
       </div>
-          <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
+          <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการันตี</th><th>แต้มกิจกรรม</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
           <td className="text-center">{x.order}</td><td><b>{x.p.name}</b>{x.p.fromDirectory && <div className="text-xs text-stone-500">ยังไม่ลงทะเบียนใช้งาน</div>}<div><button type="button" className="btn sec !py-0.5 !px-2 !text-xs no-print" onClick={(e: any) => { e.stopPropagation(); setPrintFor(x.p) }}>ดูตัวอย่าง/พิมพ์รายบุคคล</button></div></td><td className="text-xs">{x.p.position || '—'}</td><td className="text-center">{nf(x.g, 0)}</td><td className="text-center">{nf(x.workPoints)}</td><td className="text-center">{nf(x.excess)}</td><td className="text-center">{nf(x.rate)} บาท/แต้ม</td><td className="text-center font-semibold">{nf(x.payout)} บาท</td>
         </tr>)}
         <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td className="text-center">—</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
           {printReport && createPortal(<div className="unit-report-print">
       <div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์</span><button type="button" className="btn" onClick={startUnitReportPrint}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={closeUnitReportPreview}>ปิด</button></div>
-      <table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">{unitName}　 {groupName || '................................'}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
-      <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
+      <table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">{unitName}　 {groupName || '................................'}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการันตี</th><th>แต้มกิจกรรม</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
+      <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.roleGuarantee, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
       <tr className="unit-report-total"><td colSpan={3}>รวมทั้งหน่วยงาน</td><td>{nf(sum.reduce((v: number, x: any) => v + x.g, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.workPoints, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((v: number, x: any) => v + x.payout, 0))} บาท</td></tr></tbody></table>
       <div className="unit-report-signatures">
         <div>ลงชื่อ ........................................................<br/>({unitHeadName || '........................................................'})<div>{unitHead?.position || ''}</div><div><b>{'หัวหน้างาน' + String(unitName || '').replace(/^งาน/, '')}</b></div></div>
@@ -1591,15 +1616,15 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     {!reportOnly && !certificationOnly && <>
       <p className="text-sm text-stone-700">ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล · <b>คุณรับรองได้เฉพาะรายการในขอบเขตสิทธิ์ของคุณ</b></p>
       <div className="flex gap-2">{!audit && <button className="btn" onClick={bulk}>รับรองทุกรายการที่ ✓ ผ่าน</button>}<button className="btn sec" onClick={csv}>ส่งออก CSV</button><button className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน</button></div>
-          <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
+          <div className="card overflow-x-auto p-0"><table className="w-full"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการันตี</th><th>แต้มกิจกรรม</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id} onClick={() => setSel(sel === x.p.id ? '' : x.p.id)} className={'cursor-pointer hover:bg-amber-50 ' + (sel === x.p.id ? 'bg-amber-100' : '')}>
           <td className="text-center">{x.order}</td><td><b>{x.p.name}</b>{x.p.fromDirectory && <div className="text-xs text-stone-500">ยังไม่ลงทะเบียนใช้งาน</div>}<div><button type="button" className="btn sec !py-0.5 !px-2 !text-xs no-print" onClick={(e: any) => { e.stopPropagation(); setPrintFor(x.p) }}>ดูตัวอย่าง/พิมพ์รายบุคคล</button></div></td><td className="text-xs">{x.p.position || '—'}</td><td className="text-center">{nf(x.g, 0)}</td><td className="text-center">{nf(x.workPoints)}</td><td className="text-center">{nf(x.excess)}</td><td className="text-center">{nf(x.rate)} บาท/แต้ม</td><td className="text-center font-semibold">{nf(x.payout)} บาท</td>
         </tr>)}
         <tr className="font-bold"><td colSpan={3}>รวมทั้งหน่วย</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.g, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.workPoints, 0))}</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.excess, 0))}</td><td className="text-center">—</td><td className="text-center">{nf(sum.reduce((s: number, x: any) => s + x.payout, 0))} บาท</td></tr></tbody></table></div>
           {printReport && createPortal(<div className="unit-report-print">
       <div className="unit-report-toolbar no-print"><span>ตัวอย่างก่อนพิมพ์</span><button type="button" className="btn" onClick={startUnitReportPrint}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์</button><button type="button" className="btn sec" onClick={closeUnitReportPreview}>ปิด</button></div>
-      <table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">{unitName}　 {groupName || '................................'}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการปฏิบัติงาน</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
-      <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
+      <table className="unit-report-table"><colgroup><col className="unit-col-order" /><col className="unit-col-name" /><col className="unit-col-position" /><col className="unit-col-guarantee" /><col className="unit-col-work" /><col className="unit-col-excess" /><col className="unit-col-rate" /><col className="unit-col-payout" /></colgroup><thead><tr className="unit-report-heading-row"><th colSpan={8}><h1>แบบสรุปผลการปฏิบัติงาน (Pay for Performance: P4P)</h1><div className="unit-report-subtitle">{unitName}　 {groupName || '................................'}　 ประจำเดือน {monthText}</div></th></tr><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>แต้มประกัน/เดือน</th><th>แต้มการันตี</th><th>แต้มกิจกรรม</th><th>แต้มส่วนต่าง</th><th>อัตราเงินเพิ่ม</th><th>รวมจำนวนเงินที่ได้รับ</th></tr></thead>
+      <tbody>{sum.map((x: any) => <tr key={x.p.id}><td>{x.order}</td><td className="unit-report-name">{x.p.name}</td><td>{x.p.position || '—'}</td><td>{nf(x.g, 0)}</td><td>{nf(x.roleGuarantee, 0)}</td><td>{nf(x.workPoints)}</td><td>{nf(x.excess)}</td><td>{nf(x.rate)} บาท/แต้ม</td><td>{nf(x.payout)} บาท</td></tr>)}
       <tr className="unit-report-total"><td colSpan={3}>รวมทั้งหน่วยงาน</td><td>{nf(sum.reduce((v: number, x: any) => v + x.g, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.workPoints, 0))}</td><td>{nf(sum.reduce((v: number, x: any) => v + x.excess, 0))}</td><td>—</td><td>{nf(sum.reduce((v: number, x: any) => v + x.payout, 0))} บาท</td></tr></tbody></table>
       <div className="unit-report-signatures">
         <div>ลงชื่อ ........................................................<br/>({unitHeadName || '........................................................'})<div>{unitHead?.position || ''}</div><div><b>{'หัวหน้างาน' + String(unitName || '').replace(/^งาน/, '')}</b></div></div>
@@ -1746,14 +1771,14 @@ function PayGroupsCard({ sb }: any) {
   const setPosLine = async (name: string, grp: string) => { const { error } = await sb.from('positions').update({ grp }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `กำหนดชุดกิจกรรมของ "${name}" เป็น ${grp} แล้ว`); load() }
   const setPosGroup = async (name: string, id: number) => { const { error } = await sb.from('positions').update({ pay_group: id }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `ย้าย "${name}" ไปกลุ่ม ${id} แล้ว`); load() }
   const groupOneRows = [
-    { label: 'พยาบาลวิชาชีพ หัวหน้ากลุ่มงาน', guarantee: 960, key: 'leader' },
-    { label: 'พยาบาลวิชาชีพหัวหน้างาน', guarantee: 1080, key: 'supervisor' },
-    { label: 'พยาบาลวิชาชีพ ผู้ปฏิบัติ', guarantee: 1200, key: 'staff' },
+    { label: 'พยาบาลวิชาชีพ หัวหน้ากลุ่มงาน', guarantee: 1200, key: 'leader', roleGuarantee: 240 },
+    { label: 'พยาบาลวิชาชีพหัวหน้างาน', guarantee: 1200, key: 'supervisor', roleGuarantee: 120 },
+    { label: 'พยาบาลวิชาชีพ ผู้ปฏิบัติ', guarantee: 1200, key: 'staff', roleGuarantee: 0 },
   ]
   const minimumPay = (g: any) => Number((Number(g.full_amount) * 0.77).toFixed(2))
   return <div className="card xl:col-span-2 space-y-3">
     <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ยอดจ่ายขั้นต่ำ = 77% ของยอดจัดสรรต่อคน เมื่อคะแนนต่ำกว่าแต้มประกัน · เมื่อคะแนนถึงเกณฑ์จ่าย 97% · เงินกันเฉลี่ยคืน 3% และยกเลิกการกันเงินคุณภาพ</p></div>
-    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ / ประเภทบุคลากร</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>เงินจ่ายขั้นต่ำ (บาท)</th><th>จัดการ</th></tr></thead>
+    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ / ประเภทบุคลากร</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>แต้มการันตี</th><th>เงินจ่ายขั้นต่ำ (บาท)</th><th>จัดการ</th></tr></thead>
       <tbody>{gs.map(g => {
         const rows = g.id === 1 ? groupOneRows : [{ label: g.name, guarantee: Number(g.guarantee), key: 'group' }]
         return rows.map((row) => <tr key={`${g.id}-${row.key}`}>
@@ -1761,6 +1786,7 @@ function PayGroupsCard({ sb }: any) {
           <td>{nf(g.rate, 3)}</td>
           <td>{nf(row.guarantee, 0)}</td>
           <td>{nf(g.cap_mult, 2)}</td>
+          <td>{nf(row.roleGuarantee || 0, 0)}</td>
           <td>{nf(g.full_amount)}</td>
           <td>{nf(g.reserve_pct, 0)}%</td>
           <td className="font-semibold whitespace-nowrap">{nf(minimumPay(g))}</td>
@@ -1771,7 +1797,7 @@ function PayGroupsCard({ sb }: any) {
     {editing && draft && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="pay-group-edit-title">
       <div className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl space-y-4">
         <div className="flex items-start gap-3"><div className="flex-1"><h3 id="pay-group-edit-title" className="text-lg font-bold">แก้ไขรายละเอียดค่าตอบแทน</h3><p className="text-sm text-stone-600">{editing.row.label}</p></div><button type="button" className="btn sec" onClick={() => { setEditing(null); setDraft(null) }}>ปิด</button></div>
-        <div className="rounded-xl bg-stone-50 p-3 text-sm"><div><b>กลุ่มวิชาชีพ:</b> {editing.name}</div><div><b>แต้มประกันของแถวนี้:</b> {nf(editing.row.guarantee, 0)} แต้ม</div><div><b>เงินจ่ายขั้นต่ำ:</b> {nf(Number(draft.full_amount) * 0.77)} บาท</div><p className="mt-1 text-xs text-stone-500">การแก้ไขข้อมูลกลุ่มจะมีผลกับการคำนวณของกลุ่มวิชาชีพนี้</p></div>
+        <div className="rounded-xl bg-stone-50 p-3 text-sm"><div><b>กลุ่มวิชาชีพ:</b> {editing.name}</div><div><b>แต้มประกันของแถวนี้:</b> {nf(editing.row.guarantee, 0)} แต้ม</div><div><b>แต้มการันตีตามบทบาท:</b> {nf(editing.row.roleGuarantee || 0, 0)} แต้ม</div><div><b>เงินจ่ายขั้นต่ำ:</b> {nf(Number(draft.full_amount) * 0.77)} บาท</div><p className="mt-1 text-xs text-stone-500">การแก้ไขข้อมูลกลุ่มจะมีผลกับการคำนวณของกลุ่มวิชาชีพนี้</p></div>
         <div className="grid sm:grid-cols-2 gap-3">{fields.map(([k, label]) => <label key={k} className="field-label">{label}<input className="inp mt-1" type="number" min="0.01" step={k === 'rate' ? '0.001' : '0.01'} value={draft[k] ?? ''} onChange={e => setDraft({ ...draft, [k]: e.target.value })} /></label>)}</div>
         <label className="field-label block">เงินจ่ายขั้นต่ำ (บาท)<input className="inp mt-1" type="number" min="0.01" step="0.01" value={Number((Number(draft.full_amount) * 0.77).toFixed(2))} readOnly /><span className="field-hint">คำนวณอัตโนมัติจากยอดจัดสรรต่อคน × 77%</span></label>
         <div className="flex justify-end gap-2"><button className="btn sec" disabled={busy} onClick={() => { setEditing(null); setDraft(null) }}>ยกเลิก</button><button className="btn" disabled={busy} onClick={save}>{busy ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button></div>
