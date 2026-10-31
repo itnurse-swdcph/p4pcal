@@ -1000,3 +1000,17 @@ body.unit-report-preview-open .unit-report-print * {
 .unit-report-certification { margin-top:10mm; text-align:left; font-weight:500; }
 .unit-report-approver { text-align:center; margin:9mm auto 0; line-height:1.7; page-break-inside:avoid; }
 .unit-report-signatures { margin-top:4mm !important; }
+
+
+/* Updated unit report typography and payment acknowledgement columns */
+.unit-report-heading-row h1 { font-size: 15pt !important; font-weight: 700 !important; text-align: center !important; }
+.unit-report-subtitle { font-size: 15pt !important; font-weight: 700 !important; display: flex !important; justify-content: space-between !important; flex-direction: row !important; text-align: left !important; }
+.unit-report-grand-total { text-align: center !important; }
+.unit-col-signature { width: 11% !important; }
+.unit-col-date { width: 10% !important; }
+.unit-report-sign-cell, .unit-report-date-cell { min-height: 8mm; }
+@media print {
+  body.print-unit-report .unit-report-heading-row h1 { font-size: 15pt !important; font-weight: 700 !important; text-align: center !important; }
+  body.print-unit-report .unit-report-subtitle { font-size: 15pt !important; font-weight: 700 !important; display: flex !important; justify-content: space-between !important; flex-direction: row !important; }
+  body.print-unit-report .unit-report-grand-total { text-align: center !important; }
+}
