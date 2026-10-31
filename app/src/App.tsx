@@ -760,7 +760,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       const role = String(h.approver_org_role || '').trim()
       const unitName = String(h.approver_unit_name || '').trim()
       const groupName = String(h.approver_nursing_group || '').trim()
-      const normalizedRole = role.replace(/\\s+/g, '')
+      const normalizedRole = role.replace(/\s+/g, '')
       const managerial = role.includes('หัวหน้ากลุ่มงาน')
         ? (groupName ? 'หัวหน้า' + groupName : role)
         : role.includes('หัวหน้างาน')
