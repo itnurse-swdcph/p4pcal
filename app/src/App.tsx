@@ -717,9 +717,10 @@ const statusLabel = (st: any) => {
   return parts.length === 1 ? parts[0][1] : parts.map(([k, l]) => `${l} ${st[k]}/${total}`).join(' · ')
 }
 // ใบสรุปผลงาน P4P รายบุคคล (A4) แสดงเป็นหน้าตัวอย่างก่อนพิมพ์ ผ่าน portal เพื่อให้สั่งพิมพ์เฉพาะใบนี้
-function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose }: any) {
+function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose, autoPrint = false }: any) {
   const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status === 'approved'), [rowsIn])
   const [head, setHead] = useState<any>(null)
+  const [headLoaded, setHeadLoaded] = useState(false)
   useEffect(() => {
     const afterPrint = () => { document.body.classList.remove('print-individual-report'); onClose?.() }
     window.addEventListener('afterprint', afterPrint)
@@ -729,9 +730,9 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
     let alive = true
     sb.rpc('approver_print_details_of', { p_person: person.id }).then(({ data, error }: any) => {
       if (!alive) return
-      if (error) { console.error('โหลดข้อมูลหัวหน้าผู้รับรองไม่สำเร็จ:', error); setHead(null); return }
+      if (error) { console.error('โหลดข้อมูลหัวหน้าผู้รับรองไม่สำเร็จ:', error); setHead(null); setHeadLoaded(true); return }
       const h = data?.[0]
-      if (!h?.approver_name) { setHead(null); return }
+      if (!h?.approver_name) { setHead(null); setHeadLoaded(true); return }
       const role = String(h.approver_org_role || '').trim()
       const unitName = String(h.approver_unit_name || '').trim()
       const groupName = String(h.approver_nursing_group || '').trim()
@@ -742,9 +743,18 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
           ? (unitName && !role.includes(unitName) ? 'หัวหน้างาน' + unitName.replace(/^งาน/, '') : role)
           : role
       setHead({ name: h.approver_name, professional: h.approver_professional_position || '', managerial, label: role.includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : role.includes('หัวหน้างาน') ? 'หัวหน้างาน' : 'หัวหน้าพยาบาล/รักษาการหัวหน้าพยาบาล' })
+      setHeadLoaded(true)
     })
     return () => { alive = false }
   }, [sb, person.id])
+  useEffect(() => {
+    if (!autoPrint || !headLoaded) return
+    const frame = window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      document.body.classList.add('print-individual-report')
+      window.print()
+    }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [autoPrint, headLoaded])
   const unit = units.find((u: any) => Number(u.id) === Number(person.unit_id))
   const monthStart = new Date(month + '-01T00:00:00')
   const dayCount = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate()
@@ -1616,7 +1626,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
     </>}
     {detailFor && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-2 sm:p-5" role="dialog" aria-modal="true" aria-label={`รายการกิจกรรมของ ${detailFor.name}`}><div className="w-full max-w-[96rem] max-h-[94vh] overflow-y-auto rounded-2xl bg-white p-3 shadow-2xl sm:p-5 space-y-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">รายการกิจกรรมรายบุคคล</h2><p className="text-sm text-stone-600">{detailFor.name} · ประจำเดือน {monthText} · แสดงทุกสถานะ ยกเว้นฉบับร่าง</p></div><div className="flex flex-wrap gap-2">{canPrint && <button type="button" className="btn" disabled={String(detailFor.id || '').startsWith('dir:') || !rows.some((r: any) => r.status === 'approved' && String(r.person_id) === String(detailFor.id))} onClick={() => setPrintingPerson(detailFor)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปรายบุคคล</button>}<button type="button" className="btn sec" onClick={() => setDetailFor(null)}>ปิด</button></div></div><LogTable sb={sb} rows={rows.filter((r: any) => r.status !== 'draft' && String(r.person_id) === String(detailFor.id))} reload={reload} canApprove={!audit} readOnly={!!audit} acts={acts} month={month} showName={false} /></div></div>}
-    {printingPerson && <PrintSheet sb={sb} person={printingPerson} rows={rows.filter((r: any) => String(r.person_id) === String(printingPerson.id))} month={month} units={units} positions={positions} onClose={() => setPrintingPerson(null)} />}
+    {printingPerson && <PrintSheet sb={sb} person={printingPerson} rows={rows.filter((r: any) => String(r.person_id) === String(printingPerson.id))} month={month} units={units} positions={positions} autoPrint onClose={() => setPrintingPerson(null)} />}
   </div>
 }
 
