@@ -15,6 +15,7 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
   const [members, setMembers] = useState<any[]>([])
   const [votes, setVotes] = useState<any[]>([])
   const [committeeProfiles, setCommitteeProfiles] = useState<any[]>([])
+  const [availableProfiles, setAvailableProfiles] = useState<any[]>([])
   const [selectedUser, setSelectedUser] = useState('')
   const [comment, setComment] = useState('')
   const [message, setMessage] = useState('')
@@ -30,11 +31,12 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
     const load = async () => {
       setLoading(true)
       setError('')
-      const [calcResult, reviewResult, memberResult, voteResult] = await Promise.all([
+      const [calcResult, reviewResult, memberResult, voteResult, rosterResult] = await Promise.all([
         sb.rpc('p4p_committee_calc', { p_month: monthDate }),
         sb.from('p4p_monthly_reviews').select('*').eq('month', monthDate).maybeSingle(),
         sb.from('p4p_committee_members').select('user_id,active,is_chair,appointed_at').order('appointed_at'),
-        sb.from('p4p_monthly_review_votes').select('month,user_id,decision,comment,voted_at').eq('month', monthDate).order('voted_at')
+        sb.from('p4p_monthly_review_votes').select('month,user_id,decision,comment,voted_at').eq('month', monthDate).order('voted_at'),
+        sb.rpc('p4p_committee_roster')
       ])
       if (!alive) return
       if (calcResult.error) setError(calcResult.error.message || 'ไม่สามารถโหลดผลคำนวณ P4P ได้')
@@ -45,10 +47,12 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
       else setMembers(memberResult.data || [])
       if (voteResult.error) setError(voteResult.error.message || 'ไม่สามารถโหลดผลลงมติได้')
       else setVotes(voteResult.data || [])
+      if (rosterResult.error) setError(rosterResult.error.message || 'ไม่สามารถโหลดทะเบียนกรรมการได้')
+      else setCommitteeProfiles(rosterResult.data || [])
       if (isAdmin) {
         const profileResult = await sb.from('profiles').select('user_id,full_name,username,role').eq('role', 'committee').order('full_name')
         if (!alive) return
-        if (!profileResult.error) setCommitteeProfiles(profileResult.data || [])
+        if (!profileResult.error) setAvailableProfiles(profileResult.data || [])
       }
       setLoading(false)
     }
@@ -249,7 +253,7 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
         <div className="flex flex-wrap gap-2">
           <select className="inp min-w-[16rem]" value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
             <option value="">เลือกบัญชีกรรมการเพื่อเพิ่ม</option>
-            {committeeProfiles.filter(p => !members.some(m => m.user_id === p.user_id && m.active)).map(p => <option key={p.user_id} value={p.user_id}>{p.full_name || p.username || p.user_id}</option>)}
+            {availableProfiles.filter(p => !members.some(m => m.user_id === p.user_id && m.active)).map(p => <option key={p.user_id} value={p.user_id}>{p.full_name || p.username || p.user_id}</option>)}
           </select>
           <button type="button" className="btn sec" disabled={!selectedUser || busy} onClick={() => { setMember(selectedUser, true, false); setSelectedUser('') }}>เพิ่มกรรมการ</button>
         </div>
