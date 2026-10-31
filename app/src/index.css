@@ -779,7 +779,7 @@ body.print-unit-report .unit-report-table {
 .ps-repeat-heading .ps-sum th, .ps-repeat-heading .ps-sum td { font-size: 8pt !important; padding: .8mm 1mm !important; }
 
 @media print {
-  @page individualReport { size: A4 portrait; margin: 8mm 8mm 13mm; }
+  @page individualReport { size: A3 landscape; margin: 7mm 8mm 10mm; }
   @page unitReport { size: A4 landscape; margin: 7mm 8mm 13mm; }
   body.print-unit-report .unit-report-toolbar { display: none !important; }
   body.print-unit-report .unit-report-print {
@@ -1305,4 +1305,39 @@ body.unit-report-preview-open .unit-report-print * {
     white-space:nowrap !important;
     font-size:7.2pt !important;
   }
+}
+
+
+/* P4P readability fixes: A3 landscape gives 31 daily columns enough width. */
+.ps-individual-landscape { width: 400mm !important; max-width: none !important; }
+.ps-individual-table { width: 400mm !important; min-width: 400mm !important; table-layout: fixed !important; }
+.ps-individual-table col:nth-child(1) { width: 5mm !important; }
+.ps-individual-table col:nth-child(2) { width: 38mm !important; }
+.ps-individual-table col:nth-child(3) { width: 8mm !important; }
+.ps-individual-table col:nth-child(4) { width: 7mm !important; }
+.ps-individual-table col:nth-child(5) { width: 7mm !important; }
+.ps-individual-table col:nth-child(6) { width: 6mm !important; }
+.ps-individual-table col:nth-child(7) { width: 7mm !important; }
+.ps-individual-table col:nth-last-child(-n+3) { width: 9mm !important; }
+.ps-individual-table .ps-day-cell { font-size: 8pt !important; padding: 1px 0.7mm !important; white-space: nowrap !important; }
+.unit-report-table td.unit-report-name,
+.unit-report-table td.unit-report-position {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  text-overflow: clip !important;
+  vertical-align: middle !important;
+}
+.unit-report-table td.unit-report-name { font-size: 7.5pt !important; letter-spacing: -0.15px !important; }
+.unit-report-table td.unit-report-position { font-size: 7pt !important; letter-spacing: -0.25px !important; }
+@media print {
+  @page individualReport { size: A3 landscape; margin: 7mm 8mm 10mm; }
+  body.print-individual-report .ps-individual-landscape { width: 400mm !important; min-width: 400mm !important; max-width: none !important; }
+  body.print-individual-report .ps-individual-table { width: 400mm !important; min-width: 400mm !important; table-layout: fixed !important; }
+  body.print-individual-report .ps-individual-table .ps-day-cell { font-size: 8pt !important; padding: 1px 0.7mm !important; }
+  body.print-individual-report .ps-individual-table .ps-repeat-heading th,
+  body.print-individual-report .ps-individual-table .ps-repeat-meta th,
+  body.print-individual-report .ps-individual-table .ps-repeat-leave th { width: auto !important; }
+  body.print-unit-report .unit-report-table td.unit-report-name,
+  body.print-unit-report .unit-report-table td.unit-report-position { white-space: nowrap !important; overflow-wrap: normal !important; word-break: keep-all !important; }
 }
