@@ -1014,3 +1014,44 @@ body.unit-report-preview-open .unit-report-print * {
   body.print-unit-report .unit-report-subtitle { font-size: 15pt !important; font-weight: 700 !important; display: flex !important; justify-content: space-between !important; flex-direction: row !important; }
   body.print-unit-report .unit-report-grand-total { text-align: center !important; }
 }
+
+
+/* Unit report: compact two-line column headings and balanced A4 landscape widths. */
+.unit-report-heading-row h1 {
+  font-size: 12pt !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+}
+.unit-report-heading-row .unit-report-subtitle {
+  font-size: 12pt !important;
+  font-weight: 700 !important;
+}
+.unit-report-table th:not(.unit-report-heading-row th) {
+  font-size: 8pt !important;
+  line-height: 1.15 !important;
+  padding: 1mm .7mm !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+.unit-report-table .unit-col-order { width: 4% !important; }
+.unit-report-table .unit-col-name { width: 13% !important; }
+.unit-report-table .unit-col-position { width: 17% !important; }
+.unit-report-table .unit-col-guarantee { width: 7% !important; }
+.unit-report-table .unit-col-days { width: 5% !important; }
+.unit-report-table .unit-col-role-guarantee { width: 8% !important; }
+.unit-report-table .unit-col-work { width: 9% !important; }
+.unit-report-table .unit-col-performance-total { width: 10% !important; }
+.unit-report-table .unit-col-excess { width: 10% !important; }
+.unit-report-table .unit-col-rate { width: 5% !important; }
+.unit-report-table .unit-col-base-pay { width: 6% !important; }
+.unit-report-table .unit-col-payout { width: 6% !important; }
+@media print {
+  body.print-unit-report .unit-report-heading-row h1 { font-size: 12pt !important; }
+  body.print-unit-report .unit-report-heading-row .unit-report-subtitle { font-size: 12pt !important; }
+  body.print-unit-report .unit-report-table th:not(.unit-report-heading-row th) {
+    font-size: 8pt !important;
+    line-height: 1.15 !important;
+    padding: 1mm .7mm !important;
+  }
+}
