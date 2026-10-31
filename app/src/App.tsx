@@ -507,7 +507,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const person = pickerPeople.find((p: any) => p.id === pid); const pos = positions.find((x: any) => x.name === person?.position)
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
-  const terms = q.toLowerCase().split(/\s+/).filter(Boolean)   // พิมพ์หลายคำได้ ต้องพบครบทุกคำ ในรหัส/หมวด/กิจกรรมหลัก/กิจกรรมย่อย
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean)   // พิมพ์หลายคำได้ ต้องพบครบทุกคำ ในรหัส/กิจกรรมหลัก/กิจกรรมย่อย
   const selectedUnitName = String((unitOptions || []).find((u: any) => Number(u.id) === Number(person?.unit_id))?.name || '').trim()
   const isMedicalCenterStaff = selectedUnitName === 'ศูนย์เครื่องมือแพทย์'
   const isMedicalCenterOnly = (a: any) => String(a?.title || '').startsWith('[เฉพาะศูนย์เครื่องมือแพทย์]')
@@ -516,8 +516,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const crossLineGroups = ['พยาบาล', 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก']
   const eligibleActs = acts.filter((a: any) => ((!pos || a.eligible.includes(pos.grp)) || (isSpecialCrossLineNurse && crossLineGroups.some(g => a.eligible.includes(g)))) && (!isMedicalCenterOnly(a) || isMedicalCenterStaff))
   // แสดงกิจกรรมที่มีสิทธิ์เลือกทั้งหมดทันทีเมื่อเปิดช่อง และกรองตามคำค้นหาทันทีเมื่อเริ่มพิมพ์
-  const list = eligibleActs.filter((a: any) => terms.every(t => [a.code, a.category, a.main_activity, a.title].join(' ').toLowerCase().includes(t))).sort(byCode)
-  const catGroups: [string, any[]][] = (() => { const m = new Map<string, any[]>(); list.forEach((a: any) => { const k = a.category || 'อื่นๆ'; m.set(k, [...(m.get(k) || []), a]) }); return [...m.entries()] })()
+  const list = eligibleActs.filter((a: any) => terms.every(t => [a.code, a.main_activity, a.title].join(' ').toLowerCase().includes(t))).sort(byCode)
   const act = acts.find((a: any) => a.code === code)
   const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate : 0
   const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
@@ -675,14 +674,14 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         <label className="field-label">เวรที่ปฏิบัติ<select className="inp mt-1" value={shift} onChange={e => setShift(e.target.value)}>{SHIFTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       </div>
       {pid && <p role="status" className={'text-xs ' + (room <= 0 ? 'text-amber-800 font-bold' : 'text-stone-600')}>{shiftName}วันนี้ใช้ {nf(usedShift)}/{nf(capS, 0)} คะแนน · รวมทั้งวัน {nf(dayUsed)}/{nf(capD, 0)}{room <= 0 && ' · เต็มเพดาน บันทึกเพิ่มได้แต่ไม่นับคะแนน'}</p>}
-      <div className="activity-step-grid"><div className="space-y-1 relative"><label className="field-label" htmlFor="activity-search">เลือกกิจกรรม</label><input id="activity-search" className="inp" autoComplete="off" placeholder="คลิกเพื่อเลือกรายการ หรือพิมพ์เพื่อค้นหา" value={q} onFocus={() => setActivityDropdownOpen(true)} onClick={() => setActivityDropdownOpen(true)} onChange={e => { setQ(e.target.value); setActivityDropdownOpen(true) }} onKeyDown={e => { if (e.key === 'Escape') setActivityDropdownOpen(false); if (e.key === 'ArrowDown') setActivityDropdownOpen(true) }} aria-expanded={activityDropdownOpen} aria-controls="activity-options-list" role="combobox" aria-autocomplete="list" />
+      <div className="activity-step-grid"><div className="space-y-1 relative"><label className="field-label" htmlFor="activity-search">เลือกกิจกรรม</label><input id="activity-search" className="inp" autoComplete="off" placeholder="คลิกเพื่อเลือกรายการ หรือพิมพ์เพื่อค้นหา" value={q} onFocus={() => setActivityDropdownOpen(true)} onClick={() => setActivityDropdownOpen(true)} onBlur={() => setActivityDropdownOpen(false)} onChange={e => { setQ(e.target.value); setActivityDropdownOpen(true) }} onKeyDown={e => { if (e.key === 'Escape') setActivityDropdownOpen(false); if (e.key === 'ArrowDown') setActivityDropdownOpen(true) }} aria-expanded={activityDropdownOpen} aria-controls="activity-options-list" role="combobox" aria-autocomplete="list" />
         {activityDropdownOpen && <div id="activity-options-list" className="act-list absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl" role="listbox" aria-label="เลือกกิจกรรม">
-          {catGroups.map(([cat, items]) => <div key={cat}><div className="act-head">{cat}</div>{items.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={[a.main_activity, a.title].filter(Boolean).join(' › ')} onMouseDown={e => e.preventDefault()} onClick={() => { setQ([a.code, a.title].filter(Boolean).join(' — ')); setActivityDropdownOpen(false); void chooseActivity(a) }} className={'act-item' + (code === a.code ? ' on' : '')}><span className="act-code">{a.code}</span><span className="act-body">{a.main_activity && <span className="act-main">{a.main_activity}</span>}<span className="act-title">{a.title}</span></span><span className="act-uom">{a.minutes} นาที/{a.uom}</span></button>)}</div>)}
+          {list.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={[a.main_activity, a.title].filter(Boolean).join(' › ')} onMouseDown={e => e.preventDefault()} onClick={() => { setQ([a.code, a.title].filter(Boolean).join(' — ')); setActivityDropdownOpen(false); void chooseActivity(a) }} className={'act-item' + (code === a.code ? ' on' : '')}><span className="act-code">{a.code}</span><span className="act-body">{a.main_activity && <span className="act-main">{a.main_activity}</span>}<span className="act-title">{a.title}</span></span><span className="act-uom">{a.minutes} นาที/{a.uom}</span></button>)}</div>)}
           {!list.length && <p className="p-4 text-sm text-slate-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหาหรือสิทธิ์ของตำแหน่งนี้</p>}
           <div className="border-t border-slate-100 p-2 text-xs text-slate-500">{list.length} รายการ · คลิกกิจกรรมเพื่อเลือก</div>
         </div>}
       </div></div>
-      {act && <div className="rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm"><b className="text-teal-900">เลือกแล้ว: {act.code} {[act.category, act.main_activity, act.title].filter(Boolean).join(' › ')}</b><p className="mt-1 text-xs text-teal-900">กดรายการกิจกรรมเพื่อเปิดแบบฟอร์มกรอกข้อมูล</p></div>}
+      {act && <div className="rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm"><b className="text-teal-900">เลือกแล้ว: {act.code} {[act.main_activity, act.title].filter(Boolean).join(' › ')}</b><p className="mt-1 text-xs text-teal-900">กดรายการกิจกรรมเพื่อเปิดแบบฟอร์มกรอกข้อมูล</p></div>}
       {duplicateOpen && act && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="duplicate-activity-title"><div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 space-y-4">
         <div className="flex items-start justify-between gap-3 border-b pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-amber-700">ตรวจพบรายการซ้ำ</p><h2 id="duplicate-activity-title" className="text-lg font-bold text-slate-900">กิจกรรมนี้บันทึกไปแล้ว</h2><p className="mt-1 text-sm text-slate-700">{act.code} {act.title}</p><p className="mt-1 text-sm font-semibold text-amber-800">รายการนี้บันทึกไปแล้วจำนวน {duplicateRows.reduce((sum: number, row: any) => sum + Number(row.qty || 0), 0)} {act.uom || 'หน่วย'} ในวันที่ {formatThaiShortDate(date)}</p></div><button type="button" className="rounded-lg border px-3 py-1.5 text-sm" onClick={() => setDuplicateOpen(false)}>ปิด</button></div>
         <p className="text-sm text-slate-700">หากต้องการบันทึกเพิ่มกรุณาทำการแก้ไขจำนวนแทน ไม่สามารถสร้างรายการกิจกรรมซ้ำในวันเดียวกันได้</p>
@@ -1074,11 +1073,9 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
 function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, seeAll }: any) {
   const [query, setQuery] = useState('')
   const [domain, setDomain] = useState('บริหาร')
-  const [category, setCategory] = useState('ทั้งหมด')
   const allLines = [...new Set([...(positions || []).map((p: any) => p.grp), ...(acts || []).flatMap((a: any) => a.eligible || [])])].filter((g: any) => g && g !== NO_LINE) as string[]
   const lines: string[] = seeAll ? [...LINE_ORDER.filter(l => allLines.includes(l)), ...allLines.filter(l => !LINE_ORDER.includes(l))] : ([myLine].filter((l: any) => l && l !== NO_LINE) as string[])
   const [line, setLine] = useState<string>(myLine && lines.includes(myLine) ? myLine : lines[0] || '')
-  useEffect(() => { setCategory('ทั้งหมด') }, [line])
   useEffect(() => { if (!lines.includes(line)) setLine(myLine && lines.includes(myLine) ? myLine : lines[0] || '') }, [lines.join('|')])
   const [showAdd, setShowAdd] = useState(false)
   const [editingCode, setEditingCode] = useState<string | null>(null)
@@ -1087,7 +1084,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const [msg, setMsg] = useState('')
   const groups = [...new Set((positions || []).map((p: any) => p.grp).filter((g: any) => g && g !== NO_LINE))] as string[]
   const [formLine, setFormLine] = useState<string>(line || '')
-  const emptyForm = (selectedLine: string = formLine) => ({ code: '', title: '', domain: 'บริการ', category: '', main_activity: '', uom: '', minutes: '1', max_day: '', max_month: '', eligible: selectedLine ? [selectedLine] : [], need_evidence: false, definition: '', note: '' })
+  const emptyForm = (selectedLine: string = formLine) => ({ code: '', title: '', domain: 'บริการ', main_activity: '', uom: '', minutes: '1', max_day: '', max_month: '', eligible: selectedLine ? [selectedLine] : [], need_evidence: false, definition: '', note: '' })
   const [form, setForm] = useState<any>(() => emptyForm(line || ''))
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
@@ -1097,49 +1094,20 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const ratePerMinute = Number(positions.find((p: any) => p.grp === line)?.rate || 0)
   const activityDescription = (a: any) => [String(a.main_activity || '').trim(), String(a.title || '').trim().replace(/\s+(?=\d+\s*[.)]\s*\S)/g, '\n')].filter(Boolean).join('\n')
   const activityRows = (items: any[]) => items.map((a, index) => [index + 1, activityDescription(a), a.uom || '', Math.round(Number(a.minutes || 0)), ratePerMinute, 1, Math.round(Number(a.minutes || 0) * ratePerMinute * 100) / 100])
-  const catsOfLine = [...new Set([...inLine].sort(byCode).map((a: any) => a.category || 'อื่นๆ'))] as string[]
   const mainsOfLine = [...new Set(inLine.map((a: any) => a.main_activity).filter(Boolean))] as string[]
-  const formLineActivities = (acts || []).filter((a: any) => (a.eligible || []).includes(formLine))
-  const formCategories = [...new Set(formLineActivities.map((a: any) => a.category).filter(Boolean))] as string[]
-  const nextActivityCode = (selectedLine: string, selectedCategory: string, selectedDomain: string) => {
-    const domainPrefix: Record<string, string> = { 'บริหาร': 'ADM', 'บริการ': 'SVC', 'วิชาการ': 'ACD' }
-    const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && String(a.category || '').trim() === String(selectedCategory || '').trim())
-    const structured = matching.map((a: any) => ({ activity: a, parts: String(a.code || '').trim().match(/^([A-Z]+)-(\d+)-(\d+)$/i) })).filter((x: any) => x.parts)
+  const nextActivityCode = (selectedLine: string, selectedDomain: string) => {
+    const prefix = ({ 'บริหาร': 'ADM', 'บริการ': 'SVC', 'วิชาการ': 'ACD' } as Record<string, string>)[selectedDomain] || 'ACT'
+    const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && String(a.code || '').toUpperCase().startsWith(prefix + '-'))
+    const structured = matching.map((a: any) => String(a.code || '').trim().match(/^([A-Z]+)-(\\d+)-(\\d+)$/i)).filter(Boolean)
     if (structured.length) {
-      // หมวดเดียวกันอาจมีข้อมูลเดิมหลายรูปแบบ/หลายชุดรหัส ให้ต่อจากชุดที่มีเลขกิจกรรมสูงสุด
-      // และให้น้ำหนัก prefix ตามด้านที่เลือก เพื่อไม่ย้อนกลับไปเริ่ม ACD-01-02 เมื่อมี ACD-04-09 อยู่แล้ว
-      const preferredPrefix = domainPrefix[selectedDomain] || ''
-      const groupsByCode: Record<string, { prefix: string; categoryNo: string; maxItem: number }> = {}
-      structured.forEach((x: any) => {
-        const prefix = x.parts[1].toUpperCase()
-        const categoryNo = x.parts[2]
-        const key = prefix + '-' + categoryNo
-        const itemNo = Number(x.parts[3] || 0)
-        if (!groupsByCode[key]) groupsByCode[key] = { prefix, categoryNo, maxItem: itemNo }
-        else groupsByCode[key].maxItem = Math.max(groupsByCode[key].maxItem, itemNo)
-      })
-      const groups = Object.values(groupsByCode)
-      const preferredGroups = groups.filter(g => g.prefix === preferredPrefix)
-      const candidates = preferredGroups.length ? preferredGroups : groups
-      candidates.sort((a, b) => b.maxItem - a.maxItem || Number(b.categoryNo) - Number(a.categoryNo))
-      const chosen = candidates[0]
-      return chosen.prefix + '-' + chosen.categoryNo + '-' + String(chosen.maxItem + 1).padStart(2, '0')
+      const latest = structured.map((m: any) => ({ group: Number(m[2]), item: Number(m[3]) })).sort((a: any, b: any) => b.group - a.group || b.item - a.item)[0]
+      return prefix + '-' + String(latest.group).padStart(2, '0') + '-' + String(latest.item + 1).padStart(2, '0')
     }
-    const simple = matching.map((a: any) => String(a.code || '').match(/^([A-Z]+)-?(\d+)$/i)).find(Boolean)
-    if (simple) {
-      const prefix = simple[1].toUpperCase()
-      const max = matching.reduce((n: number, a: any) => Math.max(n, Number(String(a.code).match(/(\d+)$/)?.[1] || 0)), 0)
-      return prefix + '-' + String(max + 1).padStart(3, '0')
-    }
-    const prefix = domainPrefix[selectedDomain] || 'ACT'
-    const categoryNo = String(Math.max(1, formCategories.indexOf(selectedCategory) + 1)).padStart(2, '0')
-    const sameGroup = (acts || []).filter((a: any) => { const m = String(a.code || '').match(/^([A-Z]+)-(\d+)-(\d+)$/i); return (a.eligible || []).includes(selectedLine) && m && m[1].toUpperCase() === prefix && m[2] === categoryNo })
-    const max = sameGroup.reduce((n: number, a: any) => Math.max(n, Number(String(a.code).match(/-(\d+)$/)?.[1] || 0)), 0)
-    return prefix + '-' + categoryNo + '-' + String(max + 1).padStart(2, '0')
+    const simple = matching.map((a: any) => Number(String(a.code || '').match(/(\\d+)$/)?.[1] || 0)).reduce((a: number, b: number) => Math.max(a, b), 0)
+    return prefix + '-' + String(simple + 1).padStart(3, '0')
   }
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const filtered = inLine.filter((a: any) => (category === 'ทั้งหมด' || (a.category || 'อื่นๆ') === category) &&
-    terms.every(t => [a.code, a.category, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
+  const filtered = inLine.filter((a: any) => terms.every(t => [a.code, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
   const exportActivitySet = () => {
     const esc = (value: any) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
     const col = (n: number) => { let s = ''; while (n) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26) } return s }
@@ -1188,8 +1156,8 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   }, [printingActivities])
   const add = async () => {
     setMsg('')
-    if (!formLine || !form.category || !form.code.trim() || !form.title.trim() || !form.uom.trim() || !form.minutes || Number(form.minutes) <= 0 || !form.eligible.length) {
-      setMsg('กรุณาเลือกสายงานและหมวดหมู่ แล้วกรอกชื่อกิจกรรม หน่วยนับ และนาที/หน่วยให้ครบ')
+    if (!formLine || !form.code.trim() || !form.title.trim() || !form.uom.trim() || !form.minutes || Number(form.minutes) <= 0 || !form.eligible.length) {
+      setMsg('กรุณาเลือกสายงาน แล้วกรอกชื่อกิจกรรม หน่วยนับ และนาที/หน่วยให้ครบ')
       return
     }
     if (form.need_evidence && !form.definition.trim()) {
@@ -1198,7 +1166,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     }
     setBusy(true)
     const payload = {
-      code: form.code.trim(), title: form.title.trim(), domain: form.domain, category: form.category.trim() || null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
+      code: form.code.trim(), title: form.title.trim(), domain: form.domain, category: null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
       minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
       max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
       need_evidence: form.need_evidence, definition: form.definition.trim() || null,
@@ -1212,7 +1180,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const beginEditActivity = (a: any) => {
     setEditingCode(a.code)
     setFormLine((a.eligible || [])[0] || line || '')
-    setForm({ code: a.code, title: a.title || '', domain: a.domain || 'บริการ', category: a.category || '', main_activity: a.main_activity || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), eligible: Array.isArray(a.eligible) ? a.eligible : [], need_evidence: Boolean(a.need_evidence), definition: a.definition || '', note: a.note || '' })
+    setForm({ code: a.code, title: a.title || '', domain: a.domain || 'บริการ', main_activity: a.main_activity || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), eligible: Array.isArray(a.eligible) ? a.eligible : [], need_evidence: Boolean(a.need_evidence), definition: a.definition || '', note: a.note || '' })
     setShowAdd(true)
     setMsg('')
   }
@@ -1255,11 +1223,11 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
       {showAdd && isAdmin && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
         <h3 className="font-bold">{editingCode ? `แก้ไขกิจกรรม ${editingCode}` : 'เพิ่มกิจกรรมเข้าคลัง'}</h3>
         <div className="grid sm:grid-cols-2 gap-3">
-          <label className="field-label">1. เลือกตำแหน่งสายงาน<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({...form, eligible: l ? [l] : [], category:'', code:''}) }}><option value="">-- เลือกสายงานก่อน --</option>{groups.map((g: string) => <option key={g} value={g}>{g}</option>)}</select></label>
+          <label className="field-label">1. เลือกตำแหน่งสายงาน<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({...form, eligible: l ? [l] : [], code:''}) }}><option value="">-- เลือกสายงานก่อน --</option>{groups.map((g: string) => <option key={g} value={g}>{g}</option>)}</select></label>
           <label className="field-label">2. เลือกหมวดหมู่กิจกรรม<select className="inp mt-1" value={form.category} disabled={!formLine || Boolean(editingCode)} onChange={e => { const c = e.target.value; const existing = (acts || []).find((a: any) => (a.eligible || []).includes(formLine) && (a.category || '') === c && String(a.code || '').split('-').length === 3); const inferredDomain = existing ? ({ ADM:'บริหาร', SVC:'บริการ', ACD:'วิชาการ' } as any)[String(existing.code).split('-')[0].toUpperCase()] || form.domain : form.domain; setForm({...form, category:c, domain:inferredDomain, code:c ? nextActivityCode(formLine,c,inferredDomain) : ''}) }}><option value="">-- เลือกหมวดหมู่ --</option>{formCategories.map((c: string) => <option key={c} value={c}>{c}</option>)}</select><span className="mt-1 block text-xs text-stone-500">เลือกสายงานก่อน ระบบจะแสดงหมวดหมู่ที่มีในสายงานนั้น</span></label>
-          <label className="field-label">รหัสกิจกรรม (สร้างอัตโนมัติ)<input className="inp mt-1" value={form.code} readOnly placeholder="เลือกรายการสายงานและหมวดหมู่ก่อน" /><span className="mt-1 block text-xs text-stone-500">ระบบสร้างรหัสต่อจากรหัสล่าสุดในชุดกิจกรรม</span></label>
+          <label className="field-label">รหัสกิจกรรม (สร้างอัตโนมัติ)<input className="inp mt-1" value={form.code} readOnly placeholder="เลือกสายงานก่อน" /><span className="mt-1 block text-xs text-stone-500">ระบบสร้างรหัสต่อจากรายการล่าสุดของสายงานและด้านที่เลือก</span></label>
           <label className="field-label">กิจกรรมหลัก<input className="inp mt-1" list="main-options" value={form.main_activity} onChange={e => setForm({...form, main_activity:e.target.value})} placeholder="เช่น การเคลื่อนย้ายผู้ป่วย" /></label>
-          <label className="field-label">ด้านในใบสรุปคะแนน<select className="inp mt-1" value={form.domain} onChange={e => setForm({...form, domain:e.target.value, code:form.category && !editingCode ? nextActivityCode(formLine,form.category,e.target.value) : form.code})}>{['บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></label>
+          <label className="field-label">ด้านในใบสรุปคะแนน<select className="inp mt-1" value={form.domain} onChange={e => setForm({...form, domain:e.target.value, code:formLine && !editingCode ? nextActivityCode(formLine,e.target.value) : form.code})}>{['บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></label>
           <datalist id="cat-options">{catsOfLine.map(c => <option key={c} value={c} />)}</datalist><datalist id="main-options">{mainsOfLine.map(c => <option key={c} value={c} />)}</datalist>
           <label className="field-label sm:col-span-2">ชื่อกิจกรรมย่อย (ใช้ค้นหาตอนบันทึก)<input className="inp mt-1" value={form.title} onChange={e => setForm({...form, title:e.target.value})} /></label>
           <label className="field-label">หน่วยนับ<input className="inp mt-1" value={form.uom} onChange={e => setForm({...form, uom:e.target.value})} placeholder="เช่น ครั้ง, ราย, ชั่วโมง" /></label>
@@ -1278,7 +1246,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
         {lines.length > 1 ? <div className="flex flex-wrap gap-2" role="tablist" aria-label="สายงาน">{lines.map(l => { const on = line === l; const n = (acts || []).filter((a: any) => (a.eligible || []).includes(l)).length
           return <button key={l} type="button" role="tab" aria-selected={on} onClick={() => setLine(l)} className={'rounded-lg border px-3 py-1.5 text-sm font-semibold ' + (on ? 'border-teal-700 bg-teal-700 text-white' : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50')}>{LINE_LABEL[l] || l}<span className="ml-1.5 text-xs opacity-80">{n}</span></button> })}</div>
           : <p className="text-sm text-stone-700">ชุดกิจกรรมของตำแหน่งคุณ: <b className="text-teal-900">{LINE_LABEL[line] || line || 'ยังไม่กำหนด'}</b>{!line && ' · ตำแหน่งนี้ยังไม่มีชุดกิจกรรม โปรดแจ้งผู้ดูแลระบบ'}</p>}
-        <div className="flex flex-wrap items-center gap-2"><input className="inp min-w-[220px] flex-1" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหา: รหัส หมวด กิจกรรมหลัก กิจกรรมย่อย หรือหลักฐาน (พิมพ์หลายคำได้)…" /><button type="button" className="btn sec whitespace-nowrap" disabled={!line || !activityPrintSet.length} onClick={() => { document.body.classList.add('print-activity-library'); setPrintingActivities(true) }}>พิมพ์ชุดกิจกรรม</button><button type="button" className="btn sec whitespace-nowrap" disabled={!line || !activityPrintSet.length} onClick={exportActivitySet}>ส่งออก Excel (.xlsx)</button></div>
+        <div className="flex flex-wrap items-center gap-2"><input className="inp min-w-[220px] flex-1" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหา: รหัส กิจกรรมหลัก กิจกรรมย่อย หรือหลักฐาน (พิมพ์หลายคำได้)…" /><button type="button" className="btn sec whitespace-nowrap" disabled={!line || !activityPrintSet.length} onClick={() => { document.body.classList.add('print-activity-library'); setPrintingActivities(true) }}>พิมพ์ชุดกิจกรรม</button><button type="button" className="btn sec whitespace-nowrap" disabled={!line || !activityPrintSet.length} onClick={exportActivitySet}>ส่งออก Excel (.xlsx)</button></div>
         <div className="flex flex-wrap gap-2 border-b border-stone-200" role="tablist" aria-label="หมวดของสายงาน">
           {['ทั้งหมด', ...catsOfLine].map(x => {
             const count = x === 'ทั้งหมด' ? inLine.length : inLine.filter((a: any) => (a.category || 'อื่นๆ') === x).length
@@ -1287,7 +1255,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
           })}
         </div>
       </div>
-      <p className="text-xs text-stone-500">หมวด{domain} · แสดง {filtered.length} จาก {(acts || []).filter((a: any) => a.domain === domain).length} กิจกรรม</p>
+      <p className="text-xs text-stone-500">สายงาน {LINE_LABEL[line] || line} · แสดง {filtered.length} รายการ</p>
     </div>
     {filtered.length === 0 ? <div className="card text-center text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหา</div> :
       <div className="card overflow-x-auto p-0">
