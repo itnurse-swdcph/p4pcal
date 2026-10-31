@@ -911,12 +911,13 @@ body.unit-report-preview-open .unit-report-toolbar {
   body.print-activity-library .activity-library-print td { border: .5pt solid #333 !important; padding: 1.5mm !important; color: #111 !important; text-align: left !important; vertical-align: top !important; white-space: pre-wrap !important; overflow-wrap: anywhere !important; font-size: 8pt !important; }
   body.print-activity-library .activity-library-print th { background: #e9eef3 !important; font-weight: 700 !important; }
   body.print-activity-library .activity-library-print th:nth-child(1), body.print-activity-library .activity-library-print td:nth-child(1) { width: 11% !important; }
-  body.print-activity-library .activity-library-print th:nth-child(2), body.print-activity-library .activity-library-print td:nth-child(2) { width: 12% !important; }
-  body.print-activity-library .activity-library-print th:nth-child(3), body.print-activity-library .activity-library-print td:nth-child(3) { width: 20% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(2), body.print-activity-library .activity-library-print td:nth-child(2) { width: 20% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(3), body.print-activity-library .activity-library-print td:nth-child(3) { width: 10% !important; }
   body.print-activity-library .activity-library-print th:nth-child(4), body.print-activity-library .activity-library-print td:nth-child(4) { width: 9% !important; }
   body.print-activity-library .activity-library-print th:nth-child(5), body.print-activity-library .activity-library-print td:nth-child(5) { width: 10% !important; }
-  body.print-activity-library .activity-library-print th:nth-child(6), body.print-activity-library .activity-library-print td:nth-child(6) { width: 28% !important; }
-  body.print-activity-library .activity-library-print th:nth-child(7), body.print-activity-library .activity-library-print td:nth-child(7) { width: 10% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(6), body.print-activity-library .activity-library-print td:nth-child(6) { width: 25% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(7), body.print-activity-library .activity-library-print td:nth-child(7) { width: 9% !important; }
+  body.print-activity-library .activity-library-print th:nth-child(8), body.print-activity-library .activity-library-print td:nth-child(8) { width: 6% !important; }
   body.print-activity-library .activity-library-print tr { break-inside: avoid; page-break-inside: avoid; }
 }
 
