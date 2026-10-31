@@ -937,6 +937,8 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
   
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
+  const [selectedApprovalIds, setSelectedApprovalIds] = useState<number[]>([])
+  const [bulkApproving, setBulkApproving] = useState(false)
   const sortedRows = useMemo(() => [...(rows || [])].sort((a: any, b: any) => {
     // เรียงตามวันที่ปฏิบัติงานล่าสุดก่อน ไม่ใช่เวลาที่กดบันทึก
     const dateOrder = String(b.work_date || '').localeCompare(String(a.work_date || ''))
@@ -949,6 +951,23 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
     return bi - ai
   }), [rows])
   const displayedRows = useMemo(() => sortedRows.filter((r: any) => (!filterFrom || String(r.work_date || '') >= filterFrom) && (!filterTo || String(r.work_date || '') <= filterTo)), [sortedRows, filterFrom, filterTo])
+  const approvableDisplayedRows = useMemo(() => displayedRows.filter((r: any) => r.status === 'pending' && canDecideRow(ap, me, r)), [displayedRows, ap, me])
+  const selectedApprovableIds = useMemo(() => selectedApprovalIds.filter(id => approvableDisplayedRows.some((r: any) => Number(r.id) === Number(id))), [selectedApprovalIds, approvableDisplayedRows])
+  const allApprovableSelected = approvableDisplayedRows.length > 0 && approvableDisplayedRows.every((r: any) => selectedApprovableIds.includes(Number(r.id)))
+  const toggleApprovalSelection = (id: number, checked: boolean) => setSelectedApprovalIds(current => checked ? [...new Set([...current, Number(id)])] : current.filter(x => Number(x) !== Number(id)))
+  const toggleAllApprovals = (checked: boolean) => setSelectedApprovalIds(current => checked ? [...new Set([...current, ...approvableDisplayedRows.map((r: any) => Number(r.id))])] : current.filter(id => !approvableDisplayedRows.some((r: any) => Number(r.id) === Number(id))))
+  const approveSelected = async () => {
+    const ids = selectedApprovableIds
+    if (!ids.length || bulkApproving) return
+    if (!confirm('ยืนยันรับรองกิจกรรมที่เลือกจำนวน ' + ids.length.toLocaleString('th-TH') + ' รายการ?')) return
+    setBulkApproving(true)
+    const result = await sb.from('logs').update({ status: 'approved' }).in('id', ids).eq('status', 'pending')
+    setBulkApproving(false)
+    if (result.error) { alert('รับรองรายการที่เลือกไม่สำเร็จ: ' + result.error.message); return }
+    setSelectedApprovalIds(current => current.filter(id => !ids.includes(Number(id))))
+    reload()
+    alert('รับรองรายการเรียบร้อยแล้ว ' + ids.length.toLocaleString('th-TH') + ' รายการ')
+  }
   const selectedEditActivity = (acts || []).find((a: any) => a.code === form.activity_code)
   const editPointsPerUnit = selectedEditActivity && editing ? Number(selectedEditActivity.minutes || 0) * Number(editing.rate || 0) : 0
   const editPointsTotal = editPointsPerUnit * Number(form.qty || 0)
@@ -1015,7 +1034,13 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       <button type="button" className="btn sec" onClick={() => { setFilterFrom(''); setFilterTo('') }}>ล้างตัวกรองวันที่</button>
       <p className="ml-auto text-xs text-stone-600">แสดง {displayedRows.length.toLocaleString('th-TH')} จาก {rows.length.toLocaleString('th-TH')} รายการ · เรียงตามวันที่ปฏิบัติงานล่าสุดก่อน</p>
     </div>
-    <table className={`w-full log-table ${showName ? 'log-table-with-name' : ''}`}><thead><tr><th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th>เหตุผลที่ไม่รับรอง</th><th></th></tr></thead>
+    {canApprove && !readOnly && approvableDisplayedRows.length > 0 && <div className="flex flex-wrap items-center gap-3 border-b border-stone-200 bg-teal-50/60 p-3">
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={allApprovableSelected} onChange={e => toggleAllApprovals(e.target.checked)} />เลือกทั้งหมดที่รับรองได้ ({approvableDisplayedRows.length.toLocaleString('th-TH')} รายการ)</label>
+      <span className="text-sm text-stone-600">เลือกแล้ว {selectedApprovableIds.length.toLocaleString('th-TH')} รายการ</span>
+      <button type="button" className="btn" disabled={!selectedApprovableIds.length || bulkApproving} onClick={approveSelected}>{bulkApproving ? 'กำลังรับรอง…' : 'รับรองรายการที่เลือก (' + selectedApprovableIds.length.toLocaleString('th-TH') + ')'}</button>
+      <button type="button" className="btn sec" disabled={!selectedApprovalIds.length || bulkApproving} onClick={() => setSelectedApprovalIds([])}>ล้างที่เลือก</button>
+    </div>}
+    <table className={`w-full log-table ${showName ? 'log-table-with-name' : ''}`}><thead><tr>{canApprove && !readOnly && <th className="w-10"><input aria-label="เลือกกิจกรรมที่รับรองได้ทั้งหมด" type="checkbox" checked={allApprovableSelected} onChange={e => toggleAllApprovals(e.target.checked)} disabled={!approvableDisplayedRows.length} /></th>}<th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th>เหตุผลที่ไม่รับรอง</th><th></th></tr></thead>
       <tbody>{displayedRows.map((r: any) => {
         // ตรวจซ้ำที่หน้าจอด้วย เพื่อไม่ให้แสดง "ผ่าน" หากข้อมูล validation จาก view ขาดหายหรือยังไม่อัปเดต
         const checkErrors = Array.isArray(r.errors) ? [...r.errors] : []
@@ -1028,6 +1053,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
         if (Number(r.max_day) > 0 && sameActivityRows.filter((x: any) => x.work_date === r.work_date).reduce((sum: number, x: any) => sum + Number(x.qty || 0), 0) > Number(r.max_day)) addOnce(checkWarnings, `เกินเพดาน/วัน (${r.max_day})`)
         if (Number(r.max_month) > 0 && sameActivityRows.filter((x: any) => String(x.work_date || '').slice(0, 7) === String(r.work_date || '').slice(0, 7)).reduce((sum: number, x: any) => sum + Number(x.qty || 0), 0) > Number(r.max_month)) addOnce(checkWarnings, `เกินเพดาน/เดือน (${r.max_month})`)
         return <tr key={r.id}>
+        {canApprove && !readOnly && <td className="text-center">{r.status === 'pending' && canDecideRow(ap, me, r) ? <input aria-label={'เลือกกิจกรรม ' + r.activity_code} type="checkbox" checked={selectedApprovableIds.includes(Number(r.id))} onChange={e => toggleApprovalSelection(Number(r.id), e.target.checked)} /> : null}</td>}
         <td className="whitespace-nowrap">{formatThaiShortDate(r.work_date)}<div className="text-xs text-stone-500">{r.shift === 'เช้า' || r.shift === 'บ่าย' || r.shift === 'ดึก' ? 'เวร' + r.shift : 'แสตนด์เช้า'}</div></td>{showName && <td>{r.person_name}</td>}
         <td><div><b>{r.activity_code}</b> — {r.title}</div>{r.sub_activity?.trim() && <div className="text-sm mt-1 whitespace-pre-wrap break-words">กิจกรรมย่อย: {r.sub_activity}</div>}</td>
         <td>{r.qty} {r.uom}</td><td className="whitespace-nowrap">{nf(r.counted_points)}{Number(r.cap_cut) > 0 && Number(r.points_before_cap) > 0 ? <span className="text-xs text-amber-700"> (ตัดเพดาน −{nf(r.cap_cut)})</span> : Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
@@ -1040,7 +1066,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
             <button className="text-xs underline text-red-700" onClick={() => del(r.id)}>ลบ</button></>}
           {!readOnly && r.status === 'pending' && canDecideRow(ap, me, r) && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => { setRejecting(r); setReason('') }}>ไม่รับรอง</button></>}
           {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}</td>
-      </tr>})}{!displayedRows.length && <tr><td colSpan={9} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
+      </tr>})}{!displayedRows.length && <tr><td colSpan={canApprove && !readOnly ? 10 : 9} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
     {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="reject-title"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-3">
       <h3 id="reject-title" className="text-lg font-bold">ไม่รับรองรายการ</h3>
       <p className="text-sm text-stone-700"><b>{rejecting.person_name}</b> · {formatThaiShortDate(rejecting.work_date)} · {rejecting.activity_code} {rejecting.title}</p>
