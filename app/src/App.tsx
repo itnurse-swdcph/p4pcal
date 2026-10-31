@@ -809,17 +809,17 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
     <div className="print-sheet ps-individual-landscape">
       <table className="pt ps-individual-table">
         <colgroup>
-          <col style={{ width: '7mm' }} />
-          <col style={{ width: '72mm' }} />
-          <col style={{ width: '13mm' }} />
+          <col style={{ width: '6mm' }} />
+          <col style={{ width: '46mm' }} />
           <col style={{ width: '10mm' }} />
-          <col style={{ width: '11mm' }} />
+          <col style={{ width: '8mm' }} />
           <col style={{ width: '9mm' }} />
-          <col style={{ width: '11mm' }} />
-          {Array.from({ length: dayCount }, (_, i) => <col key={i} style={{ width: `calc((100% - 169mm) / ${dayCount})` }} />)}
-          <col style={{ width: '12mm' }} />
-          <col style={{ width: '12mm' }} />
-          <col style={{ width: '12mm' }} />
+          <col style={{ width: '7mm' }} />
+          <col style={{ width: '9mm' }} />
+          {Array.from({ length: dayCount }, (_, i) => <col key={i} style={{ width: `calc((100% - 125mm) / ${dayCount})` }} />)}
+          <col style={{ width: '10mm' }} />
+          <col style={{ width: '10mm' }} />
+          <col style={{ width: '10mm' }} />
         </colgroup>
         <thead>
           <tr className="ps-repeat-heading"><th colSpan={dayCount + 10}><h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1></th></tr>
@@ -827,12 +827,12 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
           <tr className="ps-repeat-leave"><th colSpan={dayCount + 10}><div className="ps-leave-row">ลากิจ = {Number(leaveData.personal_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาป่วย = {Number(leaveData.sick_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาพักผ่อน = {Number(leaveData.annual_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน</div></th></tr>
           <tr>
           <th rowSpan={2}>ลำดับ</th><th rowSpan={2}>กิจกรรม</th><th rowSpan={2}>หน่วยนับ</th><th rowSpan={2}>เวลา<br/>(นาที)</th><th rowSpan={2}>คะแนน/<br/>นาที</th><th rowSpan={2}>ค่างาน</th><th rowSpan={2}>คะแนน<br/>ปรับ</th><th colSpan={dayCount}>วันที่</th><th rowSpan={2}>รวม<br/>หน่วย</th><th rowSpan={2}>รวม<br/>แต้ม</th><th rowSpan={2}>แหล่ง<br/>อ้างอิง</th>
-          </tr><tr>{Array.from({length:dayCount},(_,i)=><th key={i}>{i+1}</th>)}</tr>
+          </tr><tr>{Array.from({length:dayCount},(_,i)=><th key={i} className="ps-day-cell">{i+1}</th>)}</tr>
         </thead>
         <tbody>
           {groups.map((g: any,i: number)=><tr key={g.code}>
             <td className="c">{i+1}</td><td className="ps-activity-name">{g.title}</td><td className="c">{g.uom || '—'}</td><td className="r">{nf(g.minutes,0)}</td><td className="r">{nf(g.rate,3)}</td><td className="r">1</td><td className="r">{nf(g.minutes*g.rate)}</td>
-            {Array.from({length:dayCount},(_,d)=><td key={d} className="r">{g.days[d+1] ? n2(g.days[d+1]) : ''}</td>)}
+            {Array.from({length:dayCount},(_,d)=><td key={d} className="r ps-day-cell">{g.days[d+1] ? n2(g.days[d+1]) : ''}</td>)}
             <td className="r">{n2(g.qty)}</td><td className="r">{nf(g.points)}</td><td></td>
           </tr>)}
           {!groups.length && <tr><td colSpan={dayCount+10} className="c">ไม่มีรายการกิจกรรมที่ผ่านการรับรองในเดือนนี้</td></tr>}
