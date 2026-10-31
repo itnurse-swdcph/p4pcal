@@ -1142,7 +1142,7 @@ body.unit-report-preview-open .unit-report-print * {
 
 /* Individual P4P activity score sheet: A4 landscape. */
 .ps-individual-landscape { width:297mm !important; min-height:210mm !important; padding:8mm !important; font-size:8pt !important; }
-.ps-individual-landscape .ps-title { margin:0 0 1mm !important; font-size:15pt !important; }
+.ps-individual-landscape .ps-title { margin:0 0 3mm !important; font-size:14pt !important; font-weight:700 !important; text-align:center; white-space:nowrap; }
 .ps-individual-landscape .ps-hospital { font-size:10pt !important; text-align:center; }
 .ps-meta { display:grid; gap:1.5mm; margin:4mm 0 3mm; font-size:9pt; }
 .ps-individual-table { table-layout:fixed !important; width:100% !important; }
@@ -1162,3 +1162,6 @@ body.unit-report-preview-open .unit-report-print * {
   body.print-individual-report .ps-individual-landscape { width:283mm !important; min-height:196mm !important; padding:0 !important; box-shadow:none !important; }
   body.print-individual-report .ps-individual-table { table-layout:fixed !important; }
 }
+
+.ps-leave-row { margin:1.5mm 0 3mm; font-size:9pt; }
+.ps-single-sign > div { white-space:pre-line; }
