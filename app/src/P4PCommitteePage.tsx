@@ -17,6 +17,7 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
   const [pendingCountLive, setPendingCountLive] = useState<number | null>(null)
   const [committeeProfiles, setCommitteeProfiles] = useState<any[]>([])
   const [availableProfiles, setAvailableProfiles] = useState<any[]>([])
+  const [designatedChair, setDesignatedChair] = useState<any>(null)
   const [selectedUser, setSelectedUser] = useState('')
   const [comment, setComment] = useState('')
   const [message, setMessage] = useState('')
@@ -54,9 +55,14 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
       if (pendingResult.error) { setPendingCountLive(null); setError('ไม่สามารถตรวจสอบจำนวนรายการรอรับรองจากฐานข้อมูลได้') }
       else setPendingCountLive(Number(pendingResult.count || 0))
       if (isAdmin) {
-        const profileResult = await sb.from('profiles').select('user_id,full_name,username,role,org_role,position,unit_id').eq('org_role', 'หัวหน้ากลุ่มงาน').order('full_name')
+        const [profileResult, designationResult] = await Promise.all([
+          sb.from('profiles').select('user_id,full_name,username,role,org_role,position,unit_id').eq('org_role', 'หัวหน้ากลุ่มงาน').order('full_name'),
+          sb.from('p4p_committee_designations').select('staff_directory_source_row,full_name,position,designation,active,linked_user_id').eq('designation', 'chair').eq('active', true).maybeSingle()
+        ])
         if (!alive) return
         if (!profileResult.error) setAvailableProfiles(profileResult.data || [])
+        if (!designationResult.error) setDesignatedChair(designationResult.data || null)
+        else setError(designationResult.error.message || 'ไม่สามารถโหลดรายชื่อผู้ได้รับแต่งตั้งล่วงหน้าได้')
       }
       setLoading(false)
     }
@@ -255,6 +261,7 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
 
       {isAdmin && <div className="card space-y-3">
         <div className="font-semibold">จัดการรายชื่อคณะกรรมการ P4P</div>
+        {designatedChair && <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900"><div className="font-semibold">ประธานที่ได้รับแต่งตั้ง</div><div>{designatedChair.full_name} · {designatedChair.position}</div><div className="mt-1 text-xs">{designatedChair.linked_user_id ? `เชื่อมบัญชีผู้ใช้แล้ว (${profileName(designatedChair.linked_user_id)})` : "รอสมัคร/เชื่อมบัญชีผู้ใช้ — ระบบจะเพิ่มเป็นกรรมการและกำหนดเป็นประธานโดยอัตโนมัติเมื่อสมัครด้วยข้อมูลบุคลากรที่ตรงกัน"}</div></div>}
         <p className="text-xs text-stone-500">ดึงรายชื่อบัญชีบุคลากรที่มีตำแหน่งหัวหน้ากลุ่มงานจากทะเบียนบุคลากรมาเป็นตัวเลือกโดยอัตโนมัติ Admin สามารถแต่งตั้งเป็นกรรมการและกำหนดประธานได้ โดยไม่ต้องเปลี่ยนบทบาทบัญชีเป็น committee ก่อน</p>
         <div className="flex flex-wrap gap-2">
           <select className="inp min-w-[16rem]" value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
