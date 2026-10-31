@@ -782,7 +782,8 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   }, [rows])
   const startPrint = () => {
     document.body.classList.add('print-individual-report')
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()))
+    // เรียกจากการคลิกปุ่มโดยตรง เพื่อให้เบราว์เซอร์เปิด print dialog ได้แน่นอน
+    window.print()
   }
   return createPortal(<div className="print-overlay">
     <div className="print-toolbar no-print">
@@ -1040,7 +1041,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
       <button type="button" className="btn" disabled={!selectedApprovableIds.length || bulkApproving} onClick={approveSelected}>{bulkApproving ? 'กำลังรับรอง…' : 'รับรองรายการที่เลือก (' + selectedApprovableIds.length.toLocaleString('th-TH') + ')'}</button>
       <button type="button" className="btn sec" disabled={!selectedApprovalIds.length || bulkApproving} onClick={() => setSelectedApprovalIds([])}>ล้างที่เลือก</button>
     </div>}
-    <table className={`w-full log-table ${showName ? 'log-table-with-name' : ''}`}><thead><tr>{canApprove && !readOnly && <th className="w-10"><input aria-label="เลือกกิจกรรมที่รับรองได้ทั้งหมด" type="checkbox" checked={allApprovableSelected} onChange={e => toggleAllApprovals(e.target.checked)} disabled={!approvableDisplayedRows.length} /></th>}<th>วันที่</th>{showName && <th>ชื่อ</th>}<th>กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th>เหตุผลที่ไม่รับรอง</th><th></th></tr></thead>
+    <table className={`w-full log-table ${showName ? 'log-table-with-name' : ''}`}><thead><tr>{canApprove && !readOnly && <th className="w-10"><input aria-label="เลือกกิจกรรมที่รับรองได้ทั้งหมด" type="checkbox" checked={allApprovableSelected} onChange={e => toggleAllApprovals(e.target.checked)} disabled={!approvableDisplayedRows.length} /></th>}<th>วันที่</th>{showName && <th>ชื่อ</th>}<th className="w-[34%] min-w-[18rem]">กิจกรรม</th><th>จำนวน</th><th>แต้ม</th><th>ผลตรวจ</th><th>สถานะ</th><th>เหตุผลที่ไม่รับรอง</th><th></th></tr></thead>
       <tbody>{displayedRows.map((r: any) => {
         // ตรวจซ้ำที่หน้าจอด้วย เพื่อไม่ให้แสดง "ผ่าน" หากข้อมูล validation จาก view ขาดหายหรือยังไม่อัปเดต
         const checkErrors = Array.isArray(r.errors) ? [...r.errors] : []
@@ -1055,7 +1056,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
         return <tr key={r.id}>
         {canApprove && !readOnly && <td className="text-center">{r.status === 'pending' && canDecideRow(ap, me, r) ? <input aria-label={'เลือกกิจกรรม ' + r.activity_code} type="checkbox" checked={selectedApprovableIds.includes(Number(r.id))} onChange={e => toggleApprovalSelection(Number(r.id), e.target.checked)} /> : null}</td>}
         <td className="whitespace-nowrap">{formatThaiShortDate(r.work_date)}<div className="text-xs text-stone-500">{r.shift === 'เช้า' || r.shift === 'บ่าย' || r.shift === 'ดึก' ? 'เวร' + r.shift : 'แสตนด์เช้า'}</div></td>{showName && <td>{r.person_name}</td>}
-        <td><div><b>{r.activity_code}</b> — {r.title}</div>{r.sub_activity?.trim() && <div className="text-sm mt-1 whitespace-pre-wrap break-words">กิจกรรมย่อย: {r.sub_activity}</div>}</td>
+        <td className="w-[34%] min-w-[18rem] whitespace-normal break-words"><div><b>{r.activity_code}</b> — {r.title}</div>{r.sub_activity?.trim() && <div className="text-sm mt-1 whitespace-pre-wrap break-words">กิจกรรมย่อย: {r.sub_activity}</div>}</td>
         <td>{r.qty} {r.uom}</td><td className="whitespace-nowrap">{nf(r.counted_points)}{Number(r.cap_cut) > 0 && Number(r.points_before_cap) > 0 ? <span className="text-xs text-amber-700"> (ตัดเพดาน −{nf(r.cap_cut)})</span> : Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
         <td className="text-xs">{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
         <td><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-0.5 text-xs text-stone-500">รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}</div>}</td><td className="min-w-48 max-w-sm whitespace-pre-wrap break-words text-xs">{r.status === 'rejected' ? <div className="rounded-md border border-red-200 bg-red-50 p-2 text-red-800">{String(r.reject_reason || '').trim() || 'ไม่พบเหตุผลที่บันทึกไว้ กรุณาติดต่อหัวหน้าผู้พิจารณา'}</div> : <span className="text-stone-400">—</span>}</td>
@@ -1652,7 +1653,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
     </>}
     {detailFor && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-2 sm:p-5" role="dialog" aria-modal="true" aria-label={`รายการกิจกรรมของ ${detailFor.name}`}><div className="w-full max-w-[96rem] max-h-[94vh] overflow-y-auto rounded-2xl bg-white p-3 shadow-2xl sm:p-5 space-y-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">รายการกิจกรรมรายบุคคล</h2><p className="text-sm text-stone-600">{detailFor.name} · ประจำเดือน {monthText} · แสดงทุกสถานะ ยกเว้นฉบับร่าง</p></div><div className="flex flex-wrap gap-2">{canPrint && <button type="button" className="btn" disabled={String(detailFor.id || '').startsWith('dir:') || !rows.some((r: any) => r.status === 'approved' && String(r.person_id) === String(detailFor.id))} onClick={() => setPrintingPerson(detailFor)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปรายบุคคล</button>}<button type="button" className="btn sec" onClick={() => setDetailFor(null)}>ปิด</button></div></div><LogTable sb={sb} rows={rows.filter((r: any) => r.status !== 'draft' && String(r.person_id) === String(detailFor.id))} reload={reload} canApprove={!audit} readOnly={!!audit} acts={acts} month={month} showName={false} /></div></div>}
-    {printingPerson && <PrintSheet sb={sb} person={printingPerson} rows={rows.filter((r: any) => String(r.person_id) === String(printingPerson.id))} month={month} units={units} positions={positions} autoPrint onClose={() => setPrintingPerson(null)} />}
+    {printingPerson && <PrintSheet sb={sb} person={printingPerson} rows={rows.filter((r: any) => String(r.person_id) === String(printingPerson.id))} month={month} units={units} positions={positions} onClose={() => setPrintingPerson(null)} />}
   </div>
 }
 
