@@ -471,7 +471,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const selectedUnitName = String((unitOptions || []).find((u: any) => Number(u.id) === Number(person?.unit_id))?.name || '').trim()
   const isMedicalCenterStaff = selectedUnitName === 'ศูนย์เครื่องมือแพทย์'
   const isMedicalCenterOnly = (a: any) => String(a?.title || '').startsWith('[เฉพาะศูนย์เครื่องมือแพทย์]')
-  const specialCrossLineUnits = ['หน่วยงานการพยาบาลผู้ป่วยห้องผ่าตัด', 'งานการพยาบาลวิสัญญี']
+  const specialCrossLineUnits = ['งานการพยาบาลผู้ป่วยห้องผ่าตัด', 'งานการพยาบาลวิสัญญี']
   const isSpecialCrossLineNurse = pos?.grp === 'พยาบาล' && specialCrossLineUnits.includes(selectedUnitName)
   const crossLineGroups = ['พยาบาล', 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก']
   const eligibleActs = acts.filter((a: any) => ((!pos || a.eligible.includes(pos.grp)) || (isSpecialCrossLineNurse && crossLineGroups.some(g => a.eligible.includes(g)))) && (!isMedicalCenterOnly(a) || isMedicalCenterStaff))
