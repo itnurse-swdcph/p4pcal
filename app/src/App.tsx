@@ -1790,6 +1790,7 @@ function PayGroupsCard({ sb }: any) {
           <td>{nf(g.reserve_pct, 0)}%</td>
           <td className="font-semibold whitespace-nowrap">{nf(minimumPay(g))}</td>
           <td>{nf(row.roleGuarantee || 0, 0)}</td>
+          <td>{nf(row.roleGuarantee || 0, 0)}</td>
           <td><button className="btn sec" onClick={() => openEdit(g, row)}>แก้ไข</button></td>
         </tr>)
       })}</tbody></table></div>
