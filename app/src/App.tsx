@@ -269,10 +269,16 @@ function Main({ sb, session }: any) {
   const [reviewGroup, setReviewGroup] = useState('')
   const [myUnits, setMyUnits] = useState<number[]>([])
   // Hooks must run in the same order before any conditional return.
+  const [showLogNotice, setShowLogNotice] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [compactNav, setCompactNav] = useState(false)
   const [myLevel, setMyLevel] = useState(0); const [personLevel, setPersonLevel] = useState<Record<string, number>>({})
-  const loadPeople = () => {
+  useEffect(() => {
+    if (!profile) return
+    const initialTab = tab || (profile.role === 'admin' ? 'review' : profile.role === 'committee' ? 'activities' : 'log')
+    if (initialTab === 'log') setShowLogNotice(true)
+  }, [profile, tab, logPageActivation])
+    const loadPeople = () => {
     sb.from('people').select('*').eq('active', true).order('name').then((r: any) => setPeople(r.data || []))
     sb.rpc('person_levels').then((r: any) => setPersonLevel(Object.fromEntries((r.data || []).map((x: any) => [x.person_id, Number(x.lvl)]))))
   }
@@ -328,6 +334,17 @@ function Main({ sb, session }: any) {
       <label className="topbar-month"><CalendarDays size={17}/><input type="month" aria-label="เดือนที่แสดง" className="inp" value={month} onChange={e => setMonth(e.target.value)} /></label>
       </div></header>
       <main className="app-content">
+      {showLogNotice && cur === 'log' && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="presentation">
+        <section role="alertdialog" aria-modal="true" aria-labelledby="log-notice-title" aria-describedby="log-notice-description" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700"><CalendarDays size={26}/></span>
+            <h2 id="log-notice-title" className="text-xl font-bold text-stone-900">แจ้งเตือนการบันทึกกิจกรรม P4P</h2>
+          </div>
+          <p id="log-notice-description" className="text-base leading-8 text-stone-700">การบันทึกกิจกรรม P4P บันทึกได้เฉพาะวันปฏิบัติงานที่เป็นวันทำการ เวร OT ไม่อนุญาตให้นำมาคิดกิจกรรม กรุณาตรวจสอบวันปฏิบัติงานก่อนบันทึกกิจกรรม ขอบคุณค่ะ</p>
+          <div className="flex justify-end"><button type="button" className="btn" onClick={() => setShowLogNotice(false)}>รับทราบ</button></div>
+        </section>
+      </div>}
+
 
     {tabs.length === 0 && <p>บัญชีนี้ยังไม่มีสิทธิ์ใช้งาน</p>}
     {cur === 'personal' && role !== 'admin' && <PersonalProfilePage sb={sb} profile={profile} role={role} units={directoryUnits} positions={positions} session={session} reload={loadPeople} />}
