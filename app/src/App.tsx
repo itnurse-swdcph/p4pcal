@@ -1528,12 +1528,28 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [sel, setSel] = useState<string>('')
   const sum = useMemo(() => {
     const positionRank = (p: any) => {
-      const role = String(p.org_role || '').replaceAll(' ', '')
-      const pos = String(p.position || '').replaceAll(' ', '')
+      const normalize = (value: any) => String(value || '').replace(/[\\s　]+/g, '').replace(/[()（）]/g, '').trim()
+      const role = normalize(p.org_role)
+      const pos = normalize(p.position)
+      // เรียงหัวหน้ากลุ่มงานและหัวหน้างานก่อน จากนั้นเรียงตามลำดับตำแหน่งที่กำหนด
       if (role.includes('หัวหน้ากลุ่มงาน')) return 0
       if (role.includes('หัวหน้างาน')) return 1
-      const ordered = ['พยาบาลวิชาชีพชำนาญการพิเศษ','พยาบาลวิชาชีพชำนาญการ','พยาบาลวิชาชีพปฏิบัติการ','พยาบาลวิชาชีพ','พนักงานช่วยเหลือคนไข้','พนักงานประจำตึก','พนักงานเปล','ผู้ช่วยช่างทั่วไป','พนักงานธุรการ','พนักงานบริการ']
-      const idx = ordered.findIndex((title) => pos.includes(title))
+      const ordered = [
+        ['พยาบาลวิชาชีพชำนาญการพิเศษ'],
+        ['พยาบาลวิชาชีพชำนาญการ'],
+        ['พยาบาลวิชาชีพปฏิบัติการ'],
+        ['พยาบาลวิชาชีพ'],
+        ['นักวิชาการสาธารณสุขพยาบาลวิชาชีพ'],
+        ['นักวิชาการสาธารณสุขพาราเมดิก'],
+        ['เจ้าพนักงานสาธารณสุขชำนาญงาน', 'EMT'],
+        ['เจ้าพนักงานสาธารณสุข', 'EMT'],
+        ['พนักงานช่วยเหลือคนไข้'],
+        ['พนักงานประจำตึก'],
+        ['พนักงานเปล'],
+        ['พนักงานธุรการ'],
+        ['ผู้ช่วยช่างทั่วไป']
+      ]
+      const idx = ordered.findIndex((titles) => titles.every((title) => pos.includes(normalize(title))))
       return idx < 0 ? 99 : idx + 2
     }
     const sortedRoster = [...roster].sort((a: any, b: any) => positionRank(a) - positionRank(b) || String(a.name || '').localeCompare(String(b.name || ''), 'th'))
