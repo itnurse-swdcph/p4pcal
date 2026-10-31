@@ -311,14 +311,18 @@ select.inp { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://w
 }
 
 
-/* Give the activity description column more room so long activity names wrap less. */
-table.log-table { table-layout: fixed; }
-table.log-table:not(.log-table-with-name) th:nth-child(2),
-table.log-table:not(.log-table-with-name) td:nth-child(2) { width: 34%; }
-table.log-table.log-table-with-name th:nth-child(3),
-table.log-table.log-table-with-name td:nth-child(3) { width: 30%; }
-table.log-table th:first-child,
-table.log-table td:first-child { width: 12%; }
+/* Approval log table: compact supporting columns; activity gets the largest flexible area. */
+table.log-table { width: 100%; table-layout: fixed; }
+table.log-table .log-col-select { width: 2.25rem; }
+table.log-table .log-col-date { width: 5.25rem; padding-left: .25rem; padding-right: .25rem; font-size: .78rem; }
+table.log-table .log-col-name { width: 9rem; }
+table.log-table .log-col-activity { width: auto; min-width: 16rem; }
+table.log-table .log-col-qty { width: 5.25rem; }
+table.log-table .log-col-points { width: 5.5rem; }
+table.log-table .log-col-check { width: 9.5rem; }
+table.log-table .log-col-status { width: 7rem; }
+table.log-table .log-col-reason { width: 10rem; }
+table.log-table .log-col-actions { width: 9rem; }
 
 
 /* ===== Responsive containment: controls must stay inside their cards and tables ===== */
