@@ -1417,7 +1417,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     const unitName = (units || []).find((u: any) => Number(u.id) === Number(unit))?.name
     const parentGroup = (units || []).find((u: any) => Number(u.id) === Number(unit))?.parent_group || ''
     if (!unit || !unitName) { setDirectoryPeople([]); setSignaturePeople([]); setUnitRate(0); return }
-    const normalizeUnit = (v: any) => String(v || '').normalize('NFC').replace(/\\s+/g, '').trim().toLocaleLowerCase('th')
+    const normalizeUnit = (v: any) => String(v || '').normalize('NFC').replace(/\s+/g, '').trim().toLocaleLowerCase('th')
     const unitKey = normalizeUnit(unitName)
     const splitNames = (v: any) => String(v || '').split(/[,;|]/).map(normalizeUnit).filter(Boolean)
     const loadDirectoryRoster = async () => {
@@ -1525,7 +1525,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     const performancePoints = scoring.performance
     const excess = scoring.excess
     const days = new Set(rs.map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
-    const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\\s+/g, '').trim() === String(p.position || '').replace(/\\s+/g, '').trim())
+    const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
     const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
     const payout = basePay + excess * unitRate
@@ -1660,7 +1660,7 @@ function GroupHeadsCertification({ sb, groupName, people, month, acts }: any) {
     })
     return () => { alive = false }
   }, [sb, groupName])
-  const norm = (v: any) => String(v || '').normalize('NFC').replace(/\\s+/g, '').toLocaleLowerCase('th')
+  const norm = (v: any) => String(v || '').normalize('NFC').replace(/\s+/g, '').toLocaleLowerCase('th')
   const groupHeads = useMemo(() => {
     const candidates = (people || []).filter((p: any) => Number(ap?.personLevel?.[p.id] || 0) === 2)
     return directoryRows.map((d: any) => {
