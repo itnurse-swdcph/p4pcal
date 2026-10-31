@@ -1631,7 +1631,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       <div className="unit-report-grand-total">รวมจ่ายทั้งสิ้น {nf(totalPaid)} บาท ({thaiBahtText(totalPaid)})</div>
       <div className="unit-report-certification">ขอรับรองว่าผู้มีรายนามข้างต้น ได้ปฏิบัติงานจริง</div>
       <div className="unit-report-signatures">
-        <div>ลงชื่อ ................................................<br/>({unitHeadName || '................................................'})<div>{unitHead?.position || ''}</div><b>หัวหน้า{unitName.replace(/^งาน/, '')}</b></div>
+        <div>ลงชื่อ ................................................<br/>({unitHeadName || '................................................'})<div>{unitHead?.position || ''}</div><b>หัวหน้า{unitName}</b></div>
         <div>ลงชื่อ ................................................<br/>({groupHeadName || '................................................'})<div>{groupHead?.position || ''}</div><b>หัวหน้ากลุ่มงาน{groupName.replace(/^กลุ่มงาน/, '')}</b></div>
         <div>ลงชื่อ ................................................<br/>(................................................)<div>ผู้จ่ายเงิน</div></div>
       </div>
