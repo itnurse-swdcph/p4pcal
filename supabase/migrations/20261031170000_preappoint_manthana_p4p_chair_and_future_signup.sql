@@ -18,6 +18,7 @@ alter table public.p4p_committee_designations enable row level security;
 drop policy if exists "Authenticated can view P4P committee designations" on public.p4p_committee_designations;
 create policy "Authenticated can view P4P committee designations"
 on public.p4p_committee_designations for select to authenticated using (true);
+grant select on public.p4p_committee_designations to authenticated;
 
 insert into public.p4p_committee_designations
   (staff_directory_source_row, full_name, position, designation, active)
