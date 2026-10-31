@@ -279,7 +279,7 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
         <p className="text-xs text-stone-500">สามารถแต่งตั้งบุคลากรที่ยังไม่มีบัญชีผู้ใช้ไว้ล่วงหน้าได้ เมื่อสมัครและเลือกชื่อจากทะเบียนบุคลากร ระบบจะผูกบัญชีและเพิ่มเป็นกรรมการ P4P โดยอัตโนมัติ</p>
         <div className="flex flex-wrap gap-2">
           <select className="inp min-w-[16rem]" value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
-            <option value="">เลือกบุคลากรเพื่อแต่งตั้ง</option>\n            {manthanaStaff && !availableProfiles.some(p => p.staff_directory_id === manthanaStaff.source_row) && <option value="" disabled>{[manthanaStaff.prefix, manthanaStaff.first_name, manthanaStaff.last_name].filter(Boolean).join(" ")} · {manthanaStaff.position} (รอสมัครบัญชี)</option>}
+            <option value="">เลือกบัญชีบุคลากรเพื่อแต่งตั้ง</option>
             {availableProfiles.filter(p => !members.some(m => m.user_id === p.user_id && m.active)).map(p => <option key={p.user_id} value={p.user_id}>{p.full_name || p.username || p.user_id}{p.position ? ` · ${p.position}` : ''}</option>)}
           </select>
           <button type="button" className="btn sec" disabled={!selectedUser || busy} onClick={() => { setMember(selectedUser, true, false); setSelectedUser('') }}>เพิ่มกรรมการ</button>
