@@ -881,21 +881,30 @@ function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, act
 
 function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const [payoutResult, setPayoutResult] = useState<any>(null)
+  const [payGroups, setPayGroups] = useState<any[]>([])
   useEffect(() => {
     let alive = true
     sb.rpc('p4p_my_payout', { p_month: month + '-01' }).then(({ data, error }: any) => {
       if (alive) setPayoutResult(!error && data ? data : null)
+    })
+    sb.from('pay_groups').select('id,full_amount').order('id').then(({ data, error }: any) => {
+      if (alive) setPayGroups(!error && Array.isArray(data) ? data : [])
     })
     return () => { alive = false }
   }, [sb, month, person?.id])
   if (!person) return null
   const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
   const roleGuarantee = roleGuaranteeForPosition(person.position, positions, person.org_role)
+  // ประมาณการจากคะแนนที่แสดงในการ์ด "แต้มปฏิบัติงานที่ได้":
+  // นับ pending + approved และตัดออกเฉพาะรายการที่ถูก rejected แล้ว
   const earned = (rows || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const confirmed = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
-  const scoring = scoreBreakdown(person.position, positions, person.org_role, confirmed)
+  const scoring = scoreBreakdown(person.position, positions, person.org_role, earned)
   const performanceTotal = scoring.performance
   const difference = performanceTotal - guarantee
+  const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\\s+/g, '').trim() === String(person.position || '').replace(/\\s+/g, '').trim())
+  const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
+  const performancePay = allocation > 0 ? allocation * (performanceTotal >= guarantee ? 0.97 : 0.77) : null
   const closed = payoutResult?.closed === true
   const payoutAvailable = payoutResult?.payout_available === true
   const extraPay = payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
@@ -906,16 +915,16 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
     { label: 'แต้มปฏิบัติงานที่ได้', value: nf(earned), color: 'text-slate-900' },
     { label: 'แต้มที่ยืนยัน', value: nf(confirmed), color: 'text-emerald-700' },
     { label: 'แต้มส่วนต่าง', value: (difference > 0 ? '+' : '') + nf(difference), color: difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-slate-700' },
-    { label: 'จำนวนเงินตามผลงาน', value: !closed ? 'รอปิดงวด' : payoutAvailable ? nf(payoutResult.base_amount) + ' บาท' : 'รอตรวจสอบข้อมูล', color: closed && payoutAvailable ? 'text-emerald-700' : 'text-slate-700' },
+    { label: 'จำนวนเงินตามผลงาน', value: performancePay !== null ? nf(performancePay) + ' บาท' : 'ไม่พบเกณฑ์ค่าตอบแทน', color: performancePay !== null ? 'text-emerald-700' : 'text-slate-700' },
     { label: 'เงินเพิ่มจากแต้มส่วนเกิน', value: !closed ? 'รอปิดงวด' : payoutAvailable ? nf(extraPay) + ' บาท' : 'รอตรวจสอบข้อมูล', color: closed && payoutAvailable ? 'text-emerald-700' : 'text-slate-700' }
   ]
   return <div className="space-y-1" aria-label="สรุปแต้มและเงินเพิ่มประจำเดือน">
     <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
       {cards.map((item) => <div key={item.label} className="card !p-3 sm:!p-4 min-w-0"><div className="text-xs sm:text-sm text-stone-600">{item.label}</div><div className={'mt-1 text-xl sm:text-2xl font-bold tabular-nums ' + item.color}>{item.value}</div>
-        {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!closed ? 'เงินเพิ่มจะแสดงหลังประธานคณะกรรมการยืนยันปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · อัตรา {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
+        {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!closed ? 'เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังประธานคณะกรรมการยืนยันปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · อัตรา {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
       </div>)}
     </div>
-    <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: คะแนนแสดงตามสถานะรายการกิจกรรม ส่วนเงินเพิ่มจะแสดงเฉพาะผลที่บันทึกปิดงวดแล้วเท่านั้น</p>
+    <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: จำนวนเงินตามผลงานเป็นยอดประมาณการจากคะแนนที่บันทึกไว้ (รวมรายการรอรับรอง) โดยใช้เกณฑ์ 97% หรือ 77%; เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังปิดงวด</p>
   </div>
 }
 function Totals({ rows, people, positions }: any) {
