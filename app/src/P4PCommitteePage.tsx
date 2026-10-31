@@ -54,7 +54,7 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
       if (pendingResult.error) { setPendingCountLive(null); setError('ไม่สามารถตรวจสอบจำนวนรายการรอรับรองจากฐานข้อมูลได้') }
       else setPendingCountLive(Number(pendingResult.count || 0))
       if (isAdmin) {
-        const profileResult = await sb.from('profiles').select('user_id,full_name,username,role').eq('role', 'committee').order('full_name')
+        const profileResult = await sb.from('profiles').select('user_id,full_name,username,role,org_role,position,unit_id').eq('org_role', 'หัวหน้ากลุ่มงาน').order('full_name')
         if (!alive) return
         if (!profileResult.error) setAvailableProfiles(profileResult.data || [])
       }
@@ -255,11 +255,11 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
 
       {isAdmin && <div className="card space-y-3">
         <div className="font-semibold">จัดการรายชื่อคณะกรรมการ P4P</div>
-        <p className="text-xs text-stone-500">เลือกได้เฉพาะบัญชีที่ตั้งสิทธิ์เป็น “กรรมการ P4P” ในเมนูจัดการผู้ใช้ก่อนแล้ว ต้องมีกรรมการที่ปฏิบัติหน้าที่และประธาน 1 คน จึงจะเริ่มรับรองงวดได้</p>
+        <p className="text-xs text-stone-500">ดึงรายชื่อบัญชีบุคลากรที่มีตำแหน่งหัวหน้ากลุ่มงานจากทะเบียนบุคลากรมาเป็นตัวเลือกโดยอัตโนมัติ Admin สามารถแต่งตั้งเป็นกรรมการและกำหนดประธานได้ โดยไม่ต้องเปลี่ยนบทบาทบัญชีเป็น committee ก่อน</p>
         <div className="flex flex-wrap gap-2">
           <select className="inp min-w-[16rem]" value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
-            <option value="">เลือกบัญชีกรรมการเพื่อเพิ่ม</option>
-            {availableProfiles.filter(p => !members.some(m => m.user_id === p.user_id && m.active)).map(p => <option key={p.user_id} value={p.user_id}>{p.full_name || p.username || p.user_id}</option>)}
+            <option value="">เลือกหัวหน้ากลุ่มงานเพื่อแต่งตั้ง</option>
+            {availableProfiles.filter(p => !members.some(m => m.user_id === p.user_id && m.active)).map(p => <option key={p.user_id} value={p.user_id}>{p.full_name || p.username || p.user_id}{p.position ? ` · ${p.position}` : ''}</option>)}
           </select>
           <button type="button" className="btn sec" disabled={!selectedUser || busy} onClick={() => { setMember(selectedUser, true, false); setSelectedUser('') }}>เพิ่มกรรมการ</button>
         </div>
