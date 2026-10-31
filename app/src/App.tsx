@@ -1072,7 +1072,6 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
 
 function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, seeAll }: any) {
   const [query, setQuery] = useState('')
-  const [domain, setDomain] = useState('บริหาร')
   const allLines = [...new Set([...(positions || []).map((p: any) => p.grp), ...(acts || []).flatMap((a: any) => a.eligible || [])])].filter((g: any) => g && g !== NO_LINE) as string[]
   const lines: string[] = seeAll ? [...LINE_ORDER.filter(l => allLines.includes(l)), ...allLines.filter(l => !LINE_ORDER.includes(l))] : ([myLine].filter((l: any) => l && l !== NO_LINE) as string[])
   const [line, setLine] = useState<string>(myLine && lines.includes(myLine) ? myLine : lines[0] || '')
