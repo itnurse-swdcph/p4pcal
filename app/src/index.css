@@ -1206,35 +1206,34 @@ body.unit-report-preview-open .unit-report-print * {
 }
 
 
-/* Individual P4P print table: give activity descriptions priority and keep metadata borderless. */
+/* Individual P4P print table: explicit columns prevent colspan heading rows shrinking the activity column. */
 .ps-individual-table { width:100% !important; table-layout:fixed !important; border-collapse:collapse !important; }
-.ps-individual-table th:nth-child(1),.ps-individual-table td:nth-child(1) { width:7mm !important; }
-.ps-individual-table th:nth-child(2),.ps-individual-table td:nth-child(2) { width:72mm !important; }
-.ps-individual-table th:nth-child(3),.ps-individual-table td:nth-child(3) { width:13mm !important; }
-.ps-individual-table th:nth-child(4),.ps-individual-table td:nth-child(4) { width:10mm !important; }
-.ps-individual-table th:nth-child(5),.ps-individual-table td:nth-child(5) { width:11mm !important; }
-.ps-individual-table th:nth-child(6),.ps-individual-table td:nth-child(6) { width:9mm !important; }
-.ps-individual-table th:nth-child(7),.ps-individual-table td:nth-child(7) { width:11mm !important; }
-.ps-individual-table th:nth-last-child(3),.ps-individual-table td:nth-last-child(3),
-.ps-individual-table th:nth-last-child(2),.ps-individual-table td:nth-last-child(2),
-.ps-individual-table th:last-child,.ps-individual-table td:last-child { width:12mm !important; }
-.ps-individual-table .ps-repeat-heading th,.ps-individual-table .ps-repeat-meta th,.ps-individual-table .ps-repeat-leave th {
-  border:0 !important; outline:0 !important; box-shadow:none !important; background:transparent !important;
+.ps-individual-table col:nth-child(1) { width:7mm; }
+.ps-individual-table col:nth-child(2) { width:72mm; }
+.ps-individual-table col:nth-child(3) { width:13mm; }
+.ps-individual-table col:nth-child(4) { width:10mm; }
+.ps-individual-table col:nth-child(5) { width:11mm; }
+.ps-individual-table col:nth-child(6) { width:9mm; }
+.ps-individual-table col:nth-child(7) { width:11mm; }
+.ps-individual-table col:nth-last-child(-n+3) { width:12mm; }
+.ps-individual-table th,
+.ps-individual-table td { box-sizing:border-box; }
+.ps-individual-table .ps-repeat-heading th,
+.ps-individual-table .ps-repeat-meta th,
+.ps-individual-table .ps-repeat-leave th,
+.ps-individual-table .ps-repeat-heading,
+.ps-individual-table .ps-repeat-meta,
+.ps-individual-table .ps-repeat-leave {
+  border:0 !important; outline:0 !important; box-shadow:none !important;
+  background:#fff !important;
 }
-.ps-individual-table .ps-repeat-heading,.ps-individual-table .ps-repeat-meta,.ps-individual-table .ps-repeat-leave { border:0 !important; }
-.ps-individual-table .ps-repeat-heading th h1 { border:0 !important; }
+.ps-individual-table .ps-repeat-heading th,
+.ps-individual-table .ps-repeat-meta th,
+.ps-individual-table .ps-repeat-leave th { padding:0 !important; }
+.ps-individual-table .ps-activity-name { text-align:left !important; white-space:normal !important; overflow-wrap:anywhere; }
+.ps-individual-table tbody td:not(.ps-activity-name) { text-align:center !important; }
 @media print {
   body.print-individual-report .ps-individual-table { width:100% !important; table-layout:fixed !important; }
-  body.print-individual-report .ps-individual-table th:nth-child(1),body.print-individual-report .ps-individual-table td:nth-child(1) { width:7mm !important; }
-  body.print-individual-report .ps-individual-table th:nth-child(2),body.print-individual-report .ps-individual-table td:nth-child(2) { width:72mm !important; }
-  body.print-individual-report .ps-individual-table th:nth-child(3),body.print-individual-report .ps-individual-table td:nth-child(3) { width:13mm !important; }
-  body.print-individual-report .ps-individual-table th:nth-child(4),body.print-individual-report .ps-individual-table td:nth-child(4) { width:10mm !important; }
-  body.print-individual-report .ps-individual-table th:nth-child(5),body.print-individual-report .ps-individual-table td:nth-child(5) { width:11mm !important; }
-  body.print-individual-report .ps-individual-table th:nth-child(6),body.print-individual-report .ps-individual-table td:nth-child(6) { width:9mm !important; }
-  body.print-individual-report .ps-individual-table th:nth-child(7),body.print-individual-report .ps-individual-table td:nth-child(7) { width:11mm !important; }
-  body.print-individual-report .ps-individual-table th:nth-last-child(3),body.print-individual-report .ps-individual-table td:nth-last-child(3),
-  body.print-individual-report .ps-individual-table th:nth-last-child(2),body.print-individual-report .ps-individual-table td:nth-last-child(2),
-  body.print-individual-report .ps-individual-table th:last-child,body.print-individual-report .ps-individual-table td:last-child { width:12mm !important; }
   body.print-individual-report .ps-individual-table .ps-repeat-heading th,
   body.print-individual-report .ps-individual-table .ps-repeat-meta th,
   body.print-individual-report .ps-individual-table .ps-repeat-leave th { border:0 !important; }
