@@ -1068,6 +1068,9 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
   const inLine = (acts || []).filter((a: any) => (a.eligible || []).includes(line))
   const activityPrintSet = [...inLine].sort(byCode)
+  const summaryHeaders = ['ลำดับ', 'กิจกรรม', 'หน่วยนับ', 'เวลามาตรฐาน (นาที)', 'คะแนนต่อนาที', 'คุณค่างาน', 'คะแนนปรับแล้ว (Workpoint)']
+  const ratePerMinute = Number(positions.find((p: any) => p.grp === line)?.rate || 0)
+  const activityRows = (items: any[]) => items.map((a, index) => [index + 1, [a.main_activity, a.title].filter(Boolean).join(' / '), a.uom || '', Number(a.minutes || 0), ratePerMinute, 1, Math.round(Number(a.minutes || 0) * ratePerMinute * 100) / 100])
   const catsOfLine = [...new Set([...inLine].sort(byCode).map((a: any) => a.category || 'อื่นๆ'))] as string[]
   const mainsOfLine = [...new Set(inLine.map((a: any) => a.main_activity).filter(Boolean))] as string[]
   const formLineActivities = (acts || []).filter((a: any) => (a.eligible || []).includes(formLine))
@@ -1112,16 +1115,42 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const filtered = inLine.filter((a: any) => (category === 'ทั้งหมด' || (a.category || 'อื่นๆ') === category) &&
     terms.every(t => [a.code, a.category, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
   const exportActivitySet = () => {
-    const rows = [
-      ['รหัส', 'กิจกรรมหลัก / กิจกรรมย่อย', 'หมวด', 'นาที / หน่วย', 'ข้อจำกัด', 'หลักฐานและเกณฑ์', 'สายงานที่มีสิทธิ์', 'หมายเหตุ'],
-      ...activityPrintSet.map((a: any) => [a.code, [a.main_activity, a.title].filter(Boolean).join(' / '), a.category || '—', `${a.minutes ?? ''} / ${a.uom || 'ไม่ระบุ'}`, [a.max_day ? `ต่อวัน: ${a.max_day}` : '', a.max_month ? `ต่อเดือน: ${a.max_month}` : ''].filter(Boolean).join(' · ') || 'ไม่กำหนด', `${a.need_evidence ? 'ต้องมีหลักฐาน · ' : ''}${a.definition || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ โปรดสอบถามผู้ดูแลระบบก่อนบันทึกกิจกรรมนี้'}`, (a.eligible || []).join(', ') || 'ไม่ได้ระบุ', a.note || '—'])
+    const esc = (value: any) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+    const col = (n: number) => { let s = ''; while (n) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26) } return s }
+    const allRows: any[][] = [summaryHeaders, ...activityRows(activityPrintSet)]
+    const xmlRows = allRows.map((row, ri) => `<row r="${ri + 1}">${row.map((value, ci) => {
+      const ref = `${col(ci + 1)}${ri + 1}`
+      const style = ri === 0 ? 1 : ci === 4 ? 4 : ci === 6 ? 3 : 2
+      return typeof value === 'number' ? `<c r="${ref}" s="${style}"><v>${value}</v></c>` : `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${esc(value)}</t></is></c>`
+    }).join('')}</row>`).join('')
+    const sheetName = (LINE_LABEL[line] || line || 'กิจกรรม').replace(/[\\/?*:[\]]/g, ' ').slice(0, 31)
+    const files: [string, string][] = [
+      ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+      ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+      ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${esc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+      ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+      ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="0.000"/><numFmt numFmtId="165" formatCode="0.00"/></numFmts><fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF404040"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FF777777"/></left><right style="thin"><color rgb="FF777777"/></right><top style="thin"><color rgb="FF777777"/></top><bottom style="thin"><color rgb="FF777777"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="165" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"><alignment horizontal="right" vertical="top"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"><alignment horizontal="right" vertical="top"/></xf></cellXfs></styleSheet>'],
+      ['xl/worksheets/sheet1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="7" customWidth="1"/><col min="2" max="2" width="55" customWidth="1"/><col min="3" max="3" width="16" customWidth="1"/><col min="4" max="7" width="18" customWidth="1"/></cols><sheetData>${xmlRows}</sheetData><autoFilter ref="A1:G${allRows.length}"/><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/><pageSetup orientation="portrait" paperSize="9"/></worksheet>`]
     ]
-    const csv = '\ufeff' + rows.map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n')
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const encoder = new TextEncoder()
+    const crcTable = new Uint32Array(256)
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c >>> 0 }
+    const crc32 = (bytes: Uint8Array) => { let c = 0xffffffff; for (const b of bytes) c = crcTable[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0 }
+    const chunks: Uint8Array[] = []; const central: Uint8Array[] = []; let offset = 0
+    const u16 = (v: number) => [v & 255, (v >>> 8) & 255]; const u32 = (v: number) => [...u16(v & 65535), ...u16(Math.floor(v / 65536))]
+    for (const [name, content] of files) {
+      const nb = encoder.encode(name), data = encoder.encode(content), crc = crc32(data)
+      const local = new Uint8Array([...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(nb.length), ...u16(0), ...nb, ...data])
+      const dir = new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(nb.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset), ...nb])
+      chunks.push(local); central.push(dir); offset += local.length
+    }
+    const centralSize = central.reduce((n, a) => n + a.length, 0)
+    chunks.push(...central, new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(centralSize), ...u32(offset), ...u16(0)]))
+    const url = URL.createObjectURL(new Blob(chunks, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }))
     const link = document.createElement('a')
     const safeLine = (LINE_LABEL[line] || line || 'สายงาน').replace(/[\\/:*?"<>|]/g, '_')
     link.href = url
-    link.download = `คลังกิจกรรม_P4P_${safeLine}_${today()}.csv`
+    link.download = `คลังกิจกรรม_P4P_${safeLine}_${today()}.xlsx`
     document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url)
   }
   useEffect(() => {
@@ -1223,7 +1252,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
         {lines.length > 1 ? <div className="flex flex-wrap gap-2" role="tablist" aria-label="สายงาน">{lines.map(l => { const on = line === l; const n = (acts || []).filter((a: any) => (a.eligible || []).includes(l)).length
           return <button key={l} type="button" role="tab" aria-selected={on} onClick={() => setLine(l)} className={'rounded-lg border px-3 py-1.5 text-sm font-semibold ' + (on ? 'border-teal-700 bg-teal-700 text-white' : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50')}>{LINE_LABEL[l] || l}<span className="ml-1.5 text-xs opacity-80">{n}</span></button> })}</div>
           : <p className="text-sm text-stone-700">ชุดกิจกรรมของตำแหน่งคุณ: <b className="text-teal-900">{LINE_LABEL[line] || line || 'ยังไม่กำหนด'}</b>{!line && ' · ตำแหน่งนี้ยังไม่มีชุดกิจกรรม โปรดแจ้งผู้ดูแลระบบ'}</p>}
-        <div className="flex flex-wrap items-center gap-2"><input className="inp min-w-[220px] flex-1" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหา: รหัส หมวด กิจกรรมหลัก กิจกรรมย่อย หรือหลักฐาน (พิมพ์หลายคำได้)…" /><button type="button" className="btn sec whitespace-nowrap" disabled={!line || !activityPrintSet.length} onClick={() => { document.body.classList.add('print-activity-library'); setPrintingActivities(true) }}>พิมพ์ชุดกิจกรรม</button><button type="button" className="btn sec whitespace-nowrap" disabled={!line || !activityPrintSet.length} onClick={exportActivitySet}>ส่งออก Excel (CSV)</button></div>
+        <div className="flex flex-wrap items-center gap-2"><input className="inp min-w-[220px] flex-1" value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหา: รหัส หมวด กิจกรรมหลัก กิจกรรมย่อย หรือหลักฐาน (พิมพ์หลายคำได้)…" /><button type="button" className="btn sec whitespace-nowrap" disabled={!line || !activityPrintSet.length} onClick={() => { document.body.classList.add('print-activity-library'); setPrintingActivities(true) }}>พิมพ์ชุดกิจกรรม</button><button type="button" className="btn sec whitespace-nowrap" disabled={!line || !activityPrintSet.length} onClick={exportActivitySet}>ส่งออก Excel (.xlsx)</button></div>
         <div className="flex flex-wrap gap-2 border-b border-stone-200" role="tablist" aria-label="หมวดของสายงาน">
           {['ทั้งหมด', ...catsOfLine].map(x => {
             const count = x === 'ทั้งหมด' ? inLine.length : inLine.filter((a: any) => (a.category || 'อื่นๆ') === x).length
@@ -1236,24 +1265,16 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     </div>
     {filtered.length === 0 ? <div className="card text-center text-stone-500">ไม่พบกิจกรรมที่ตรงกับคำค้นหา</div> :
       <div className="card overflow-x-auto p-0">
-        <table className="w-full min-w-[1100px] border-collapse text-sm">
-          <thead><tr>
-            <th className="whitespace-nowrap">รหัส</th><th>กิจกรรมหลัก / กิจกรรมย่อย</th><th>หมวด</th><th className="whitespace-nowrap">นาที / หน่วย</th><th>ข้อจำกัด</th><th>หลักฐานและเกณฑ์</th><th>สายงานที่มีสิทธิ์</th><th>หมายเหตุ</th>{isAdmin && <th>จัดการ</th>}
-          </tr></thead>
-          <tbody>{filtered.map((a: any) => <tr key={a.code} className="align-top">
-            <td className="whitespace-nowrap font-semibold text-teal-900">{a.code}</td>
-            <td className="min-w-[190px]">{a.main_activity && <div className="text-xs font-semibold text-teal-800">{a.main_activity}</div>}<div className="font-semibold">{a.title}</div>{a.need_evidence && <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">ต้องมีหลักฐาน</span>}</td>
-            <td className="min-w-[140px]">{a.category || '—'}</td>
-            <td className="whitespace-nowrap">{a.minutes} / {a.uom || 'ไม่ระบุ'}</td>
-            <td className="min-w-[130px]">{a.max_day ? <div>ต่อวัน: {a.max_day}</div> : null}{a.max_month ? <div>ต่อเดือน: {a.max_month}</div> : null}{!a.max_day && !a.max_month ? 'ไม่กำหนด' : null}</td>
-            <td className="min-w-[260px]"><div className="whitespace-pre-wrap leading-relaxed">{a.definition?.trim() || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ โปรดสอบถามผู้ดูแลระบบก่อนบันทึกกิจกรรมนี้'}</div>{a.use_role_mult && <div className="mt-1 text-xs text-teal-800">คำนวณตัวคูณตามบทบาท</div>}</td>
-            <td className="min-w-[180px]">{(a.eligible || []).join(', ') || 'ไม่ได้ระบุ'}</td>
-            <td className="min-w-[160px] whitespace-pre-wrap">{a.note || '—'}</td>
-            {isAdmin && <td className="whitespace-nowrap"><div className="flex flex-col items-start gap-1"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div></td>}
+        <table className="activity-library-table w-full min-w-[760px] border-collapse text-sm">
+          <thead><tr>{summaryHeaders.map(h => <th key={h}>{h}</th>)}</tr></thead>
+          <tbody>{filtered.map((a: any, index: number) => <tr key={a.code} className="align-top">
+            <td className="whitespace-nowrap text-center">{index + 1}</td>
+            <td><div className="whitespace-pre-wrap font-medium">{[a.main_activity, a.title].filter(Boolean).join(' / ')}</div>{isAdmin && <div className="no-print mt-1 flex gap-2"><button className="btn sec !py-0.5" onClick={() => beginEditActivity(a)}>แก้ไข</button><button className="btn sec !py-0.5 !text-red-700" onClick={() => deactivate(a)}>เพิกถอน</button></div>}</td>
+            <td>{a.uom || '—'}</td><td className="text-right">{Number(a.minutes || 0)}</td><td className="text-right">{ratePerMinute.toFixed(3)}</td><td className="text-right">1</td><td className="text-right">{(Number(a.minutes || 0) * ratePerMinute).toFixed(2)}</td>
           </tr>)}</tbody>
         </table>
       </div>}
-    {printingActivities && createPortal(<div className="activity-library-print"><h1>คลังกิจกรรม P4P</h1><h2>{LINE_LABEL[line] || line}</h2><p>รายการกิจกรรมทั้งหมดในชุดสายงาน · {activityPrintSet.length} รายการ · พิมพ์วันที่ {formatThaiShortDate(today())}</p><table><thead><tr><th>รหัส</th><th>กิจกรรมหลัก / กิจกรรมย่อย</th><th>หมวด</th><th>นาที / หน่วย</th><th>ข้อจำกัด</th><th>หลักฐานและเกณฑ์</th><th>สายงานที่มีสิทธิ์</th><th>หมายเหตุ</th></tr></thead><tbody>{activityPrintSet.map((a: any) => <tr key={a.code}><td>{a.code}</td><td>{a.main_activity && <b>{a.main_activity}<br /></b>}{a.title}</td><td>{a.category || '—'}</td><td>{a.minutes} / {a.uom || 'ไม่ระบุ'}</td><td>{[a.max_day ? `ต่อวัน: ${a.max_day}` : '', a.max_month ? `ต่อเดือน: ${a.max_month}` : ''].filter(Boolean).join(' · ') || 'ไม่กำหนด'}</td><td>{a.need_evidence ? 'ต้องมีหลักฐาน · ' : ''}{a.definition || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ โปรดสอบถามผู้ดูแลระบบก่อนบันทึกกิจกรรมนี้'}</td><td>{(a.eligible || []).join(', ') || 'ไม่ได้ระบุ'}</td><td>{a.note || '—'}</td></tr>)}</tbody></table></div>, document.body)}
+    {printingActivities && createPortal(<div className="activity-library-print"><h1>คลังกิจกรรม P4P</h1><h2>{LINE_LABEL[line] || line}</h2><p>รายการกิจกรรมทั้งหมดในชุดสายงาน · {activityPrintSet.length} รายการ · พิมพ์วันที่ {formatThaiShortDate(today())}</p><table><thead><tr>{summaryHeaders.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{activityRows(activityPrintSet).map((row, ri) => <tr key={ri}>{row.map((value, ci) => <td key={ci} className={ci === 1 ? 'activity-description' : 'activity-number'}>{value}</td>)}</tr>)}</tbody></table></div>, document.body)}
   </div>
 }
 
