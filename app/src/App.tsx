@@ -721,11 +721,21 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const rows = useMemo(() => (rowsIn || []).filter((r: any) => r.status === 'approved'), [rowsIn])
   const [head, setHead] = useState<any>(null)
   const [headLoaded, setHeadLoaded] = useState(false)
+  const [leaveData, setLeaveData] = useState<any>({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 })
   useEffect(() => {
     const afterPrint = () => { document.body.classList.remove('print-individual-report'); onClose?.() }
     window.addEventListener('afterprint', afterPrint)
     return () => window.removeEventListener('afterprint', afterPrint)
   }, [onClose])
+  useEffect(() => {
+    let alive = true
+    const staffId = person.staff_directory_id ?? person.directory_source_row
+    if (!staffId) { setLeaveData({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }); return () => { alive = false } }
+    sb.from('p4p_monthly_leave').select('personal_leave_days,sick_leave_days,annual_leave_days')
+      .eq('staff_directory_id', staffId).eq('month', month + '-01').maybeSingle()
+      .then(({ data, error }: any) => { if (alive) setLeaveData(!error && data ? data : { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }) })
+    return () => { alive = false }
+  }, [sb, person.staff_directory_id, person.directory_source_row, month])
   useEffect(() => {
     let alive = true
     sb.rpc('approver_print_details_of', { p_person: person.id }).then(({ data, error }: any) => {
@@ -797,7 +807,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
         <div>{groupName || '................................'} &nbsp;&nbsp; {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div>
         <div>ชื่อ-สกุล {person.name || '................................'} &nbsp;&nbsp; ตำแหน่ง {person.position || '................................'} &nbsp;&nbsp; ระดับการบริหาร {String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : String(person.org_role || '').includes('หัวหน้างาน') ? 'หัวหน้างาน' : '—'}</div>
       </div>
-      <div className="ps-leave-row">ลากิจ = ........ วัน &nbsp;&nbsp; ลาป่วย = ........ วัน &nbsp;&nbsp; ลาพักผ่อน = ........ วัน</div>
+      <div className="ps-leave-row">ลากิจ = {Number(leaveData.personal_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาป่วย = {Number(leaveData.sick_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาพักผ่อน = {Number(leaveData.annual_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน</div>
       <table className="pt ps-individual-table">
         <thead><tr>
           <th rowSpan={2}>ลำดับ</th><th rowSpan={2}>กิจกรรม</th><th rowSpan={2}>หน่วยนับ</th><th rowSpan={2}>เวลา<br/>(นาที)</th><th rowSpan={2}>คะแนน/<br/>นาที</th><th rowSpan={2}>ค่างาน</th><th rowSpan={2}>คะแนน<br/>ปรับ</th><th colSpan={dayCount}>วันที่</th><th rowSpan={2}>รวม<br/>หน่วย</th><th rowSpan={2}>รวม<br/>แต้ม</th><th rowSpan={2}>แหล่ง<br/>อ้างอิง</th>
@@ -1400,9 +1410,27 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [payGroups, setPayGroups] = useState<any[]>([])
   const [actingChief, setActingChief] = useState<any>({ name: 'นางสาวมัณฑนา เพชรคำ', position: 'พยาบาลวิชาชีพชำนาญการพิเศษ' })
   const [printReport, setPrintReport] = useState(false)
+  const [leaveReportOpen, setLeaveReportOpen] = useState(false)
+  const [leaveDrafts, setLeaveDrafts] = useState<Record<string, any>>({})
+  const [leaveSaving, setLeaveSaving] = useState<Record<string, boolean>>({})
+  const [leaveMessages, setLeaveMessages] = useState<Record<string, string>>({})
   const [certificationSearch, setCertificationSearch] = useState('')
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
+  useEffect(() => {
+    let alive = true
+    if (!unit || !month) { setLeaveDrafts({}); return () => { alive = false } }
+    sb.from('p4p_monthly_leave').select('staff_directory_id,personal_leave_days,sick_leave_days,annual_leave_days')
+      .eq('unit_id', unit).eq('month', month + '-01')
+      .then(({ data, error }: any) => {
+        if (!alive) return
+        if (error) { console.error('โหลดข้อมูลวันลาไม่สำเร็จ:', error); setLeaveDrafts({}); return }
+        setLeaveDrafts(Object.fromEntries((data || []).map((x: any) => [String(x.staff_directory_id), {
+          personal_leave_days: String(x.personal_leave_days ?? 0), sick_leave_days: String(x.sick_leave_days ?? 0), annual_leave_days: String(x.annual_leave_days ?? 0)
+        }])))
+      })
+    return () => { alive = false }
+  }, [sb, unit, month])
   useEffect(() => { let alive = true; sb.from('pay_groups').select('id,full_amount').order('id').then(({ data, error }: any) => { if (alive) setPayGroups(!error && Array.isArray(data) ? data : []) }); return () => { alive = false } }, [sb])
   useEffect(() => {
     let alive = true
@@ -1543,6 +1571,22 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     })
   }, [rows, roster, positions, unitRate, payGroups])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
+  const saveLeaveData = async (person: any) => {
+    const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
+    if (!staffId) { alert('ไม่พบรหัสบุคลากรจากทะเบียนกลาง จึงยังบันทึกข้อมูลวันลาไม่ได้'); return }
+    const draft = leaveDrafts[String(staffId)] || {}
+    const values: any = {}
+    for (const field of ['personal_leave_days', 'sick_leave_days', 'annual_leave_days']) {
+      const raw = String(draft[field] ?? '0').trim()
+      const value = raw === '' ? 0 : Number(raw)
+      if (!Number.isFinite(value) || value < 0) { setLeaveMessages(v => ({ ...v, [staffId]: 'กรุณากรอกจำนวนวันลาเป็นตัวเลขตั้งแต่ 0 ขึ้นไป' })); return }
+      values[field] = value
+    }
+    setLeaveSaving(v => ({ ...v, [staffId]: true })); setLeaveMessages(v => ({ ...v, [staffId]: '' }))
+    const { error } = await sb.from('p4p_monthly_leave').upsert({ staff_directory_id: staffId, unit_id: Number(unit), month: month + '-01', ...values }, { onConflict: 'staff_directory_id,month' })
+    setLeaveSaving(v => ({ ...v, [staffId]: false }))
+    setLeaveMessages(v => ({ ...v, [staffId]: error ? 'บันทึกไม่สำเร็จ: ' + error.message : 'บันทึกแล้ว' }))
+  }
   const selectedUnit = (units || []).find((u: any) => Number(u.id) === Number(unit))
   const unitName = selectedUnit?.name || ''
   const groupName = selectedUnit?.parent_group || ''
@@ -1605,7 +1649,29 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน</button>
         <button type="button" className="btn sec" onClick={csv}>ส่งออก CSV</button>
+        {reportOnly && <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)}>{leaveReportOpen ? 'กลับสรุปรายงานหน่วยงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>}
       </div>
+      {leaveReportOpen && reportOnly && <div className="space-y-3">
+        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันปฏิบัติงานนับจากวันที่มีการส่งบันทึกกิจกรรม (ไม่นับแบบร่าง)</p></div>
+        <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1050px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนวันปฏิบัติงาน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>จัดการ</th></tr></thead><tbody>
+          {sum.map((x: any) => {
+            const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
+            const key = String(staffId || '')
+            const draft = leaveDrafts[key] || { personal_leave_days: '0', sick_leave_days: '0', annual_leave_days: '0' }
+            const workDays = new Set(rows.filter((r: any) => String(r.person_id) === String(x.p.id)).map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
+            const setLeave = (field: string, value: string) => setLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
+            return <tr key={x.p.id}>
+              <td className="text-center">{x.order}</td><td className="font-semibold">{x.p.name}</td><td>{x.p.position || '—'}</td><td className="text-center font-semibold">{workDays}</td>
+              <td><input aria-label={'ลากิจของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.personal_leave_days} onChange={e => setLeave('personal_leave_days', e.target.value)} /></td>
+              <td><input aria-label={'ลาป่วยของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.sick_leave_days} onChange={e => setLeave('sick_leave_days', e.target.value)} /></td>
+              <td><input aria-label={'ลาพักผ่อนของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.annual_leave_days} onChange={e => setLeave('annual_leave_days', e.target.value)} /></td>
+              <td><div className="flex flex-wrap gap-1"><button type="button" className="btn !py-1" disabled={!staffId || !!leaveSaving[key]} onClick={() => saveLeaveData(x.p)}>{leaveSaving[key] ? 'กำลังบันทึก…' : 'บันทึกข้อมูล'}</button><button type="button" className="btn sec !py-1" onClick={() => setPrintingPerson({ ...x.p, staff_directory_id: staffId || x.p.staff_directory_id })}>พิมพ์</button></div>{leaveMessages[key] && <div className={'mt-1 text-xs ' + (leaveMessages[key].startsWith('บันทึกแล้ว') ? 'text-emerald-700' : 'text-red-700')}>{leaveMessages[key]}</div>}</td>
+            </tr>
+          })}
+          {!sum.length && <tr><td colSpan={8} className="py-6 text-center text-stone-500">ไม่พบรายชื่อบุคลากรในหน่วยงานนี้</td></tr>}
+        </tbody></table></div>
+      </div>}
+      {!leaveReportOpen && <>
           <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1250px]"><thead><tr><th rowSpan={2}>ลำดับ</th><th rowSpan={2}>ชื่อ-สกุล</th><th rowSpan={2}>ตำแหน่งที่ปฏิบัติงาน</th><th rowSpan={2}>แต้มประกัน/เดือน</th><th rowSpan={2}>วันทำการ/เดือน</th><th colSpan={2}>ผลการปฏิบัติงาน/เดือน</th><th rowSpan={2}>รวมผลการปฏิบัติงาน</th><th rowSpan={2}>แต้มที่ได้มากกว่า<br/>แต้มประกัน</th><th rowSpan={2}>จำนวนเงิน/แต้ม</th><th rowSpan={2} className="unit-col-base-pay">จำนวนเงิน<br/>ตามผลงาน</th><th rowSpan={2} className="unit-col-payout-received">จำนวนเงิน<br/>ที่ได้รับ</th></tr><tr><th>แต้มการันตี</th><th>แต้มการ<br/>ปฏิบัติงาน</th></tr></thead>
       <tbody>{sum.map((x: any) => <tr key={x.p.id} onClick={() => setDetailFor(x.p)} className="cursor-pointer hover:bg-teal-50">
           <td className="text-center">{x.order}</td><td><b>{x.p.name}</b>{x.p.fromDirectory && <div className="text-xs text-stone-500">ยังไม่ลงทะเบียนใช้งาน</div>}</td><td className="text-xs">{x.p.position || '—'}</td><td className="text-center">{nf(x.g, 0)}</td><td className="text-center">{nf(x.days, 0)}</td><td className="text-center">{nf(x.roleGuarantee)}</td><td className="text-center">{nf(x.workPoints)}</td><td className="text-center font-semibold">{nf(x.performancePoints)}</td><td className="text-center">{nf(x.excess)}</td><td className="text-center">{nf(x.rate)}</td><td className="text-center">{nf(x.basePay)}</td><td className="text-center font-semibold">{nf(x.payout)}</td>
@@ -1623,6 +1689,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       </div>
       <div className="unit-report-approver">ลงชื่อ ........................................................ ผู้อนุมัติ<br/>(นายพันธ์นพ ควรดำรงธรรม)<br/>ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div>
     </div>, document.body)}
+      </>}
     </>}
     {certificationOnly && <>
       <div className="card space-y-3">
