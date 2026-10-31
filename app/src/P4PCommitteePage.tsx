@@ -17,7 +17,7 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
   const [pendingCountLive, setPendingCountLive] = useState<number | null>(null)
   const [committeeProfiles, setCommitteeProfiles] = useState<any[]>([])
   const [availableProfiles, setAvailableProfiles] = useState<any[]>([])
-  const [designatedChair, setDesignatedChair] = useState<any>(null)
+  const [manthanaStaff, setManthanaStaff] = useState<any>(null)
   const [selectedUser, setSelectedUser] = useState('')
   const [comment, setComment] = useState('')
   const [message, setMessage] = useState('')
@@ -55,14 +55,14 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
       if (pendingResult.error) { setPendingCountLive(null); setError('ไม่สามารถตรวจสอบจำนวนรายการรอรับรองจากฐานข้อมูลได้') }
       else setPendingCountLive(Number(pendingResult.count || 0))
       if (isAdmin) {
-        const [profileResult, designationResult] = await Promise.all([
-          sb.from('profiles').select('user_id,full_name,username,role,org_role,position,unit_id').eq('org_role', 'หัวหน้ากลุ่มงาน').order('full_name'),
-          sb.from('p4p_committee_designations').select('staff_directory_source_row,full_name,position,designation,active,linked_user_id').eq('designation', 'chair').eq('active', true).maybeSingle()
+        const [profileResult, staffResult] = await Promise.all([
+          sb.from('profiles').select('user_id,full_name,username,role,org_role,position,unit_id,staff_directory_id').eq('org_role', 'หัวหน้ากลุ่มงาน').order('full_name'),
+          sb.from('staff_directory').select('source_row,prefix,first_name,last_name,position').eq('first_name', 'มัณฑนา').eq('last_name', 'เพชรคำ').eq('position', 'พยาบาลวิชาชีพชำนาญการพิเศษ').maybeSingle()
         ])
         if (!alive) return
         if (!profileResult.error) setAvailableProfiles(profileResult.data || [])
-        if (!designationResult.error) setDesignatedChair(designationResult.data || null)
-        else setError(designationResult.error.message || 'ไม่สามารถโหลดรายชื่อผู้ได้รับแต่งตั้งล่วงหน้าได้')
+        if (!staffResult.error) setManthanaStaff(staffResult.data || null)
+        else setError(staffResult.error.message || 'ไม่สามารถโหลดทะเบียนบุคลากรได้')
       }
       setLoading(false)
     }
@@ -137,7 +137,7 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
     }))
   const profileName = (id: string) => {
     const p = committeeProfiles.find(x => x.user_id === id)
-    return p?.full_name || p?.username || `บัญชี …${String(id).slice(-8)}`
+    return p?.full_name?.trim() || 'ไม่พบชื่อ-สกุลในทะเบียนบุคลากร'
   }
   const statusLabel: Record<string, string> = {
     reviewing: 'อยู่ระหว่างลงมติ', approved: 'กรรมการอนุมัติครบแล้ว', rejected: 'มีมติไม่เห็นชอบ',
@@ -261,11 +261,10 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
 
       {isAdmin && <div className="card space-y-3">
         <div className="font-semibold">จัดการรายชื่อคณะกรรมการ P4P</div>
-        {designatedChair && <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900"><div className="font-semibold">ประธานที่ได้รับแต่งตั้ง</div><div>{designatedChair.full_name} · {designatedChair.position}</div><div className="mt-1 text-xs">{designatedChair.linked_user_id ? `เชื่อมบัญชีผู้ใช้แล้ว (${profileName(designatedChair.linked_user_id)})` : "รอสมัคร/เชื่อมบัญชีผู้ใช้ — ระบบจะเพิ่มเป็นกรรมการและกำหนดเป็นประธานโดยอัตโนมัติเมื่อสมัครด้วยข้อมูลบุคลากรที่ตรงกัน"}</div></div>}
-        <p className="text-xs text-stone-500">ดึงรายชื่อบัญชีบุคลากรที่มีตำแหน่งหัวหน้ากลุ่มงานจากทะเบียนบุคลากรมาเป็นตัวเลือกโดยอัตโนมัติ Admin สามารถแต่งตั้งเป็นกรรมการและกำหนดประธานได้ โดยไม่ต้องเปลี่ยนบทบาทบัญชีเป็น committee ก่อน</p>
+        <p className="text-xs text-stone-500">ดึงรายชื่อหัวหน้ากลุ่มงานจากบัญชีผู้ใช้ และแสดงบุคลากรที่ยังไม่มีบัญชีเป็นรายการรอสมัคร โดยจะแต่งตั้งได้เมื่อมีบัญชีที่เชื่อมกับทะเบียนบุคลากรแล้ว</p>
         <div className="flex flex-wrap gap-2">
           <select className="inp min-w-[16rem]" value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
-            <option value="">เลือกหัวหน้ากลุ่มงานเพื่อแต่งตั้ง</option>
+            <option value="">เลือกบุคลากรเพื่อแต่งตั้ง</option>\n            {manthanaStaff && !availableProfiles.some(p => p.staff_directory_id === manthanaStaff.source_row) && <option value="" disabled>{[manthanaStaff.prefix, manthanaStaff.first_name, manthanaStaff.last_name].filter(Boolean).join(" ")} · {manthanaStaff.position} (รอสมัครบัญชี)</option>}
             {availableProfiles.filter(p => !members.some(m => m.user_id === p.user_id && m.active)).map(p => <option key={p.user_id} value={p.user_id}>{p.full_name || p.username || p.user_id}{p.position ? ` · ${p.position}` : ''}</option>)}
           </select>
           <button type="button" className="btn sec" disabled={!selectedUser || busy} onClick={() => { setMember(selectedUser, true, false); setSelectedUser('') }}>เพิ่มกรรมการ</button>
