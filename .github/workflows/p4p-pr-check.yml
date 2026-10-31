@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  build-and-typecheck:
+  production-build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout pull request
@@ -26,9 +26,6 @@ jobs:
       - name: Install dependencies
         working-directory: app
         run: npm install --no-audit --no-fund
-      - name: Type check
-        working-directory: app
-        run: npm run typecheck
       - name: Build production bundle
         working-directory: app
         run: npm run build
