@@ -1113,8 +1113,8 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     terms.every(t => [a.code, a.category, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
   const exportActivitySet = () => {
     const rows = [
-      ['สายงาน', 'รหัสกิจกรรม', 'หมวด', 'กิจกรรมหลัก', 'กิจกรรมย่อย', 'นาที/หน่วย', 'หน่วยนับ', 'จำกัดต่อวัน', 'จำกัดต่อเดือน', 'ต้องมีหลักฐาน', 'รายละเอียด/หลักฐานที่ใช้', 'หมายเหตุ'],
-      ...activityPrintSet.map((a: any) => [LINE_LABEL[line] || line, a.code, a.category || '', a.main_activity || '', a.title || '', a.minutes ?? '', a.uom || '', a.max_day ?? '', a.max_month ?? '', a.need_evidence ? 'ใช่' : 'ไม่', a.definition || '', a.note || ''])
+      ['รหัส', 'กิจกรรมหลัก / กิจกรรมย่อย', 'หมวด', 'นาที / หน่วย', 'ข้อจำกัด', 'หลักฐานและเกณฑ์', 'สายงานที่มีสิทธิ์', 'หมายเหตุ'],
+      ...activityPrintSet.map((a: any) => [a.code, [a.main_activity, a.title].filter(Boolean).join(' / '), a.category || '—', `${a.minutes ?? ''} / ${a.uom || 'ไม่ระบุ'}`, [a.max_day ? `ต่อวัน: ${a.max_day}` : '', a.max_month ? `ต่อเดือน: ${a.max_month}` : ''].filter(Boolean).join(' · ') || 'ไม่กำหนด', `${a.need_evidence ? 'ต้องมีหลักฐาน · ' : ''}${a.definition || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ โปรดสอบถามผู้ดูแลระบบก่อนบันทึกกิจกรรมนี้'}`, (a.eligible || []).join(', ') || 'ไม่ได้ระบุ', a.note || '—'])
     ]
     const csv = '\ufeff' + rows.map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
@@ -1253,7 +1253,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
           </tr>)}</tbody>
         </table>
       </div>}
-    {printingActivities && createPortal(<div className="activity-library-print"><h1>คลังกิจกรรม P4P</h1><h2>{LINE_LABEL[line] || line}</h2><p>รายการกิจกรรมทั้งหมดในชุดสายงาน · {activityPrintSet.length} รายการ · พิมพ์วันที่ {formatThaiShortDate(today())}</p><table><thead><tr><th>รหัส</th><th>หมวด</th><th>กิจกรรมหลัก / กิจกรรมย่อย</th><th>นาที / หน่วย</th><th>ข้อจำกัด</th><th>หลักฐานและเกณฑ์</th><th>หมายเหตุ</th></tr></thead><tbody>{activityPrintSet.map((a: any) => <tr key={a.code}><td>{a.code}</td><td>{a.category || '—'}</td><td>{a.main_activity && <b>{a.main_activity}<br /></b>}{a.title}</td><td>{a.minutes} / {a.uom || '—'}</td><td>{[a.max_day ? `ต่อวัน ${a.max_day}` : '', a.max_month ? `ต่อเดือน ${a.max_month}` : ''].filter(Boolean).join('\n') || 'ไม่กำหนด'}</td><td>{a.need_evidence ? 'ต้องมีหลักฐาน\n' : ''}{a.definition || '—'}</td><td>{a.note || '—'}</td></tr>)}</tbody></table></div>, document.body)}
+    {printingActivities && createPortal(<div className="activity-library-print"><h1>คลังกิจกรรม P4P</h1><h2>{LINE_LABEL[line] || line}</h2><p>รายการกิจกรรมทั้งหมดในชุดสายงาน · {activityPrintSet.length} รายการ · พิมพ์วันที่ {formatThaiShortDate(today())}</p><table><thead><tr><th>รหัส</th><th>กิจกรรมหลัก / กิจกรรมย่อย</th><th>หมวด</th><th>นาที / หน่วย</th><th>ข้อจำกัด</th><th>หลักฐานและเกณฑ์</th><th>สายงานที่มีสิทธิ์</th><th>หมายเหตุ</th></tr></thead><tbody>{activityPrintSet.map((a: any) => <tr key={a.code}><td>{a.code}</td><td>{a.main_activity && <b>{a.main_activity}<br /></b>}{a.title}</td><td>{a.category || '—'}</td><td>{a.minutes} / {a.uom || 'ไม่ระบุ'}</td><td>{[a.max_day ? `ต่อวัน: ${a.max_day}` : '', a.max_month ? `ต่อเดือน: ${a.max_month}` : ''].filter(Boolean).join(' · ') || 'ไม่กำหนด'}</td><td>{a.need_evidence ? 'ต้องมีหลักฐาน · ' : ''}{a.definition || 'ยังไม่ได้ระบุรายละเอียดหรือหลักฐานประกอบ โปรดสอบถามผู้ดูแลระบบก่อนบันทึกกิจกรรมนี้'}</td><td>{(a.eligible || []).join(', ') || 'ไม่ได้ระบุ'}</td><td>{a.note || '—'}</td></tr>)}</tbody></table></div>, document.body)}
   </div>
 }
 
