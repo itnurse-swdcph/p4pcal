@@ -193,14 +193,14 @@ function Login({ sb }: any) {
   </Shell>
 }
 
-function PersonalProfilePage({ sb, profile, role, units, positions, session, reload }: any) {
+function PersonalProfilePage({ sb, profile, role, units, groupOptions = [], positions, session, reload }: any) {
   const locked = role === 'admin'
   const [form, setForm] = useState<any>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [payGroups, setPayGroups] = useState<any[]>([])
   useEffect(() => { sb.from('pay_groups').select('id,name').order('id').then((r: any) => setPayGroups(r.data || [])) }, [sb])
-  const groupNames = [...new Set((units || []).map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th'))
+  const groupNames = [...new Set([...(groupOptions || []), ...(units || []).map((u: any) => String(u.parent_group || '').trim())].filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th'))
   const splitNames = (value: any) => String(value || '').split('|').map(x => x.trim()).filter(Boolean)
   const extraGroups = splitNames(form?.extra_nursing_group_names)
   const extraUnits = splitNames(form?.extra_unit_names)
@@ -284,6 +284,7 @@ function Main({ sb, session }: any) {
   const [profile, setProfile] = useState<any>(null); const [noProfile, setNoProfile] = useState(false)
   const [people, setPeople] = useState<any[]>([]); const [acts, setActs] = useState<any[]>([]); const [units, setUnits] = useState<any[]>([])
   const [directoryUnitNames, setDirectoryUnitNames] = useState<string[] | null>(null)
+  const [directoryGroupNames, setDirectoryGroupNames] = useState<string[]>([])
   const [positions, setPositions] = useState<any[]>([])
   const [actsVersion, setActsVersion] = useState(0)
   const reloadActs = () => setActsVersion(v => v + 1)
@@ -315,6 +316,13 @@ function Main({ sb, session }: any) {
       if (r.error || !Array.isArray(r.data)) { console.error('โหลดรายชื่อหน่วยงานจาก staff_directory ไม่สำเร็จ', r.error); setDirectoryUnitNames(null); return }
       setDirectoryUnitNames([...new Set(r.data.map((x: any) => String(typeof x === 'string' ? x : x?.unit_name ?? Object.values(x || {})[0] ?? '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')))
     })
+    // รวมกลุ่มงานจากทะเบียนบุคลากร เพื่อให้กลุ่มที่ยังไม่มีหน่วยงานใน units ปรากฏใน Dropdown ด้วย
+    sb.from('staff_directory').select('nursing_group,extra_nursing_group_names').eq('active', true).then(({ data, error }: any) => {
+      if (error) { console.error('โหลดรายชื่อกลุ่มงานจากทะเบียนบุคลากรไม่สำเร็จ', error); return }
+      const names = (data || []).flatMap((d: any) => [d.nursing_group, ...String(d.extra_nursing_group_names || '').split(/[|,;]/)])
+        .map((v: any) => String(v || '').trim()).filter(Boolean)
+      setDirectoryGroupNames([...new Set(names)].sort((a: string, b: string) => a.localeCompare(b, 'th')))
+    })
     sb.from('positions').select('*').then((r: any) => setPositions(r.data || []))
     sb.rpc('my_approval_level').then((r: any) => setMyLevel(Number(r.data || 0)))
     sb.rpc('my_units').then((r: any) => setMyUnits((r.data || []).map((x: any) => (typeof x === 'object' && x ? Object.values(x)[0] : x) as number)))
@@ -334,9 +342,10 @@ function Main({ sb, session }: any) {
   // ซ่อนชื่อหน่วยงานเดิมเสมอ แม้โหลด staff_directory ไม่สำเร็จหรือมีข้อมูลเก่าค้างใน units
   const directoryUnits = units.filter(u => {
     const name = String(u.name || '').trim()
-    return name !== 'คลินิกโรคเรื้อรัง' && (directoryUnitNames === null || directoryUnitNames.includes(name))
-  })
-    .slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
+    return directoryUnitNames === null || directoryUnitNames.includes(name)
+  }).slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
+  const allGroupNames = [...new Set([...units.map((u: any) => String(u.parent_group || '').trim()), ...directoryGroupNames].filter(Boolean))]
+    .sort((a: string, b: string) => a.localeCompare(b, 'th'))
   const unitOptions = isHeadRole ? directoryUnits.filter(u => myUnits.includes(u.id) || (role === 'head' && u.id === profile.unit_id)) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
   const scope = people.filter(p => (isRev || isHeadRole ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, payout: Wallet, users: Users, settings: Settings, personal: Users }
@@ -370,17 +379,17 @@ function Main({ sb, session }: any) {
 
 
     {tabs.length === 0 && <p>บัญชีนี้ยังไม่มีสิทธิ์ใช้งาน</p>}
-    {cur === 'personal' && role !== 'admin' && <PersonalProfilePage sb={sb} profile={profile} role={role} units={directoryUnits} positions={positions} session={session} reload={loadPeople} />}
+    {cur === 'personal' && role !== 'admin' && <PersonalProfilePage sb={sb} profile={profile} role={role} units={directoryUnits} groupOptions={allGroupNames} positions={positions} session={session} reload={loadPeople} />}
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
-      : <LogPage key={logPageActivation} units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} currentUserId={session.user.id} currentUserStaffDirectoryId={profile.staff_directory_id} />)}
+      : <LogPage key={logPageActivation} units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} currentUserId={session.user.id} currentUserStaffDirectoryId={profile.staff_directory_id} groupOptions={allGroupNames} />)}
     {(cur === 'certify' || cur === 'review') && (role === 'admin' || isHeadRole) && <div className="space-y-3">
       <div className="card space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1"><span className="field-label">กลุ่มงาน</span>
             <select className="inp w-full" value={reviewGroup} onChange={e => { const g = e.target.value; setReviewGroup(g); setUnit(null) }}>
               <option value="">เลือกกลุ่มงาน</option>
-              {[...new Set(unitOptions.map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')).map((g: string) => <option key={g} value={g}>{g}</option>)}
+              {allGroupNames.map((g: string) => <option key={g} value={g}>{g}</option>)}
             </select>
           </label>
           <label className="block space-y-1"><span className="field-label">หน่วยงาน</span>
@@ -445,7 +454,7 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
   return [rows, () => setN(x => x + 1)] as const
 }
 
-function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId, currentUserStaffDirectoryId }: any) {
+function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId, currentUserStaffDirectoryId, groupOptions = [] }: any) {
   const picker = !!canApprove
   const me = useContext(MeCtx)
   const personRecords = [...(allPeople || []), ...(peopleProp || [])].filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i)
@@ -467,7 +476,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       arr.findIndex((x: any) => x.id === p.id) === i && (uSel ? Number(p.unit_id) === Number(uSel) : p.unit_id == null && directoryIds.has(Number(p.staff_directory_id)))
     )
   }, [picker, entryMode, ownPerson, allPeople, locallyAddedPeople, uSel, peopleProp, directoryStaff])
-  const groupOptions = useMemo(() => [...new Set((unitOptions || []).map((u: any) => String(u.parent_group || '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')), [unitOptions])
+  const groupNames = useMemo(() => [...new Set([...(groupOptions || []), ...(unitOptions || []).map((u: any) => String(u.parent_group || '').trim())].filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')), [groupOptions, unitOptions])
   useEffect(() => {
     if (!picker || entryMode !== 'other' || !groupSel) { setDirectoryStaff([]); setPeopleLoadError(''); return }
     let alive = true
@@ -645,7 +654,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         {entryMode === 'self' && !ownPerson && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">ยังไม่พบระเบียนบุคลากรที่เชื่อมกับบัญชีนี้ จึงยังบันทึกกิจกรรมของตนเองไม่ได้ กรุณาให้ผู้ดูแลระบบผูกบัญชีกับทะเบียนบุคลากรก่อน</p>}
         {entryMode === 'other' && <>
         <label className="field-label">1. เลือกกลุ่มงาน</label>
-        <select className="inp" value={groupSel} onChange={e => { setGroupSel(e.target.value); setUSel(null); setPid(''); setErr('') }}><option value="">— เลือกกลุ่มงาน —</option>{groupOptions.map((g: string) => <option key={g} value={g}>{g}</option>)}</select>
+        <select className="inp" value={groupSel} onChange={e => { setGroupSel(e.target.value); setUSel(null); setPid(''); setErr('') }}><option value="">— เลือกกลุ่มงาน —</option>{groupNames.map((g: string) => <option key={g} value={g}>{g}</option>)}</select>
         <label className="field-label">2. เลือกหน่วยงาน <span className="text-xs font-normal text-stone-500">(หากเป็นหัวหน้ากลุ่มงานที่ไม่มีหน่วยงาน ให้เว้นว่าง)</span></label>
         <select className="inp" value={uSel ?? ''} disabled={!groupSel} onChange={e => { setUSel(e.target.value ? +e.target.value : null); setPid(''); setErr('') }}><option value="">— ไม่เลือกหน่วยงาน / หัวหน้ากลุ่มงาน —</option>{(unitOptions || []).filter((u: any) => String(u.parent_group || '').trim() === groupSel).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
         <label className="field-label">3. เลือกชื่อบุคลากร</label>
@@ -1534,7 +1543,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       const fullName = String(d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`).trim()
       const found = result.find((p: any) => (d.person_id && p.id === d.person_id) || (p.staff_directory_id && Number(p.staff_directory_id) === Number(d.source_row)) || String(p.name || '').trim() === fullName)
       if (found) { found.org_role = found.org_role || d.org_role; found.staff_directory_id = found.staff_directory_id || d.source_row; if (!found.position) found.position = d.position }
-      else result.push({ id: d.person_id || `dir:${d.source_row}`, directory_source_row: d.source_row, staff_directory_id: d.source_row, name: fullName, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, position: d.position, org_role: d.org_role, unit_id: unit, active: true, fromDirectory: true })
+      else result.push({ id: d.person_id || `dir:${d.source_row}`, directory_source_row: d.source_row, staff_directory_id: d.source_row, name: fullName, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, position: d.position, org_role: d.org_role, unit_id: unit, active: true, fromDirectory: d.registered !== true })
     }
     return result.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
   }, [people, directoryPeople, unit])
