@@ -1528,19 +1528,25 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [sel, setSel] = useState<string>('')
   const sum = useMemo(() => {
     const positionRank = (p: any) => {
-      const normalize = (value: any) => String(value || '').replace(/[\\s　]+/g, '').replace(/[()（）]/g, '').trim()
+      const normalize = (value: any) => String(value || '').normalize('NFC').replace(/[\\s　]+/g, '').replace(/[()（）]/g, '').trim()
       const role = normalize(p.org_role)
       const pos = normalize(p.position)
-      // เรียงหัวหน้ากลุ่มงานและหัวหน้างานก่อน จากนั้นเรียงตามลำดับตำแหน่งที่กำหนด
+      // เรียงหัวหน้ากลุ่มงานและหัวหน้างานก่อน จากนั้นพยาบาลวิชาชีพ และนักวิชาการสาธารณสุข
       if (role.includes('หัวหน้ากลุ่มงาน')) return 0
       if (role.includes('หัวหน้างาน')) return 1
+      if (pos.includes('พยาบาลวิชาชีพ') && !pos.includes('นักวิชาการสาธารณสุข')) {
+        if (pos.includes('ชำนาญการพิเศษ')) return 2
+        if (pos.includes('ชำนาญการ')) return 3
+        if (pos.includes('ปฏิบัติการ')) return 4
+        return 5
+      }
+      // จัดกลุ่มนักวิชาการสาธารณสุขต่อจากพยาบาลวิชาชีพ โดยตรวจจากชื่อกลุ่มก่อน
+      if (pos.includes('นักวิชาการสาธารณสุข')) {
+        if (pos.includes('พยาบาลวิชาชีพ')) return 6
+        if (pos.includes('พาราเมดิก')) return 7
+        return 8
+      }
       const ordered = [
-        ['พยาบาลวิชาชีพชำนาญการพิเศษ'],
-        ['พยาบาลวิชาชีพชำนาญการ'],
-        ['พยาบาลวิชาชีพปฏิบัติการ'],
-        ['พยาบาลวิชาชีพ'],
-        ['นักวิชาการสาธารณสุขพยาบาลวิชาชีพ'],
-        ['นักวิชาการสาธารณสุขพาราเมดิก'],
         ['เจ้าพนักงานสาธารณสุขชำนาญงาน', 'EMT'],
         ['เจ้าพนักงานสาธารณสุข', 'EMT'],
         ['พนักงานช่วยเหลือคนไข้'],
@@ -1549,8 +1555,8 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         ['พนักงานธุรการ'],
         ['ผู้ช่วยช่างทั่วไป']
       ]
-      const idx = ordered.findIndex((titles) => titles.every((title) => title === 'พยาบาลวิชาชีพ' ? pos.includes('พยาบาลวิชาชีพ') && !pos.includes('นักวิชาการสาธารณสุข') : pos.includes(normalize(title))))
-      return idx < 0 ? 99 : idx + 2
+      const idx = ordered.findIndex((titles) => titles.every((title) => pos.includes(normalize(title))))
+      return idx < 0 ? 99 : idx + 9
     }
     const sortedRoster = [...roster].sort((a: any, b: any) => positionRank(a) - positionRank(b) || String(a.name || '').localeCompare(String(b.name || ''), 'th'))
     return sortedRoster.map((p: any, index: number) => {
