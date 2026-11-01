@@ -887,7 +887,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet ps-individual-landscape">
-      <table className="pt ps-individual-table">
+      <table className="pt ps-individual-table" style={{ ['--ps-act-w' as any]: `${(283 - 72 - dayCount * 4.6).toFixed(1)}mm` }}>
         <colgroup>
           <col className="ps-c-no" />
           <col className="ps-c-act" />

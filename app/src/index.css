@@ -1325,33 +1325,41 @@ body.unit-report-preview-open .unit-report-print * {
 }
 
 
-/* ===== รายบุคคล A4 แนวนอน: ให้คอลัมน์รายวันกว้างพอจนอ่านตัวเลขได้ =====
-   ใช้ความกว้างคงที่ (mm) ต่อวัน แทนการหารเปอร์เซ็นต์ที่ทำให้คอลัมน์ถูกบีบ
-   คอลัมน์ "กิจกรรม" เป็น auto เพื่อรับพื้นที่ที่เหลือ (รองรับเดือน 28-31 วัน) */
+/* ===== รายบุคคล A4 แนวนอน: คอลัมน์รายวันอ่านง่าย + คอลัมน์กิจกรรมกว้างพอ =====
+   ความกว้างทุกคอลัมน์เป็น mm คงที่ ส่วนคอลัมน์กิจกรรมใช้ --ps-act-w ที่คำนวณจากจำนวนวันของเดือน
+   (พื้นที่ใช้งาน 283mm - คอลัมน์อื่น 72mm - วัน x 4.6mm) */
 .ps-individual-landscape .ps-individual-table { width:100% !important; table-layout:fixed !important; }
 .ps-individual-landscape .ps-individual-table col.ps-c-no   { width:6mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-act  { width:auto !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-uom  { width:10mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-min  { width:8mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-rate { width:9mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-work { width:7mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-adj  { width:9mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-day  { width:5.2mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-sum  { width:10mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-ref  { width:11mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-act  { width:var(--ps-act-w, 60mm) !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-uom  { width:9mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-min  { width:7mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-rate { width:8mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-work { width:6mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-adj  { width:8mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-day  { width:4.6mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-sum  { width:9mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-ref  { width:10mm !important; }
 .ps-individual-landscape .ps-individual-table th.ps-day-cell,
 .ps-individual-landscape .ps-individual-table td.ps-day-cell {
-  padding:1px 0 !important;
-  font-size:7.5pt !important;
-  font-weight:600 !important;
-  letter-spacing:0 !important;
-  overflow:visible !important;
-  text-align:center !important;
-  white-space:nowrap !important;
+  padding:1px 0 !important; font-size:7pt !important; font-weight:600 !important;
+  letter-spacing:0 !important; overflow:visible !important; text-align:center !important; white-space:nowrap !important;
 }
-.ps-individual-landscape .ps-individual-table td.ps-day-long { font-size:6pt !important; letter-spacing:-0.2px !important; }
+.ps-individual-landscape .ps-individual-table td.ps-day-long { font-size:5.5pt !important; letter-spacing:-0.2px !important; }
+.ps-individual-landscape .ps-individual-table td.ps-activity-name { white-space:normal !important; overflow-wrap:anywhere !important; word-break:normal !important; }
+
+/* เส้นขอบเฉพาะตารางกิจกรรม: หัวเรื่อง/ข้อมูลบุคคล/วันลา อยู่ใน thead เดียวกันแต่ไม่มีเส้น */
+.ps-individual-landscape table.ps-individual-table.pt { border:0 !important; border-style:none !important; }
+.ps-individual-landscape table.ps-individual-table.pt thead tr.ps-repeat-heading > th,
+.ps-individual-landscape table.ps-individual-table.pt thead tr.ps-repeat-meta > th,
+.ps-individual-landscape table.ps-individual-table.pt thead tr.ps-repeat-leave > th {
+  border:0 !important; border-style:none !important; border-width:0 !important; background:transparent !important;
+}
 @media print {
   body.print-individual-report .ps-individual-landscape .ps-individual-table th.ps-day-cell,
-  body.print-individual-report .ps-individual-landscape .ps-individual-table td.ps-day-cell { font-size:7.5pt !important; padding:1px 0 !important; }
-  body.print-individual-report .ps-individual-landscape .ps-individual-table td.ps-day-long { font-size:6pt !important; }
+  body.print-individual-report .ps-individual-landscape .ps-individual-table td.ps-day-cell { font-size:7pt !important; padding:1px 0 !important; }
+  body.print-individual-report .ps-individual-landscape .ps-individual-table td.ps-day-long { font-size:5.5pt !important; }
+  body.print-individual-report .ps-individual-landscape table.ps-individual-table.pt { border:0 !important; border-style:none !important; }
+  body.print-individual-report .ps-individual-landscape table.ps-individual-table.pt thead tr.ps-repeat-heading > th,
+  body.print-individual-report .ps-individual-landscape table.ps-individual-table.pt thead tr.ps-repeat-meta > th,
+  body.print-individual-report .ps-individual-landscape table.ps-individual-table.pt thead tr.ps-repeat-leave > th { border:0 !important; border-style:none !important; border-width:0 !important; }
 }
