@@ -26,7 +26,7 @@ function canDecideRow(ap: any, me: string | null, r: any) {
   if (!ap || !r || !me) return false
   const isOwnRecord = ap.personUser[r.person_id] === me
   // ผู้ดูแลระบบรับรองได้ทุกคนยกเว้นรายการของตนเอง; รักษาการหัวหน้าพยาบาล (ทะเบียนบุคลากรแถว 2) รับรองของตนเองได้
-  if (isOwnRecord) return Number(ap.staffDirectoryId) === 2 || ['หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล'].includes(String(ap.position || '').trim())
+  if (isOwnRecord) return Number(ap.staffDirectoryId) === 2 || ['หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล', 'หัวหน้าพยาบาล(รักษาการ)'].includes(String(ap.position || ap.orgRole || '').replace(/\\s/g, ''))
   if (ap.role === 'admin') return true
   if (ap.role !== 'head' && ap.role !== 'group_head') return false
   const sl = ap.personLevel[r.person_id] ?? 0
@@ -398,7 +398,7 @@ function Main({ sb, session }: any) {
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { void checkForUpdate(); if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
-  return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, staffDirectoryId: profile?.staff_directory_id, position: profile?.position, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
+  return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, staffDirectoryId: profile?.staff_directory_id, position: profile?.position, orgRole: profile?.org_role, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
     {mobileNav && <button aria-label="ปิดเมนู" className="sidebar-scrim" onClick={() => setMobileNav(false)}/>}
     <aside className={'app-sidebar ' + (mobileNav ? 'mobile-open' : '')}>
       <div className="sidebar-brand"><img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/icon.png" alt="P4P" /><div className="sidebar-brand-copy"><strong>P4P Nursing</strong><span>SMART WORKFLOW</span></div><button className="sidebar-icon mobile-close" aria-label="ปิดเมนู" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
