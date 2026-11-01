@@ -61,13 +61,41 @@ const thaiBahtText = (value: number) => {
   return read(baht) + 'บาท' + (satang ? read(satang) + 'สตางค์' : 'ถ้วน');
 };
 const mRange = (m: string) => { const d = new Date(m + '-01'); const e = new Date(d.getFullYear(), d.getMonth() + 1, 0); return [m + '-01', `${m}-${String(e.getDate()).padStart(2, '0')}`] }
-// นับวันทำการตามเวร: วันเดียวกันคนละเวรนับแยกกัน แต่หลายกิจกรรมในเวรเดียวกันนับครั้งเดียว
+// นับเวรที่ผ่านการรับรอง: วันเดียวกันคนละเวรนับแยกกัน หลายกิจกรรมในเวรเดียวกันนับครั้งเดียว
 const countWorkShifts = (rows: any[]) => new Set((rows || []).map((r: any) => {
   const date = String(r.work_date || '').slice(0, 10)
   if (!date) return ''
-  const shift = String(r.shift || 'ไม่ระบุเวร').trim()
-  return `${date}|${shift}`
+  return `${date}|${String(r.shift || 'ไม่ระบุเวร').trim()}`
 }).filter(Boolean)).size
+const countApprovedWorkShifts = (rows: any[]) => countWorkShifts((rows || []).filter((r: any) => r.status === 'approved'))
+const calculateCalendarWorkingDays = (month: string, overrides: any[] = []) => {
+  const [year, monthNumber] = String(month || '').split('-').map(Number)
+  if (!year || !monthNumber) return 0
+  const exceptions = new Map((overrides || []).map((x: any) => [String(x.calendar_date).slice(0, 10), Boolean(x.is_working_day)]))
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
+  let total = 0
+  for (let day = 1; day <= lastDay; day++) {
+    const date = `${year}-${String(monthNumber).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const weekday = new Date(Date.UTC(year, monthNumber - 1, day)).getUTCDay()
+    if (exceptions.has(date) ? exceptions.get(date) : weekday !== 0 && weekday !== 6) total++
+  }
+  return total
+}
+function useCalendarWorkingDays(sb: any, month: string) {
+  const [workingDays, setWorkingDays] = useState<number | null>(null)
+  useEffect(() => {
+    let alive = true
+    if (!month) { setWorkingDays(0); return () => { alive = false } }
+    const [year, monthNumber] = month.split('-').map(Number)
+    const start = `${year}-${String(monthNumber).padStart(2, '0')}-01`
+    const end = new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10)
+    setWorkingDays(null)
+    sb.from('p4p_calendar_overrides').select('calendar_date,is_working_day').gte('calendar_date', start).lte('calendar_date', end)
+      .then(({ data, error }: any) => { if (alive) setWorkingDays(calculateCalendarWorkingDays(month, error ? [] : (data || []))) })
+    return () => { alive = false }
+  }, [sb, month])
+  return workingDays
+}
 
 export default function App() {
   const [cfg, setCfg] = useState(() => JSON.parse(localStorage.getItem('p4p_cfg') || 'null') || DEFAULT_CFG)
@@ -1445,6 +1473,7 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
   const [printingPerson, setPrintingPerson] = useState<any>(null)
   const [rates, setRates] = useState<Record<string, number>>({})
   const [rowsAll, reload] = useLogs(sb, month, null, null)
+  const calendarWorkingDays = useCalendarWorkingDays(sb, month)
   useEffect(() => {
     let alive = true
     setLoading(true)
@@ -1563,7 +1592,8 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
           const key = String(staffId || '')
           const saved = groupLeaveData[key] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
           const draft = groupLeaveDrafts[key] || { personal_leave_days: String(saved.personal_leave_days), sick_leave_days: String(saved.sick_leave_days), annual_leave_days: String(saved.annual_leave_days) }
-          const workDays = countWorkShifts((x.rs || []).filter((r: any) => r.status !== 'draft'))
+          const workDaysRaw = countApprovedWorkShifts(x.rs || [])
+          const workDays = calendarWorkingDays == null ? workDaysRaw : Math.min(workDaysRaw, calendarWorkingDays)
           const setLeave = (field: string, value: string) => setGroupLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
           return <tr key={x.p.id || key}>
             <td className="p-2 text-center">{x.order}</td><td className="p-2 font-semibold">{x.p.displayName}</td><td className="p-2">{x.p.position || '—'}</td><td className="p-2 text-center font-semibold">{workDays}</td>
@@ -1609,6 +1639,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
   const [certificationSearch, setCertificationSearch] = useState('')
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
+  const calendarWorkingDays = useCalendarWorkingDays(sb, month)
   useEffect(() => {
     let alive = true
     if (!unit || !month) { setLeaveDrafts({}); return () => { alive = false } }
@@ -1753,7 +1784,8 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     const roleGuarantee = scoring.roleGuarantee
     const performancePoints = scoring.performance
     const excess = scoring.excess
-    const days = countWorkShifts(approved)
+    const daysRaw = countApprovedWorkShifts(approved)
+    const days = calendarWorkingDays == null ? daysRaw : Math.min(daysRaw, calendarWorkingDays)
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
     const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
@@ -1761,7 +1793,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, performancePoints, roleGuarantee, excess, days, rate: unitRate, basePay, payout, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
-  }, [rows, roster, positions, unitRate, payGroups])
+  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const saveLeaveData = async (person: any) => {
     const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
@@ -1844,13 +1876,14 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         {reportOnly && <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)}>{leaveReportOpen ? 'กลับสรุปรายงานหน่วยงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>}
       </div>
       {leaveReportOpen && reportOnly && <div className="space-y-3">
-        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันปฏิบัติงานนับตามเวรที่มีการส่งบันทึกกิจกรรม (วันเดียวกันต่างเวรนับแยกกัน ไม่นับแบบร่าง)</p></div>
+        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน ${calendarWorkingDays ?? '…'} วัน · นับเฉพาะเวรของกิจกรรมที่รับรองแล้ว และแสดงไม่เกินวันทำการตามปฏิทิน</p></div>
         <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1050px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนวันปฏิบัติงาน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
           {sum.map((x: any) => {
             const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
             const key = String(staffId || '')
             const draft = leaveDrafts[key] || { personal_leave_days: '0', sick_leave_days: '0', annual_leave_days: '0' }
-            const workDays = countWorkShifts(rows.filter((r: any) => String(r.person_id) === String(x.p.id)))
+            const workDaysRaw = countApprovedWorkShifts(rows.filter((r: any) => String(r.person_id) === String(x.p.id)))
+            const workDays = calendarWorkingDays == null ? workDaysRaw : Math.min(workDaysRaw, calendarWorkingDays)
             const setLeave = (field: string, value: string) => setLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
             return <tr key={x.p.id}>
               <td className="text-center">{x.order}</td><td className="font-semibold">{x.p.name}</td><td>{x.p.position || '—'}</td><td className="text-center font-semibold">{workDays}</td>
@@ -1993,6 +2026,14 @@ function SettingsPage({ sb }: any) {
   const [emergencyEnabled, setEmergencyEnabled] = useState(false)
   const [emergencyMsg, setEmergencyMsg] = useState('')
   const [emergencyBusy, setEmergencyBusy] = useState(false)
+  const [calendarYear, setCalendarYear] = useState(String(new Date().getFullYear()))
+  const [calendarRows, setCalendarRows] = useState<any[]>([])
+  const [calendarDate, setCalendarDate] = useState(today())
+  const [calendarDescription, setCalendarDescription] = useState('')
+  const [calendarIsWorkingDay, setCalendarIsWorkingDay] = useState(false)
+  const [calendarMessage, setCalendarMessage] = useState('')
+  const [calendarBusy, setCalendarBusy] = useState(false)
+  const [calendarVersion, setCalendarVersion] = useState(0)
   useEffect(() => {
     sb.from('app_settings').select('key,value').then((r: any) => setG(Object.fromEntries((r.data || []).map((x: any) => [x.key, String(x.value)]))))
     sb.from('p4p_recording_policy').select('emergency_enabled').eq('id', true).maybeSingle().then(({ data, error }: any) => {
@@ -2000,6 +2041,26 @@ function SettingsPage({ sb }: any) {
       else setEmergencyEnabled(Boolean(data?.emergency_enabled))
     })
   }, [sb])
+  useEffect(() => {
+    let alive = true
+    sb.from('p4p_calendar_overrides').select('*').gte('calendar_date', `${calendarYear}-01-01`).lte('calendar_date', `${calendarYear}-12-31`).order('calendar_date')
+      .then(({ data, error }: any) => { if (!alive) return; if (error) setCalendarMessage('โหลดปฏิทินไม่สำเร็จ: ' + error.message); else setCalendarRows(data || []) })
+    return () => { alive = false }
+  }, [sb, calendarYear, calendarVersion])
+  const saveCalendarOverride = async () => {
+    if (!calendarDate || !calendarDescription.trim()) { setCalendarMessage('กรุณาระบุวันที่และรายละเอียด'); return }
+    setCalendarBusy(true); setCalendarMessage('')
+    const { error } = await sb.from('p4p_calendar_overrides').upsert({ calendar_date: calendarDate, is_working_day: calendarIsWorkingDay, description: calendarDescription.trim(), updated_at: new Date().toISOString() }, { onConflict: 'calendar_date' })
+    setCalendarBusy(false)
+    if (error) { setCalendarMessage('บันทึกปฏิทินไม่สำเร็จ: ' + error.message); return }
+    setCalendarDescription(''); setCalendarVersion(v => v + 1); setCalendarMessage(calendarIsWorkingDay ? 'เพิ่มวันทำงานพิเศษแล้ว' : 'บันทึกวันหยุดแล้ว')
+  }
+  const deleteCalendarOverride = async (date: string) => {
+    if (!confirm(`ยืนยันลบการกำหนดพิเศษวันที่ ${date} ? ระบบจะกลับไปใช้วันจันทร์-ศุกร์เป็นวันทำการอัตโนมัติ`)) return
+    const { error } = await sb.from('p4p_calendar_overrides').delete().eq('calendar_date', date)
+    setCalendarMessage(error ? 'ลบรายการไม่สำเร็จ: ' + error.message : 'ลบรายการกำหนดพิเศษแล้ว')
+    if (!error) setCalendarVersion(v => v + 1)
+  }
   const toggleEmergency = async () => {
     const next = !emergencyEnabled
     if (!confirm(next ? 'ยืนยันเปิดโหมดฉุกเฉิน? ผู้ใช้จะสามารถบันทึกกิจกรรมย้อนหลังได้แม้พ้นวันที่ 5 ของเดือนถัดไป' : 'ยืนยันปิดโหมดฉุกเฉิน? ระบบจะกลับไปใช้กำหนดปิดรับย้อนหลังวันที่ 5 ของเดือนถัดไปทันที')) return
@@ -2025,6 +2086,21 @@ function SettingsPage({ sb }: any) {
   const gField = ([k, l, h]: [string, string, string]) => <label key={k} className="field-label block">{l}
     <input className="inp mt-1" inputMode="decimal" value={g[k] ?? ''} onChange={e => setG({ ...g, [k]: e.target.value })} />{h && <span className="field-hint block">{h}</span>}</label>
   return <div className="grid xl:grid-cols-2 gap-4 items-start">
+    <div className="card space-y-3 xl:col-span-2">
+      <div><h2 className="text-lg font-bold">ปฏิทินวันทำการ</h2><p className="text-sm text-stone-600">ระบบนับวันจันทร์–ศุกร์เป็นวันทำการอัตโนมัติ และใช้รายการนี้กำหนดวันหยุดราชการ/วันหยุดพิเศษ หรือวันทำงานพิเศษของโรงพยาบาล จำนวนวันทำการในรายงานจะไม่เกินปฏิทิน แต่ไม่ตัดกิจกรรมหรือคะแนน</p></div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+        <label className="field-label">ปี พ.ศ.<input className="inp mt-1" inputMode="numeric" value={String(Number(calendarYear) + 543)} onChange={e => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 2500 && n <= 2700) setCalendarYear(String(n - 543)) }} /></label>
+        <label className="field-label">วันที่<input className="inp mt-1" type="date" value={calendarDate} onChange={e => setCalendarDate(e.target.value)} /></label>
+        <label className="field-label">รายละเอียด<input className="inp mt-1" value={calendarDescription} onChange={e => setCalendarDescription(e.target.value)} placeholder="เช่น วันหยุดราชการ / วันทำงานชดเชย" /></label>
+        <div className="space-y-2"><select className="inp" value={calendarIsWorkingDay ? 'work' : 'holiday'} onChange={e => setCalendarIsWorkingDay(e.target.value === 'work')}><option value="holiday">กำหนดเป็นวันหยุด</option><option value="work">กำหนดเป็นวันทำงานพิเศษ</option></select><button type="button" className="btn w-full" disabled={calendarBusy} onClick={saveCalendarOverride}>{calendarBusy ? 'กำลังบันทึก…' : 'บันทึกปฏิทิน'}</button></div>
+      </div>
+      <p className="text-sm font-semibold">รายการกำหนดพิเศษ ปี พ.ศ. {Number(calendarYear) + 543}</p>
+      <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr><th>วันที่</th><th>ประเภท</th><th>รายละเอียด</th><th>จัดการ</th></tr></thead><tbody>
+        {calendarRows.map((r: any) => <tr key={r.calendar_date}><td className="whitespace-nowrap">{new Date(r.calendar_date + 'T00:00:00').toLocaleDateString('th-TH')}</td><td>{r.is_working_day ? 'วันทำงานพิเศษ' : 'วันหยุด'}</td><td>{r.description}</td><td><button type="button" className="btn sec !py-1" onClick={() => deleteCalendarOverride(r.calendar_date)}>ลบ</button></td></tr>)}
+        {!calendarRows.length && <tr><td colSpan={4} className="py-4 text-center text-stone-500">ยังไม่มีรายการกำหนดพิเศษ</td></tr>}
+      </tbody></table></div>
+      {calendarMessage && <p role="status" className="text-sm text-teal-800">{calendarMessage}</p>}
+    </div>
     <div className="card space-y-3 xl:col-span-2">
       <div><h2 className="text-lg font-bold">กำหนดเวลาบันทึกกิจกรรมย้อนหลัง</h2><p className="text-sm text-stone-600">ระบบเปิดให้บันทึกย้อนหลังของเดือนก่อนหน้าได้ถึงวันที่ 5 ของเดือนปัจจุบันโดยอัตโนมัติ และปิดตั้งแต่วันที่ 6 เป็นต้นไป</p></div>
       <div className={`rounded-lg border p-3 text-sm ${emergencyEnabled ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-teal-200 bg-teal-50 text-teal-900'}`}>
