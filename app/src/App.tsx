@@ -26,7 +26,7 @@ function canDecideRow(ap: any, me: string | null, r: any) {
   if (!ap || !r || !me) return false
   const isOwnRecord = ap.personUser[r.person_id] === me
   // ผู้ดูแลระบบรับรองได้ทุกคนยกเว้นรายการของตนเอง; รักษาการหัวหน้าพยาบาล (ทะเบียนบุคลากรแถว 2) รับรองของตนเองได้
-  if (isOwnRecord) return Number(ap.staffDirectoryId) === 2 || ['หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล', 'หัวหน้าพยาบาล(รักษาการ)'].includes(String(ap.position || ap.orgRole || '').replace(/\\s/g, ''))
+  if (isOwnRecord) return Number(ap.staffDirectoryId) === 2 || ['หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล', 'หัวหน้าพยาบาล(รักษาการ)'].includes(String(ap.position || ap.orgRole || '').replace(/\s/g, ''))
   if (ap.role === 'admin') return true
   if (ap.role !== 'head' && ap.role !== 'group_head') return false
   const sl = ap.personLevel[r.person_id] ?? 0
