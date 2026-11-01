@@ -1376,3 +1376,24 @@ body.unit-report-preview-open .unit-report-print * {
     white-space:nowrap !important; overflow-wrap:normal !important; word-break:keep-all !important;
   }
 }
+/* ===== ตัวอย่างก่อนพิมพ์ใบสรุปรายหน่วยงาน: ทุกส่วนอยู่ในกรอบกระดาษเดียว + ตัวเลขไม่ตกบรรทัด ===== */
+body.unit-report-preview-open .unit-report-page {
+  box-sizing: border-box; width: 100%; max-width: 277mm; margin: 0 auto 24px;
+  padding: 10mm 12mm; background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,.12); color: #000;
+}
+body.unit-report-preview-open .unit-report-page .unit-report-table {
+  max-width: none !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; background: transparent !important;
+}
+body.unit-report-preview-open .unit-report-page .unit-report-grand-total,
+body.unit-report-preview-open .unit-report-page .unit-report-certification,
+body.unit-report-preview-open .unit-report-page .unit-report-signatures,
+body.unit-report-preview-open .unit-report-page .unit-report-approver { max-width: 100%; overflow-wrap: break-word; box-sizing: border-box; }
+.unit-report-table td:not(.unit-report-name):not(.unit-report-position),
+.unit-report-table thead tr:not(.unit-report-heading-row) th {
+  white-space: nowrap !important; overflow-wrap: normal !important; word-break: keep-all !important;
+  padding-left: .6mm !important; padding-right: .6mm !important;
+}
+.unit-report-table td:not(.unit-report-name):not(.unit-report-position) { font-size: 8pt !important; letter-spacing: -0.1px; }
+@media print {
+  body.print-unit-report .unit-report-page { max-width: none; margin: 0; padding: 0; box-shadow: none; background: transparent; }
+}
