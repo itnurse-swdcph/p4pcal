@@ -343,7 +343,7 @@ function Main({ sb, session }: any) {
       const target = event.target
       if (!(target instanceof HTMLInputElement) || target.type !== 'date' || !target.value) return
       const nextMonth = target.value.slice(0, 7)
-      if (/^\\d{4}-\\d{2}$/.test(nextMonth)) setMonth(nextMonth)
+      if (nextMonth.length === 7 && nextMonth[4] === '-') setMonth(nextMonth)
     }
     document.addEventListener('change', syncHeadbarMonth, true)
     return () => document.removeEventListener('change', syncHeadbarMonth, true)
