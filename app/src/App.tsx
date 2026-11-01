@@ -1585,7 +1585,7 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
       <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)} disabled={loading || !sum.length}>{leaveReportOpen ? 'กลับสรุปรายงานกลุ่มงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>
     </div>
     {leaveReportOpen && <div className="space-y-3">
-      <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · แสดงเฉพาะหัวหน้ากลุ่มงาน</p></div>
+      <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · แสดงเฉพาะหัวหน้ากลุ่มงาน</p></div>
       <div className="overflow-x-auto rounded-xl border border-stone-200"><table className="w-full min-w-[900px] text-sm"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนวันปฏิบัติงาน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
         {sum.map((x: any) => {
           const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
@@ -2089,7 +2089,7 @@ function SettingsPage({ sb }: any) {
     <div className="card space-y-3 xl:col-span-2">
       <div><h2 className="text-lg font-bold">ปฏิทินวันทำการ</h2><p className="text-sm text-stone-600">ระบบนับวันจันทร์–ศุกร์เป็นวันทำการอัตโนมัติ และใช้รายการนี้กำหนดวันหยุดราชการ/วันหยุดพิเศษ หรือวันทำงานพิเศษของโรงพยาบาล จำนวนวันทำการในรายงานจะไม่เกินปฏิทิน แต่ไม่ตัดกิจกรรมหรือคะแนน</p></div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-        <label className="field-label">ปี พ.ศ.<input className="inp mt-1" inputMode="numeric" value={String(Number(calendarYear) + 543)} onChange={e => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 2500 && n <= 2700) setCalendarYear(String(n - 543)) }} /></label>
+        <label className="field-label">ปี พ.ศ.<select className="inp mt-1" value={calendarYear} onChange={e => setCalendarYear(e.target.value)}>{Array.from({ length: 11 }, (_, i) => new Date().getFullYear() - 5 + i).map(y => <option key={y} value={String(y)}>{y + 543}</option>)}</select></label>
         <label className="field-label">วันที่<input className="inp mt-1" type="date" value={calendarDate} onChange={e => setCalendarDate(e.target.value)} /></label>
         <label className="field-label">รายละเอียด<input className="inp mt-1" value={calendarDescription} onChange={e => setCalendarDescription(e.target.value)} placeholder="เช่น วันหยุดราชการ / วันทำงานชดเชย" /></label>
         <div className="space-y-2"><select className="inp" value={calendarIsWorkingDay ? 'work' : 'holiday'} onChange={e => setCalendarIsWorkingDay(e.target.value === 'work')}><option value="holiday">กำหนดเป็นวันหยุด</option><option value="work">กำหนดเป็นวันทำงานพิเศษ</option></select><button type="button" className="btn w-full" disabled={calendarBusy} onClick={saveCalendarOverride}>{calendarBusy ? 'กำลังบันทึก…' : 'บันทึกปฏิทิน'}</button></div>
