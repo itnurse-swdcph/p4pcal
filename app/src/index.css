@@ -1327,17 +1327,17 @@ body.unit-report-preview-open .unit-report-print * {
 
 /* ===== รายบุคคล A4 แนวนอน: คอลัมน์รายวันอ่านง่าย + คอลัมน์กิจกรรมกว้างพอ =====
    ความกว้างทุกคอลัมน์เป็น mm คงที่ ส่วนคอลัมน์กิจกรรมใช้ --ps-act-w ที่คำนวณจากจำนวนวันของเดือน
-   (พื้นที่ใช้งาน 283mm - คอลัมน์อื่น 72mm - วัน x 4.6mm) */
+   (พื้นที่ใช้งาน 283mm - คอลัมน์อื่น 83mm - วัน x 4.6mm) */
 .ps-individual-landscape .ps-individual-table { width:100% !important; table-layout:fixed !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-no   { width:6mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-no   { width:7mm !important; }
 .ps-individual-landscape .ps-individual-table col.ps-c-act  { width:var(--ps-act-w, 60mm) !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-uom  { width:9mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-min  { width:7mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-rate { width:8mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-work { width:6mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-adj  { width:8mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-uom  { width:11mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-min  { width:10mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-rate { width:11mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-work { width:9mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-adj  { width:11mm !important; }
 .ps-individual-landscape .ps-individual-table col.ps-c-day  { width:4.6mm !important; }
-.ps-individual-landscape .ps-individual-table col.ps-c-sum  { width:9mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-sum  { width:12mm !important; }
 .ps-individual-landscape .ps-individual-table col.ps-c-ref  { width:10mm !important; }
 .ps-individual-landscape .ps-individual-table th.ps-day-cell,
 .ps-individual-landscape .ps-individual-table td.ps-day-cell {
@@ -1362,4 +1362,17 @@ body.unit-report-preview-open .unit-report-print * {
   body.print-individual-report .ps-individual-landscape table.ps-individual-table.pt thead tr.ps-repeat-heading > th,
   body.print-individual-report .ps-individual-landscape table.ps-individual-table.pt thead tr.ps-repeat-meta > th,
   body.print-individual-report .ps-individual-landscape table.ps-individual-table.pt thead tr.ps-repeat-leave > th { border:0 !important; border-style:none !important; border-width:0 !important; }
+}
+
+/* ตัวเลขและหัวคอลัมน์ในใบรายบุคคลต้องอยู่บรรทัดเดียว (ยกเว้นชื่อกิจกรรม) */
+.ps-individual-landscape .ps-individual-table td:not(.ps-activity-name),
+.ps-individual-landscape .ps-individual-table thead tr:not(.ps-repeat-heading):not(.ps-repeat-meta):not(.ps-repeat-leave) th {
+  white-space:nowrap !important; overflow-wrap:normal !important; word-break:keep-all !important;
+}
+.ps-individual-landscape .ps-individual-table td.ps-day-cell { overflow:visible !important; }
+@media print {
+  body.print-individual-report .ps-individual-landscape .ps-individual-table td:not(.ps-activity-name),
+  body.print-individual-report .ps-individual-landscape .ps-individual-table thead tr:not(.ps-repeat-heading):not(.ps-repeat-meta):not(.ps-repeat-leave) th {
+    white-space:nowrap !important; overflow-wrap:normal !important; word-break:keep-all !important;
+  }
 }

@@ -945,7 +945,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       <button className="btn sec" onClick={onClose}>ปิด</button>
     </div>
     <div className="print-sheet ps-individual-landscape">
-      <table className="pt ps-individual-table" style={{ ['--ps-act-w' as any]: `${(283 - 72 - dayCount * 4.6).toFixed(1)}mm` }}>
+      <table className="pt ps-individual-table" style={{ ['--ps-act-w' as any]: `${(283 - 83 - dayCount * 4.6).toFixed(1)}mm` }}>
         <colgroup>
           <col className="ps-c-no" />
           <col className="ps-c-act" />
@@ -957,24 +957,23 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
           {Array.from({ length: dayCount }, (_, i) => <col key={i} className="ps-c-day" />)}
           <col className="ps-c-sum" />
           <col className="ps-c-sum" />
-          <col className="ps-c-ref" />
         </colgroup>
         <thead>
-          <tr className="ps-repeat-heading"><th colSpan={dayCount + 10}><h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1></th></tr>
-          <tr className="ps-repeat-meta"><th colSpan={dayCount + 10}><div className="ps-meta"><div>{groupName || '................................'} &nbsp;&nbsp; {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div><div className="ps-person-meta"><span>ชื่อ-สกุล {person.name || '................................'}</span> &nbsp;&nbsp; <span>ตำแหน่ง {person.position || '................................'}</span> &nbsp;&nbsp; <span>ระดับการบริหาร {String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : String(person.org_role || '').includes('หัวหน้างาน') ? 'หัวหน้างาน' : '—'}</span></div></div></th></tr>
-          <tr className="ps-repeat-leave"><th colSpan={dayCount + 10}><div className="ps-leave-row">ลากิจ = {Number(leaveData.personal_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาป่วย = {Number(leaveData.sick_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาพักผ่อน = {Number(leaveData.annual_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน</div></th></tr>
+          <tr className="ps-repeat-heading"><th colSpan={dayCount + 9}><h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1></th></tr>
+          <tr className="ps-repeat-meta"><th colSpan={dayCount + 9}><div className="ps-meta"><div>{groupName || '................................'} &nbsp;&nbsp; {unitName || '................................'} &nbsp;&nbsp; ประจำเดือน {monthText} พ.ศ. {buddhistYear}</div><div className="ps-person-meta"><span>ชื่อ-สกุล {person.name || '................................'}</span> &nbsp;&nbsp; <span>ตำแหน่ง {person.position || '................................'}</span> &nbsp;&nbsp; <span>ระดับการบริหาร {String(person.org_role || '').includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : String(person.org_role || '').includes('หัวหน้างาน') ? 'หัวหน้างาน' : '—'}</span></div></div></th></tr>
+          <tr className="ps-repeat-leave"><th colSpan={dayCount + 9}><div className="ps-leave-row">ลากิจ = {Number(leaveData.personal_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาป่วย = {Number(leaveData.sick_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน &nbsp;&nbsp; ลาพักผ่อน = {Number(leaveData.annual_leave_days || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })} วัน</div></th></tr>
           <tr>
-          <th rowSpan={2}>ลำดับ</th><th rowSpan={2}>กิจกรรม</th><th rowSpan={2}>หน่วยนับ</th><th rowSpan={2}>เวลา<br/>(นาที)</th><th rowSpan={2}>คะแนน/<br/>นาที</th><th rowSpan={2}>ค่างาน</th><th rowSpan={2}>คะแนน<br/>ปรับ</th><th colSpan={dayCount}>วันที่</th><th rowSpan={2}>รวม<br/>หน่วย</th><th rowSpan={2}>รวม<br/>แต้ม</th><th rowSpan={2}>แหล่ง<br/>อ้างอิง</th>
+          <th rowSpan={2}>ลำดับ</th><th rowSpan={2}>กิจกรรม</th><th rowSpan={2}>หน่วยนับ</th><th rowSpan={2}>เวลา<br/>(นาที)</th><th rowSpan={2}>คะแนน/<br/>นาที</th><th rowSpan={2}>ค่างาน</th><th rowSpan={2}>คะแนน<br/>ปรับ</th><th colSpan={dayCount}>วันที่</th><th rowSpan={2}>รวม<br/>หน่วย</th><th rowSpan={2}>รวม<br/>แต้ม</th>
           </tr><tr>{Array.from({length:dayCount},(_,i)=><th key={i} className="ps-day-cell">{i+1}</th>)}</tr>
         </thead>
         <tbody>
           {groups.map((g: any,i: number)=><tr key={g.code}>
             <td className="c">{i+1}</td><td className="ps-activity-name">{g.title}</td><td className="c">{g.uom || '—'}</td><td className="r">{nf(g.minutes,0)}</td><td className="r">{nf(g.rate,3)}</td><td className="r">1</td><td className="r">{nf(g.minutes*g.rate)}</td>
             {Array.from({length:dayCount},(_,d)=><td key={d} className={'r ps-day-cell' + (g.days[d+1] && n2(g.days[d+1]).length >= 4 ? ' ps-day-long' : '')}>{g.days[d+1] ? n2(g.days[d+1]) : ''}</td>)}
-            <td className="r">{n2(g.qty)}</td><td className="r">{nf(g.points)}</td><td></td>
+            <td className="r">{n2(g.qty)}</td><td className="r">{nf(g.points)}</td>
           </tr>)}
-          {!groups.length && <tr><td colSpan={dayCount+10} className="c">ไม่มีรายการกิจกรรมที่ผ่านการรับรองในเดือนนี้</td></tr>}
-          {groups.length>0 && <tr className="b"><td colSpan={dayCount+7} className="r">รวมทั้งหมด</td><td className="r">{n2(groups.reduce((v,g)=>v+g.qty,0))}</td><td className="r">{nf(groups.reduce((v,g)=>v+g.points,0))}</td><td></td></tr>}
+          {!groups.length && <tr><td colSpan={dayCount+9} className="c">ไม่มีรายการกิจกรรมที่ผ่านการรับรองในเดือนนี้</td></tr>}
+          {groups.length>0 && <tr className="b"><td colSpan={dayCount+7} className="r">รวมทั้งหมด</td><td className="r">{n2(groups.reduce((v,g)=>v+g.qty,0))}</td><td className="r">{nf(groups.reduce((v,g)=>v+g.points,0))}</td></tr>}
         </tbody>
       </table>
       <div className="ps-certification">ขอรับรองว่าผู้มีรายนามข้างต้นได้ปฏิบัติงานจริง</div>
