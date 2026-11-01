@@ -514,6 +514,16 @@ function MonthFilter({ month, setMonth, description = 'เลือกเดื�
 }
 
 function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId, currentUserStaffDirectoryId, groupOptions = [], onActivitySaved }: any) {
+  const [recordingPolicy, setRecordingPolicy] = useState<any>({ emergency_enabled: false })
+  useEffect(() => { sb.from('p4p_recording_policy').select('emergency_enabled').eq('id', true).maybeSingle().then(({ data }: any) => { if (data) setRecordingPolicy(data) }) }, [sb])
+  const selectedMonthDate = new Date(`${month}-01T00:00:00`)
+  const selectedMonthLabel = Number.isNaN(selectedMonthDate.getTime()) ? month : selectedMonthDate.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
+  const deadlineDate = new Date(selectedMonthDate.getFullYear(), selectedMonthDate.getMonth() + 1, 5)
+  const deadlineLabel = Number.isNaN(deadlineDate.getTime()) ? '' : deadlineDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
+  const currentDate = new Date()
+  const prevDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)
+  const previousMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
+  const selectedMonthClosed = month < previousMonthKey || (month === previousMonthKey && currentDate.getDate() >= 6)
   const picker = !!canApprove
   const me = useContext(MeCtx)
   const personRecords = [...(allPeople || []), ...(peopleProp || [])].filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i)
@@ -706,6 +716,13 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   }
   return <div className="space-y-4">
     <MonthFilter month={month} setMonth={setMonth} description="เลือกเดือนสำหรับบันทึก ตรวจสอบ และสรุปกิจกรรม P4P" />
+    <div className={`rounded-lg border p-3 text-sm ${recordingPolicy.emergency_enabled ? 'border-amber-300 bg-amber-50 text-amber-900' : selectedMonthClosed ? 'border-red-300 bg-red-50 text-red-800' : 'border-teal-200 bg-teal-50 text-teal-900'}`} role="status">
+      {recordingPolicy.emergency_enabled
+        ? <b>เปิดโหมดฉุกเฉิน: ระบบอนุญาตให้บันทึกย้อนหลังได้แม้พ้นกำหนดปกติ</b>
+        : selectedMonthClosed
+          ? <b>ปิดรับบันทึกย้อนหลังของเดือน {selectedMonthLabel} แล้ว (กำหนดปกติไม่เกินวันที่ 5 ของเดือนถัดไป)</b>
+          : <><b>แจ้งเตือนกำหนดบันทึกย้อนหลัง:</b> กิจกรรมของเดือน {selectedMonthLabel} บันทึกย้อนหลังได้ไม่เกินวันที่ 5 เดือนถัดไป ({deadlineLabel}) ตั้งแต่วันที่ 6 เป็นต้นไปจะไม่สามารถบันทึกย้อนหลังได้</>}
+    </div>
     <div className="space-y-3">
       {person && <div className="flex flex-wrap justify-end gap-2"><button type="button" className="btn sec" onClick={() => setPrinting(true)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปประจำเดือน (A4)</button><button type="button" className="btn" onClick={() => document.getElementById('saved-activity-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>ตรวจสอบรายการบันทึก</button></div>}
       {printing && printPerson && <PrintSheet sb={sb} person={printPerson} rows={printRows} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
@@ -1960,7 +1977,26 @@ const GLOBAL_SETTINGS: [string, string, string][] = [
 // ตั้งค่าระบบ (แอดมิน): ส่วนที่ 1 ใช้ทั้งระบบ  ส่วนที่ 2 ใช้ตามหน่วยงานและเดือน (เหมือนแผ่น "ตั้งค่า" ใน Excel)
 function SettingsPage({ sb }: any) {
   const [g, setG] = useState<any>({}); const [gMsg, setGMsg] = useState('')
-  useEffect(() => { sb.from('app_settings').select('key,value').then((r: any) => setG(Object.fromEntries((r.data || []).map((x: any) => [x.key, String(x.value)])))) }, [])
+  const [emergencyEnabled, setEmergencyEnabled] = useState(false)
+  const [emergencyMsg, setEmergencyMsg] = useState('')
+  const [emergencyBusy, setEmergencyBusy] = useState(false)
+  useEffect(() => {
+    sb.from('app_settings').select('key,value').then((r: any) => setG(Object.fromEntries((r.data || []).map((x: any) => [x.key, String(x.value)]))))
+    sb.from('p4p_recording_policy').select('emergency_enabled').eq('id', true).maybeSingle().then(({ data, error }: any) => {
+      if (error) setEmergencyMsg('โหลดสถานะโหมดฉุกเฉินไม่สำเร็จ: ' + error.message)
+      else setEmergencyEnabled(Boolean(data?.emergency_enabled))
+    })
+  }, [sb])
+  const toggleEmergency = async () => {
+    const next = !emergencyEnabled
+    if (!confirm(next ? 'ยืนยันเปิดโหมดฉุกเฉิน? ผู้ใช้จะสามารถบันทึกกิจกรรมย้อนหลังได้แม้พ้นวันที่ 5 ของเดือนถัดไป' : 'ยืนยันปิดโหมดฉุกเฉิน? ระบบจะกลับไปใช้กำหนดปิดรับย้อนหลังวันที่ 5 ของเดือนถัดไปทันที')) return
+    setEmergencyBusy(true); setEmergencyMsg('')
+    const { error } = await sb.from('p4p_recording_policy').update({ emergency_enabled: next, updated_at: new Date().toISOString() }).eq('id', true)
+    setEmergencyBusy(false)
+    if (error) { setEmergencyMsg('เปลี่ยนสถานะไม่สำเร็จ: ' + error.message); return }
+    setEmergencyEnabled(next)
+    setEmergencyMsg(next ? 'เปิดโหมดฉุกเฉินแล้ว' : 'ปิดโหมดฉุกเฉินแล้ว ระบบกลับสู่กำหนดปกติ')
+  }
   const saveG = async () => {
     setGMsg('')
     for (const [k, l] of GLOBAL_SETTINGS) {
@@ -1976,6 +2012,18 @@ function SettingsPage({ sb }: any) {
   const gField = ([k, l, h]: [string, string, string]) => <label key={k} className="field-label block">{l}
     <input className="inp mt-1" inputMode="decimal" value={g[k] ?? ''} onChange={e => setG({ ...g, [k]: e.target.value })} />{h && <span className="field-hint block">{h}</span>}</label>
   return <div className="grid xl:grid-cols-2 gap-4 items-start">
+    <div className="card space-y-3 xl:col-span-2">
+      <div><h2 className="text-lg font-bold">กำหนดเวลาบันทึกกิจกรรมย้อนหลัง</h2><p className="text-sm text-stone-600">ระบบเปิดให้บันทึกย้อนหลังของเดือนก่อนหน้าได้ถึงวันที่ 5 ของเดือนปัจจุบันโดยอัตโนมัติ และปิดตั้งแต่วันที่ 6 เป็นต้นไป</p></div>
+      <div className={`rounded-lg border p-3 text-sm ${emergencyEnabled ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-teal-200 bg-teal-50 text-teal-900'}`}>
+        <div className="font-semibold">{emergencyEnabled ? 'โหมดฉุกเฉิน: เปิดใช้งาน' : 'โหมดฉุกเฉิน: ปิดใช้งาน'}</div>
+        <p className="mt-1">{emergencyEnabled ? 'อนุญาตให้ผู้ใช้ทุกคนบันทึกย้อนหลังได้แม้พ้นกำหนดปกติ จนกว่าแอดมินจะปิดโหมดนี้' : 'ระบบบังคับใช้วันปิดรับย้อนหลังอัตโนมัติ ไม่มีการขยายเวลาโดยอัตโนมัติ'}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" className={emergencyEnabled ? 'btn sec' : 'btn'} disabled={emergencyBusy} onClick={toggleEmergency}>{emergencyBusy ? 'กำลังบันทึก...' : emergencyEnabled ? 'ปิดโหมดฉุกเฉิน' : 'เปิดโหมดฉุกเฉิน'}</button>
+        {emergencyMsg && <span role="status" className="text-sm">{emergencyMsg}</span>}
+      </div>
+      <p className="text-xs text-stone-500">การเปิดโหมดฉุกเฉินมีผลทันทีต่อการบันทึกใหม่และการแก้ไขวันที่กิจกรรม ส่วนการอนุมัติรายการเดิมยังทำได้ตามขั้นตอนปกติ</p>
+    </div>
     <div className="card space-y-3">
       <div><h2 className="text-lg font-bold">ตั้งค่าทั้งระบบ</h2><p className="text-sm text-stone-600">ใช้กับทุกหน่วยงานและทุกเดือน</p></div>
       <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">แต้มคำนวณสดจากค่าเหล่านี้ การแก้ตัวคูณมีผลกับแต้มของเดือนที่ผ่านมาและรายการที่รับรองแล้วด้วย ควรแก้เมื่อไม่มีการจ่ายเงินค้างอยู่</p>
