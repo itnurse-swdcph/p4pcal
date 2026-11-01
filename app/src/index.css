@@ -1323,3 +1323,35 @@ body.unit-report-preview-open .unit-report-print * {
   body.print-unit-report .unit-report-table td.unit-report-name,
   body.print-unit-report .unit-report-table td.unit-report-position { white-space: nowrap !important; overflow-wrap: normal !important; word-break: keep-all !important; }
 }
+
+
+/* ===== รายบุคคล A4 แนวนอน: ให้คอลัมน์รายวันกว้างพอจนอ่านตัวเลขได้ =====
+   ใช้ความกว้างคงที่ (mm) ต่อวัน แทนการหารเปอร์เซ็นต์ที่ทำให้คอลัมน์ถูกบีบ
+   คอลัมน์ "กิจกรรม" เป็น auto เพื่อรับพื้นที่ที่เหลือ (รองรับเดือน 28-31 วัน) */
+.ps-individual-landscape .ps-individual-table { width:100% !important; table-layout:fixed !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-no   { width:6mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-act  { width:auto !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-uom  { width:10mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-min  { width:8mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-rate { width:9mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-work { width:7mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-adj  { width:9mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-day  { width:5.2mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-sum  { width:10mm !important; }
+.ps-individual-landscape .ps-individual-table col.ps-c-ref  { width:11mm !important; }
+.ps-individual-landscape .ps-individual-table th.ps-day-cell,
+.ps-individual-landscape .ps-individual-table td.ps-day-cell {
+  padding:1px 0 !important;
+  font-size:7.5pt !important;
+  font-weight:600 !important;
+  letter-spacing:0 !important;
+  overflow:visible !important;
+  text-align:center !important;
+  white-space:nowrap !important;
+}
+.ps-individual-landscape .ps-individual-table td.ps-day-long { font-size:6pt !important; letter-spacing:-0.2px !important; }
+@media print {
+  body.print-individual-report .ps-individual-landscape .ps-individual-table th.ps-day-cell,
+  body.print-individual-report .ps-individual-landscape .ps-individual-table td.ps-day-cell { font-size:7.5pt !important; padding:1px 0 !important; }
+  body.print-individual-report .ps-individual-landscape .ps-individual-table td.ps-day-long { font-size:6pt !important; }
+}

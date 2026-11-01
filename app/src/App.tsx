@@ -889,17 +889,17 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
     <div className="print-sheet ps-individual-landscape">
       <table className="pt ps-individual-table">
         <colgroup>
-          <col style={{ width: '5mm' }} />
-          <col style={{ width: '38mm' }} />
-          <col style={{ width: '8mm' }} />
-          <col style={{ width: '7mm' }} />
-          <col style={{ width: '7mm' }} />
-          <col style={{ width: '6mm' }} />
-          <col style={{ width: '7mm' }} />
-          {Array.from({ length: dayCount }, (_, i) => <col key={i} style={{ width: `calc((100% - 105mm) / ${dayCount})` }} />)}
-          <col style={{ width: '9mm' }} />
-          <col style={{ width: '9mm' }} />
-          <col style={{ width: '9mm' }} />
+          <col className="ps-c-no" />
+          <col className="ps-c-act" />
+          <col className="ps-c-uom" />
+          <col className="ps-c-min" />
+          <col className="ps-c-rate" />
+          <col className="ps-c-work" />
+          <col className="ps-c-adj" />
+          {Array.from({ length: dayCount }, (_, i) => <col key={i} className="ps-c-day" />)}
+          <col className="ps-c-sum" />
+          <col className="ps-c-sum" />
+          <col className="ps-c-ref" />
         </colgroup>
         <thead>
           <tr className="ps-repeat-heading"><th colSpan={dayCount + 10}><h1 className="ps-title">แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1></th></tr>
@@ -912,7 +912,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
         <tbody>
           {groups.map((g: any,i: number)=><tr key={g.code}>
             <td className="c">{i+1}</td><td className="ps-activity-name">{g.title}</td><td className="c">{g.uom || '—'}</td><td className="r">{nf(g.minutes,0)}</td><td className="r">{nf(g.rate,3)}</td><td className="r">1</td><td className="r">{nf(g.minutes*g.rate)}</td>
-            {Array.from({length:dayCount},(_,d)=><td key={d} className="r ps-day-cell">{g.days[d+1] ? n2(g.days[d+1]) : ''}</td>)}
+            {Array.from({length:dayCount},(_,d)=><td key={d} className={'r ps-day-cell' + (g.days[d+1] && n2(g.days[d+1]).length >= 4 ? ' ps-day-long' : '')}>{g.days[d+1] ? n2(g.days[d+1]) : ''}</td>)}
             <td className="r">{n2(g.qty)}</td><td className="r">{nf(g.points)}</td><td></td>
           </tr>)}
           {!groups.length && <tr><td colSpan={dayCount+10} className="c">ไม่มีรายการกิจกรรมที่ผ่านการรับรองในเดือนนี้</td></tr>}
