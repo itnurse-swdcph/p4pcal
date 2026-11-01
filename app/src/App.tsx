@@ -356,14 +356,21 @@ function Main({ sb, session }: any) {
     const onFocus = () => void checkForUpdate()
     const onVisible = () => { if (document.visibilityState === 'visible') void checkForUpdate() }
     const onOnline = () => void checkForUpdate()
+    // ครอบคลุมแท็บย่อยภายในหน้าต่าง ๆ เช่น แท็บสายงานในคลังกิจกรรม
+    const onTabClick = (event: MouseEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest('[role="tab"], [role="tablist"] button, button[aria-selected]')) void checkForUpdate()
+    }
     window.addEventListener('focus', onFocus)
     window.addEventListener('online', onOnline)
     document.addEventListener('visibilitychange', onVisible)
+    document.addEventListener('click', onTabClick, true)
     return () => {
       window.clearInterval(timer)
       window.removeEventListener('focus', onFocus)
       window.removeEventListener('online', onOnline)
       document.removeEventListener('visibilitychange', onVisible)
+      document.removeEventListener('click', onTabClick, true)
     }
   }, [checkForUpdate])
   // ตรวจสอบซ้ำทุกครั้งที่เปลี่ยนหน้า/แท็บในระบบ
