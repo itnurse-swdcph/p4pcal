@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ClipboardCheck, LockKeyhole, RefreshCw, ShieldCheck, Users } from 'lucide-react'
+import { AlertTriangle, CalendarDays, CheckCircle2, ClipboardCheck, LockKeyhole, RefreshCw, ShieldCheck, Users } from 'lucide-react'
 
 const money = (value: any) => Number(value || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const number = (value: any) => Number(value || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })
@@ -9,7 +9,7 @@ const dateLabel = (month: string) => {
   return year && m ? `${names[m - 1]} พ.ศ. ${year + 543}` : month
 }
 
-export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: any) {
+export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, currentUserId }: any) {
   const [calc, setCalc] = useState<any>(null)
   const [review, setReview] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
@@ -160,6 +160,10 @@ export default function P4PCommitteePage({ sb, month, isAdmin, currentUserId }: 
   }
 
   return <div className="space-y-4">
+    <section className="card flex flex-wrap items-center justify-between gap-3 border border-teal-100 bg-teal-50/50" aria-label="ตัวกรองเดือน">
+      <div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-teal-800"><CalendarDays size={19}/></span><div><h2 className="text-sm font-bold text-stone-800">ช่วงเวลาการแสดงผล</h2><p className="text-xs text-stone-600">เลือกเดือนสำหรับตรวจสอบข้อมูลและผลการคำนวณ P4P</p></div></div>
+      <label className="flex min-w-[190px] items-center gap-2 text-sm font-semibold text-stone-700"><span className="whitespace-nowrap">เดือน</span><input type="month" aria-label="เลือกเดือนที่ต้องการแสดงข้อมูล" className="inp w-full bg-white" value={month} onChange={e => e.target.value && setMonth(e.target.value)} /></label>
+    </section>
     <div className="card space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
