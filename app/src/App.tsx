@@ -61,6 +61,13 @@ const thaiBahtText = (value: number) => {
   return read(baht) + 'บาท' + (satang ? read(satang) + 'สตางค์' : 'ถ้วน');
 };
 const mRange = (m: string) => { const d = new Date(m + '-01'); const e = new Date(d.getFullYear(), d.getMonth() + 1, 0); return [m + '-01', `${m}-${String(e.getDate()).padStart(2, '0')}`] }
+// นับวันทำการตามเวร: วันเดียวกันคนละเวรนับแยกกัน แต่หลายกิจกรรมในเวรเดียวกันนับครั้งเดียว
+const countWorkShifts = (rows: any[]) => new Set((rows || []).map((r: any) => {
+  const date = String(r.work_date || '').slice(0, 10)
+  if (!date) return ''
+  const shift = String(r.shift || 'ไม่ระบุเวร').trim()
+  return `${date}|${shift}`
+}).filter(Boolean)).size
 
 export default function App() {
   const [cfg, setCfg] = useState(() => JSON.parse(localStorage.getItem('p4p_cfg') || 'null') || DEFAULT_CFG)
@@ -1556,7 +1563,7 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
           const key = String(staffId || '')
           const saved = groupLeaveData[key] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
           const draft = groupLeaveDrafts[key] || { personal_leave_days: String(saved.personal_leave_days), sick_leave_days: String(saved.sick_leave_days), annual_leave_days: String(saved.annual_leave_days) }
-          const workDays = new Set((x.rs || []).filter((r: any) => r.status !== 'draft').map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
+          const workDays = countWorkShifts((x.rs || []).filter((r: any) => r.status !== 'draft'))
           const setLeave = (field: string, value: string) => setGroupLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
           return <tr key={x.p.id || key}>
             <td className="p-2 text-center">{x.order}</td><td className="p-2 font-semibold">{x.p.displayName}</td><td className="p-2">{x.p.position || '—'}</td><td className="p-2 text-center font-semibold">{workDays}</td>
@@ -1746,7 +1753,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
     const roleGuarantee = scoring.roleGuarantee
     const performancePoints = scoring.performance
     const excess = scoring.excess
-    const days = new Set(approved.map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
+    const days = countWorkShifts(approved)
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
     const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
@@ -1837,13 +1844,13 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
         {reportOnly && <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)}>{leaveReportOpen ? 'กลับสรุปรายงานหน่วยงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>}
       </div>
       {leaveReportOpen && reportOnly && <div className="space-y-3">
-        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันปฏิบัติงานนับจากวันที่มีการส่งบันทึกกิจกรรม (ไม่นับแบบร่าง)</p></div>
+        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันปฏิบัติงานนับตามเวรที่มีการส่งบันทึกกิจกรรม (วันเดียวกันต่างเวรนับแยกกัน ไม่นับแบบร่าง)</p></div>
         <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1050px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนวันปฏิบัติงาน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
           {sum.map((x: any) => {
             const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
             const key = String(staffId || '')
             const draft = leaveDrafts[key] || { personal_leave_days: '0', sick_leave_days: '0', annual_leave_days: '0' }
-            const workDays = new Set(rows.filter((r: any) => String(r.person_id) === String(x.p.id)).map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
+            const workDays = countWorkShifts(rows.filter((r: any) => String(r.person_id) === String(x.p.id)))
             const setLeave = (field: string, value: string) => setLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
             return <tr key={x.p.id}>
               <td className="text-center">{x.order}</td><td className="font-semibold">{x.p.name}</td><td>{x.p.position || '—'}</td><td className="text-center font-semibold">{workDays}</td>
