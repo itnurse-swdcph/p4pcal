@@ -335,6 +335,20 @@ function Main({ sb, session }: any) {
   }, [profile?.role, profile?.nursing_group])
 
   useEffect(() => { sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || [])) }, [actsVersion])
+
+  // ตัวกรองวันที่ในทุกเมนู: เปลี่ยนเดือนบน Head bar ตามวันที่ที่ผู้ใช้เลือก
+  // ใช้ event แบบ capture เพื่อครอบคลุม date picker ที่อยู่ใน child components ทุกหน้า
+  useEffect(() => {
+    const syncHeadbarMonth = (event: Event) => {
+      const target = event.target
+      if (!(target instanceof HTMLInputElement) || target.type !== 'date' || !target.value) return
+      const nextMonth = target.value.slice(0, 7)
+      if (/^\\d{4}-\\d{2}$/.test(nextMonth)) setMonth(nextMonth)
+    }
+    document.addEventListener('change', syncHeadbarMonth, true)
+    return () => document.removeEventListener('change', syncHeadbarMonth, true)
+  }, [])
+
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'; const isHeadRole = role === 'head' || role === 'group_head'
