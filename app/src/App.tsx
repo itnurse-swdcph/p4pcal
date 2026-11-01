@@ -502,6 +502,16 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const ids = useMemo(() => pickerPeople.filter((p: any) => !String(p.id).startsWith('dir:')).map((p: any) => p.id), [pickerPeople])
   const [rows, reload] = useLogs(sb, month, ids.length ? ids : (picker ? [] : null), picker && entryMode === 'self' ? null : uSel)
   const [pid, setPid] = useState<any>(picker ? '' : people[0]?.id); const [date, setDate] = useState(today()); const [code, setCode] = useState('')
+  // วันที่ปฏิบัติงานและเดือนที่แสดงต้องเป็นเดือนเดียวกันเสมอ
+  // เปลี่ยนเดือนจาก Headbar: คงเลขวันเดิมเท่าที่เดือนปลายทางรองรับ
+  useEffect(() => {
+    if (!month || !/^\d{4}-\d{2}$/.test(month) || date.slice(0, 7) === month) return
+    const [year, mon] = month.split('-').map(Number)
+    const wantedDay = Number(date.slice(8, 10)) || 1
+    const lastDay = new Date(year, mon, 0).getDate()
+    setDate(`${month}-${String(Math.min(wantedDay, lastDay)).padStart(2, '0')}`)
+  }, [month])
+
   const [q, setQ] = useState(''); const [activityDropdownOpen, setActivityDropdownOpen] = useState(false); const [role, setRole] = useState(ROLES[2]); const [qty, setQty] = useState('1'); const [ev, setEv] = useState(''); const [subActivity, setSubActivity] = useState(''); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [err, setErr] = useState(''); const [modalOpen, setModalOpen] = useState(false); const [duplicateRows, setDuplicateRows] = useState<any[]>([]); const [duplicateOpen, setDuplicateOpen] = useState(false); const [editTargetRow, setEditTargetRow] = useState<any>(null); const [supplementalTarget, setSupplementalTarget] = useState<any>(null); const [supplementalReason, setSupplementalReason] = useState('')
   const [notice, setNotice] = useState('')
   const [savingActivity, setSavingActivity] = useState(false)
@@ -679,10 +689,10 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       </>}
       {!picker && people.length > 1 && <select className="inp" value={pid} onChange={e => setPid(e.target.value)}>{people.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}</select>}
       <div className="grid grid-cols-2 gap-3">
-        <label className="field-label">วันที่ปฏิบัติงาน <span className="required-mark">*</span><input type="date" lang="th-TH" className="inp mt-1" value={date} onChange={e => setDate(e.target.value)} onKeyDown={e => e.preventDefault()} onPaste={e => e.preventDefault()} onDrop={e => e.preventDefault()} onClick={e => { try { (e.currentTarget as HTMLInputElement).showPicker() } catch {} }} aria-label="เลือกวันที่จากปฏิทินเท่านั้น" /></label>
+        <label className="field-label">วันที่ปฏิบัติงาน <span className="required-mark">*</span><input type="date" lang="th-TH" className="inp mt-1" value={date} onChange={e => { const nextDate = e.target.value; if (!nextDate) return; setDate(nextDate); setMonth(nextDate.slice(0, 7)) }} onKeyDown={e => e.preventDefault()} onPaste={e => e.preventDefault()} onDrop={e => e.preventDefault()} onClick={e => { try { (e.currentTarget as HTMLInputElement).showPicker() } catch {} }} aria-label="เลือกวันที่จากปฏิทินเท่านั้น" /></label>
         <label className="field-label">เวรที่ปฏิบัติ<select className="inp mt-1" value={shift} onChange={e => setShift(e.target.value)}>{SHIFTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       </div>
-      {pid && <p role="status" className={'text-xs ' + (room <= 0 ? 'text-amber-800 font-bold' : 'text-stone-600')}>{shiftName}วันนี้ใช้ {nf(usedShift)}/{nf(capS, 0)} คะแนน · รวมทั้งวัน {nf(dayUsed)}/{nf(capD, 0)}{room <= 0 && ' · เต็มเพดาน บันทึกเพิ่มได้แต่ไม่นับคะแนน'}</p>}
+      {pid && <p role="status" className={'text-xs ' + (room <= 0 ? 'text-amber-800 font-bold' : 'text-stone-600')}>วันที่ {formatThaiShortDate(date)} · {shiftName}ใช้ {nf(usedShift)}/{nf(capS, 0)} คะแนน · รวมทั้งวัน {nf(dayUsed)}/{nf(capD, 0)}{room <= 0 && ' · เต็มเพดาน บันทึกเพิ่มได้แต่ไม่นับคะแนน'}</p>}
       <div className="activity-step-grid"><div className="space-y-1 relative"><label className="field-label" htmlFor="activity-search">เลือกกิจกรรม</label><input id="activity-search" className="inp" autoComplete="off" placeholder="คลิกเพื่อเลือกรายการ หรือพิมพ์เพื่อค้นหา" value={q} onFocus={() => setActivityDropdownOpen(true)} onClick={() => setActivityDropdownOpen(true)} onBlur={() => setActivityDropdownOpen(false)} onChange={e => { setQ(e.target.value); setActivityDropdownOpen(true) }} onKeyDown={e => { if (e.key === 'Escape') setActivityDropdownOpen(false); if (e.key === 'ArrowDown') setActivityDropdownOpen(true) }} aria-expanded={activityDropdownOpen} aria-controls="activity-options-list" role="combobox" aria-autocomplete="list" />
         {activityDropdownOpen && <div id="activity-options-list" className="act-list absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl" role="listbox" aria-label="เลือกกิจกรรม">
           {list.map((a: any) => <button type="button" key={a.code} role="option" aria-selected={code === a.code} title={[a.main_activity, a.title].filter(Boolean).join(' › ')} onMouseDown={e => e.preventDefault()} onClick={() => { setQ([a.code, a.title].filter(Boolean).join(' — ')); setActivityDropdownOpen(false); void chooseActivity(a) }} className={'act-item' + (code === a.code ? ' on' : '')}><span className="act-code">{a.code}</span><span className="act-body">{a.main_activity && <span className="act-main">{a.main_activity}</span>}<span className="act-title">{a.title}</span></span><span className="act-uom">{a.minutes} นาที/{a.uom}</span></button> )}
