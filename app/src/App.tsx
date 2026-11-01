@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import PersonnelPage from './PersonnelPage'
+import PaymentMemo from './PaymentMemo'
 import P4PCommitteePage from './P4PCommitteePage'
 import { createPortal } from 'react-dom'
 import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardList, LibraryBig, ClipboardCheck, Users, Settings, LogOut, ChevronLeft, CalendarDays, Building2, Shield } from 'lucide-react'
@@ -488,7 +489,7 @@ function Main({ sb, session }: any) {
         <p className="text-xs text-stone-600">{role === 'admin' ? 'ผู้ดูแลระบบสามารถเลือกหน่วยงานได้ทั้งหมด' : 'แสดงเฉพาะหน่วยงานที่บัญชีของคุณได้รับมอบหมายให้รับผิดชอบ'}</p>
       </div>
       {reviewGroup && <MonthFilter month={month} setMonth={setMonth} description="เลือกเดือนสำหรับตรวจสอบ รับรอง และสรุปรายงานของกลุ่มงาน/หน่วยงาน" />}
-      {reviewGroup ? (unit != null ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'certify' ? <GroupHeadsCertification sb={sb} groupName={reviewGroup} people={people} month={month} acts={acts} /> : <GroupHeadsReport sb={sb} groupName={reviewGroup} people={scope} allPeople={people} month={month} positions={positions} units={units} acts={acts} />) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
+      {reviewGroup ? (unit != null ? <ReviewPage profile={profile} units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'certify' ? <GroupHeadsCertification sb={sb} groupName={reviewGroup} people={people} month={month} acts={acts} /> : <GroupHeadsReport profile={profile} sb={sb} groupName={reviewGroup} people={scope} allPeople={people} month={month} positions={positions} units={units} acts={acts} />) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
     </div>}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
@@ -1459,7 +1460,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   </div>
 }
 
-function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, positions = [], units = [], acts = [] }: any) {
+function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [], month, positions = [], units = [], acts = [] }: any) {
   const [heads, setHeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detailFor, setDetailFor] = useState<any>(null)
@@ -1582,6 +1583,7 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
     <div className="flex flex-wrap gap-2">
       <button type="button" className="btn" onClick={openPrintReport} disabled={loading || !sum.length}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์รายงานกลุ่มงาน</button>
       <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)} disabled={loading || !sum.length}>{leaveReportOpen ? 'กลับสรุปรายงานกลุ่มงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>
+      <PaymentMemo sb={sb} profile={profile} groupName={groupName} month={month} amount={sum.reduce((total: number, person: any) => total + Number(person.payout || 0), 0)} />
     </div>
     {leaveReportOpen && <div className="space-y-3">
       <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · แสดงเฉพาะหัวหน้ากลุ่มงาน</p></div>
@@ -1622,7 +1624,7 @@ function GroupHeadsReport({ sb, groupName, people = [], allPeople = [], month, p
   </div>
 }
 
-function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, canPrint, reportOnly = false, certificationOnly = false }: any) {
+function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, units, canPrint, reportOnly = false, certificationOnly = false }: any) {
   const [detailFor, setDetailFor] = useState<any>(null)
   const [printingPerson, setPrintingPerson] = useState<any>(null)
   const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
@@ -1882,6 +1884,7 @@ function ReviewPage({ sb, people, unit, month, acts, positions, audit, units, ca
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn" onClick={printUnitReport} disabled={!unit || !sum.length}>พิมพ์รายงานหน่วยงาน</button>
         <button type="button" className="btn sec" onClick={csv}>ส่งออก CSV</button>
+        {reportOnly && <PaymentMemo sb={sb} profile={profile} groupName={groupName} unitName={unitName} month={month} amount={sum.reduce((total: number, person: any) => total + Number(person.payout || 0), 0)} />}
         {reportOnly && <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)}>{leaveReportOpen ? 'กลับสรุปรายงานหน่วยงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>}
       </div>
       {leaveReportOpen && reportOnly && <div className="space-y-3">

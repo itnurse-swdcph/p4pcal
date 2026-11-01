@@ -1410,3 +1410,74 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
   body.print-unit-report .unit-report-watermark { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 9999; }
   body.print-unit-report .unit-report-watermark-text { position: static; }
 }
+
+/* Payment approval memo editor and its live A4 document preview. */
+.memo-overlay { position: fixed; inset: 0; z-index: 140; background: rgba(18, 28, 42, .62); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.memo-dialog { width: min(1600px, 100%); height: min(94vh, 1100px); background: #f3f6f8; border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 70px rgba(0,0,0,.3); }
+.memo-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .9rem 1.2rem; background: white; border-bottom: 1px solid #dce3e8; }
+.memo-head h2 { margin: 0; font-size: 1.1rem; font-weight: 750; }
+.memo-head p { margin: .15rem 0 0; color: #687782; font-size: .8rem; }
+.memo-workspace { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(330px, 390px) minmax(0, 1fr); }
+.memo-editor { overflow: auto; padding: .85rem; background: #fff; border-right: 1px solid #dce3e8; }
+.memo-action-row { position: sticky; top: -.85rem; z-index: 2; margin: -.85rem -.85rem .8rem; padding: .65rem .8rem; display: flex; flex-wrap: wrap; gap: .4rem; background: #fff; border-bottom: 1px solid #e5eaee; }
+.memo-action-row .btn { display: inline-flex; align-items: center; gap: .35rem; font-size: .76rem; padding: .42rem .55rem; }
+.memo-section { padding: .65rem 0 .85rem; border-bottom: 1px solid #e5eaee; }
+.memo-section h3 { margin: 0 0 .6rem; font-size: .88rem; font-weight: 750; color: #213b4d; }
+.memo-field { display: flex; flex-direction: column; gap: .24rem; min-width: 0; }
+.memo-field > span { font-size: .71rem; font-weight: 650; color: #536572; }
+.memo-field input { width: 100%; min-width: 0; border: 1px solid #ccd7df; border-radius: 7px; padding: .45rem .55rem; font-size: .82rem; color: #172c3b; background: #fff; }
+.memo-signer-fields { display: grid; gap: .4rem; padding: .45rem 0; border-top: 1px dashed #e1e7eb; }
+.memo-signer-fields > b { color: #425766; font-size: .77rem; }
+.memo-link { margin-top: .5rem; color: #087d71; font-size: .75rem; text-decoration: underline; }
+.memo-error { padding: .5rem; border-radius: 6px; color: #a22b35; background: #fff0f0; font-size: .8rem; overflow-wrap: anywhere; }
+.memo-history { display: grid; gap: .35rem; }
+.memo-history-item { display: grid; gap: .1rem; width: 100%; text-align: left; border: 1px solid #e1e7eb; border-radius: 7px; padding: .5rem; font-size: .75rem; color: #344955; }
+.memo-history-item.selected { border-color: #078777; background: #effaf7; }
+.memo-history-item span { color: #687782; font-size: .69rem; }
+.memo-preview-wrap { min-width: 0; overflow: auto; padding: 1rem; background: #e5e9ec; }
+.memo-paper { box-sizing: border-box; width: 210mm; min-height: 297mm; margin: 0 auto; padding: 12mm 15mm; background: #fff; color: #111; box-shadow: 0 3px 18px rgba(0,0,0,.16); font-family: 'Sarabun', 'TH Sarabun New', 'Noto Sans Thai', sans-serif; font-size: 10pt; line-height: 1.32; }
+.memo-paper p { margin: 0 0 2.2mm; }
+.memo-agency { font-weight: 700; }
+.memo-meta { display: flex; gap: 4mm; justify-content: space-between; margin-bottom: 1.2mm; }
+.memo-number { margin: 2.4mm 0; }
+.memo-subject { margin-top: 2mm !important; }
+.memo-to { margin: 3mm 0 2mm !important; }
+.memo-body { text-indent: 12mm; text-align: justify; line-height: 1.4; }
+.memo-closing { text-indent: 12mm; margin-top: 3mm !important; }
+.memo-sign { margin: 1.5mm 0 2mm 56%; text-align: center; line-height: 1.25; }
+.memo-approval { margin-top: 1.4mm; break-inside: avoid; }
+.memo-approval > p { margin: 0 0 .7mm; }
+.memo-approval .memo-sign { margin-top: .6mm; margin-bottom: .8mm; }
+.memo-final-approval { margin-top: 1.2mm; break-inside: avoid; }
+.memo-final-approval .memo-sign { margin-top: .5mm; }
+.memo-preview-wrap .memo-paper { font-size: 9.5pt; }
+@media (max-width: 900px) {
+  .memo-overlay { padding: 0; }
+  .memo-dialog { width: 100%; height: 100dvh; border-radius: 0; }
+  .memo-workspace { display: flex; flex-direction: column; overflow: auto; }
+  .memo-editor { flex: 0 0 auto; max-height: 48%; border-right: 0; border-bottom: 1px solid #dce3e8; }
+  .memo-preview-wrap { flex: 1 0 500px; }
+  .memo-paper { margin-left: 0; }
+}
+@page memoPage { size: A4 portrait; margin: 10mm; }
+.memo-paper { page: memoPage; }
+@media print {
+  body.print-payment-memo * { visibility: hidden !important; }
+  body.print-payment-memo .memo-overlay,
+  body.print-payment-memo .memo-preview-wrap,
+  body.print-payment-memo .memo-paper,
+  body.print-payment-memo .memo-paper * { visibility: visible !important; }
+  body.print-payment-memo .memo-overlay { position: static !important; display: block !important; inset: auto !important; padding: 0 !important; background: #fff !important; overflow: visible !important; }
+  body.print-payment-memo .memo-dialog,
+  body.print-payment-memo .memo-workspace,
+  body.print-payment-memo .memo-preview-wrap { display: block !important; width: auto !important; height: auto !important; max-height: none !important; overflow: visible !important; padding: 0 !important; margin: 0 !important; background: #fff !important; border: 0 !important; box-shadow: none !important; }
+  body.print-payment-memo .memo-head,
+  body.print-payment-memo .memo-editor { display: none !important; }
+  body.print-payment-memo .memo-paper { width: 190mm !important; min-height: 277mm !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; font-size: 8.5pt !important; line-height: 1.18 !important; }
+  body.print-payment-memo .memo-paper p { margin-bottom: 1mm !important; }
+  body.print-payment-memo .memo-meta { gap: 2mm !important; }
+  body.print-payment-memo .memo-sign { margin-top: .5mm !important; margin-bottom: .5mm !important; }
+  body.print-payment-memo .memo-approval { margin-top: .5mm !important; }
+  body.print-payment-memo .memo-approval .memo-sign { margin-left: 62% !important; }
+  @page memoPage { size: A4 portrait; margin: 10mm; }
+}
