@@ -691,7 +691,11 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     const { data: inserted, error } = await sb.from('logs').insert({ person_id: pid, work_date: date, activity_code: code, role: null, qty: +qty, evidence: ev.trim() || (evidenceFile ? 'แนบรูปถ่าย' : null), sub_activity: subActivity.trim() || null, shift, ...(supplementalTarget ? { parent_log_id: supplementalTarget.id, supplemental_reason: supplementalReason.trim() } : {}) }).select('id').single()
     if (error) {
       setSavingActivity(false);
-      if (error.code === '23514' && /เกินจำนวนสูงสุดต่อวัน/.test(error.message || '')) {
+      if (error.code === '23514' && /หมดเขตบันทึกย้อนหลัง/.test(error.message || '')) {
+        setErr(error.message + ' หากมีความจำเป็น ให้ติดต่อผู้ดูแลระบบเพื่อพิจารณาเปิดโหมดฉุกเฉิน')
+      } else if (error.code === '23514' && /ไม่สามารถบันทึกกิจกรรมล่วงหน้า/.test(error.message || '')) {
+        setErr('ไม่สามารถบันทึกกิจกรรมในวันที่อนาคตได้')
+      } else if (error.code === '23514' && /เกินจำนวนสูงสุดต่อวัน/.test(error.message || '')) {
         setErr('บันทึกไม่ได้: ' + error.message)
       } else {
         setErr(error.message)
