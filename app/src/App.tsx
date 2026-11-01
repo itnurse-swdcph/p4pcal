@@ -24,7 +24,9 @@ const approverLabel = (subjectLevel: number) => subjectLevel >= 3 ? 'ผู้�
 const ApproverCtx = createContext<{ role: string; level: number; personUser: Record<string, string | null>; personLevel: Record<string, number> } | null>(null)
 function canDecideRow(ap: any, me: string | null, r: any) {
   if (!ap || !r || !me) return false
-  if (ap.personUser[r.person_id] === me) return false          // รับรองรายการของตนเองไม่ได้
+  const isOwnRecord = ap.personUser[r.person_id] === me
+  // ผู้ดูแลระบบรับรองได้ทุกคนยกเว้นรายการของตนเอง; รักษาการหัวหน้าพยาบาล (ทะเบียนบุคลากรแถว 2) รับรองของตนเองได้
+  if (isOwnRecord) return Number(ap.staffDirectoryId) === 2
   if (ap.role === 'admin') return true
   if (ap.role !== 'head' && ap.role !== 'group_head') return false
   const sl = ap.personLevel[r.person_id] ?? 0
@@ -396,7 +398,7 @@ function Main({ sb, session }: any) {
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { void checkForUpdate(); if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
-  return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
+  return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, staffDirectoryId: profile?.staff_directory_id, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
     {mobileNav && <button aria-label="ปิดเมนู" className="sidebar-scrim" onClick={() => setMobileNav(false)}/>}
     <aside className={'app-sidebar ' + (mobileNav ? 'mobile-open' : '')}>
       <div className="sidebar-brand"><img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/icon.png" alt="P4P" /><div className="sidebar-brand-copy"><strong>P4P Nursing</strong><span>SMART WORKFLOW</span></div><button className="sidebar-icon mobile-close" aria-label="ปิดเมนู" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
@@ -716,7 +718,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       const { error: approveError } = await sb.from('logs').update({ status: 'approved' }).eq('id', inserted.id)
       if (approveError) { setSavingActivity(false); setErr('บันทึกกิจกรรมและส่งเข้าคิวแล้ว แต่รับรองทันทีไม่สำเร็จ กรุณาให้ผู้มีสิทธิ์รับรองตรวจรายการ: ' + approveError.message); reload(); return }
     }
-    setSavingActivity(false); setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); setModalOpen(false); setNotice(supplementalTarget ? 'บันทึกคำขอเพิ่มจำนวนเป็นแบบร่างแล้ว กรุณากดส่งให้ผู้มีสิทธิ์รับรอง โดยรายการต้นฉบับยังคงเดิม' : approveImmediately ? 'บันทึกและรับรองกิจกรรมให้บุคลากรที่เลือกเรียบร้อยแล้ว' : picker ? 'บันทึกเป็นแบบร่างแล้ว กิจกรรมยังไม่ถูกนับจนกว่าจะส่งให้ผู้มีสิทธิ์รับรอง' : 'บันทึกเป็นแบบร่างแล้ว กดปุ่ม "ส่ง" ในตารางเมื่อพร้อมให้หัวหน้ารับรอง (แบบร่างแก้ไขหรือลบได้ แต่เมื่อส่งแล้วจะล็อก)'); setSupplementalTarget(null); setSupplementalReason(''); reload(); onActivitySaved?.()
+    setSavingActivity(false); setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setQ(''); setCode(''); setActivityDropdownOpen(false); setErr(''); setModalOpen(false); setNotice(supplementalTarget ? 'บันทึกคำขอเพิ่มจำนวนเป็นแบบร่างแล้ว กรุณากดส่งให้ผู้มีสิทธิ์รับรอง โดยรายการต้นฉบับยังคงเดิม' : approveImmediately ? 'บันทึกและรับรองกิจกรรมให้บุคลากรที่เลือกเรียบร้อยแล้ว' : picker ? 'บันทึกเป็นแบบร่างแล้ว กิจกรรมยังไม่ถูกนับจนกว่าจะส่งให้ผู้มีสิทธิ์รับรอง' : 'บันทึกเป็นแบบร่างแล้ว กดปุ่ม "ส่ง" ในตารางเมื่อพร้อมให้หัวหน้ารับรอง (แบบร่างแก้ไขหรือลบได้ แต่เมื่อส่งแล้วจะล็อก)'); setSupplementalTarget(null); setSupplementalReason(''); reload(); onActivitySaved?.()
   }
   return <div className="space-y-4">
     <MonthFilter month={month} setMonth={setMonth} description="เลือกเดือนสำหรับบันทึก ตรวจสอบ และสรุปกิจกรรม P4P" />
