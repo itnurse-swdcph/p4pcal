@@ -36,7 +36,11 @@ function canDecideRow(ap: any, me: string | null, r: any) {
 const ROLE_TH: any = { staff: 'เจ้าหน้าที่', head: 'หัวหน้างาน', group_head: 'หัวหน้ากลุ่มงาน', committee: 'กรรมการ P4P', admin: 'ผู้ดูแลระบบ' }
 const ROLES = ['ประธาน', 'เลขานุการ/กรรมการ', 'สมาชิก/ผู้เข้าร่วม']
 const nf = (n: any, d = 2) => Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: d, minimumFractionDigits: d })
-const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10)
+const today = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+  const part = (type: string) => parts.find(x => x.type === type)?.value || ''
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
 const formatThaiShortDate = (value: string) => { if (!value) return 'ไม่ได้ระบุวันที่'; const [y, m, d] = value.split('-').map(Number); const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']; if (!y || !m || !d || m < 1 || m > 12) return value; return `${d} ${months[m - 1]} ${y + 543}` }
 
 const thaiBahtText = (value: number) => {
