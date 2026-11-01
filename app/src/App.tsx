@@ -378,19 +378,6 @@ function Main({ sb, session }: any) {
 
   useEffect(() => { sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || [])) }, [actsVersion])
 
-  // ตัวกรองวันที่ในทุกเมนู: เปลี่ยนเดือนบน Head bar ตามวันที่ที่ผู้ใช้เลือก
-  // ใช้ event แบบ capture เพื่อครอบคลุม date picker ที่อยู่ใน child components ทุกหน้า
-  useEffect(() => {
-    const syncHeadbarMonth = (event: Event) => {
-      const target = event.target
-      if (!(target instanceof HTMLInputElement) || target.type !== 'date' || !target.value) return
-      const nextMonth = target.value.slice(0, 7)
-      if (nextMonth.length === 7 && nextMonth[4] === '-') setMonth(nextMonth)
-    }
-    document.addEventListener('change', syncHeadbarMonth, true)
-    return () => document.removeEventListener('change', syncHeadbarMonth, true)
-  }, [])
-
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'; const isHeadRole = role === 'head' || role === 'group_head'
@@ -421,7 +408,6 @@ function Main({ sb, session }: any) {
     <div className="p4p-main">
       <header className="app-topbar"><button className="sidebar-icon menu-toggle" aria-label="เปิดเมนู" onClick={() => setMobileNav(true)}><Menu size={22}/></button><div className="topbar-heading"><span className="topbar-eyebrow">P4P NURSING SYSTEM</span><h1>{pageTitle}</h1></div><div className="topbar-actions">
       {(role === 'head' && unitOptions.length > 1) && <label className="topbar-unit"><Building2 size={16}/><select className="inp" aria-label="หน่วยงาน" value={unit ?? ''} onChange={e => setUnit(e.target.value ? +e.target.value : null)}>{role === 'admin' && <option value="">เลือกหน่วยงานก่อน</option>}{unitOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>}
-      <label className="topbar-month"><CalendarDays size={17}/><input type="month" aria-label="เดือนที่แสดง" className="inp" value={month} onChange={e => setMonth(e.target.value)} /></label>
       <div className="relative"><button type="button" className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50" aria-haspopup="menu" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen(v => !v)}><span className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-100 text-teal-800 font-bold">{(profile.full_name || profile.username || session.user.email || "U").trim().charAt(0)}</span><span className="max-w-40 truncate text-left">{profile.full_name || profile.username || session.user.email}</span><span aria-hidden="true">▾</span></button>{profileMenuOpen && <><button type="button" className="fixed inset-0 z-40 cursor-default" aria-label="ปิดเมนูบัญชี" onClick={() => setProfileMenuOpen(false)} /><div role="menu" className="absolute right-0 top-full z-50 mt-2 w-60 rounded-xl border border-stone-200 bg-white p-2 shadow-xl"><div className="border-b border-stone-100 px-3 py-2"><p className="truncate text-sm font-semibold text-stone-800">{profile.full_name || profile.username || session.user.email}</p><p className="text-xs text-stone-500">{ROLE_TH[role]}</p></div>{role !== "admin" && <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-stone-700 hover:bg-stone-50" onClick={() => { setTab("personal"); setProfileMenuOpen(false); setMobileNav(false) }}><Users size={17}/>แก้ไขข้อมูลส่วนตัว</button>}<button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50" onClick={() => sb.auth.signOut()}><LogOut size={17}/>ออกจากระบบ</button></div></>}</div>
       </div></header>
       {updateAvailable && <div role="status" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm">
@@ -464,13 +450,14 @@ function Main({ sb, session }: any) {
         </div>
         <p className="text-xs text-stone-600">{role === 'admin' ? 'ผู้ดูแลระบบสามารถเลือกหน่วยงานได้ทั้งหมด' : 'แสดงเฉพาะหน่วยงานที่บัญชีของคุณได้รับมอบหมายให้รับผิดชอบ'}</p>
       </div>
+      {reviewGroup && <MonthFilter month={month} setMonth={setMonth} description="เลือกเดือนสำหรับตรวจสอบ รับรอง และสรุปรายงานของกลุ่มงาน/หน่วยงาน" />}
       {reviewGroup ? (unit != null ? <ReviewPage units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'certify' ? <GroupHeadsCertification sb={sb} groupName={reviewGroup} people={people} month={month} acts={acts} /> : <GroupHeadsReport sb={sb} groupName={reviewGroup} people={scope} allPeople={people} month={month} positions={positions} units={units} acts={acts} />) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
     </div>}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
     {cur === 'settings' && <SettingsPage sb={sb} />}
     {cur === 'activities' && <ActivityLibrary myLine={positions.find((x: any) => x.name === profile.position)?.grp} seeAll={role !== 'staff'} sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
-    {cur === 'audit' && <P4PCommitteePage sb={sb} month={month} isAdmin={role === 'admin'} currentUserId={session.user.id} />}
+    {cur === 'audit' && <P4PCommitteePage sb={sb} month={month} setMonth={setMonth} isAdmin={role === 'admin'} currentUserId={session.user.id} />}
       </main>
       <footer className="app-footer">{FOOTER_TEXT}</footer>
     </div>
@@ -511,6 +498,19 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
     return () => { alive = false }
   }, [month, n, unit, personIds?.join(',')])
   return [rows, () => setN(x => x + 1)] as const
+}
+
+function MonthFilter({ month, setMonth, description = 'เลือกเดือนที่ต้องการแสดงข้อมูล' }: any) {
+  return <section className="card flex flex-wrap items-center justify-between gap-3 border border-teal-100 bg-teal-50/50" aria-label="ตัวกรองเดือน">
+    <div className="flex items-center gap-2">
+      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-teal-800"><CalendarDays size={19}/></span>
+      <div><h2 className="text-sm font-bold text-stone-800">ช่วงเวลาการแสดงผล</h2><p className="text-xs text-stone-600">{description}</p></div>
+    </div>
+    <label className="flex min-w-[190px] items-center gap-2 text-sm font-semibold text-stone-700">
+      <span className="whitespace-nowrap">เดือน</span>
+      <input type="month" aria-label="เลือกเดือนที่ต้องการแสดงข้อมูล" className="inp w-full bg-white" value={month} onChange={e => e.target.value && setMonth(e.target.value)} />
+    </label>
+  </section>
 }
 
 function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId, currentUserStaffDirectoryId, groupOptions = [], onActivitySaved }: any) {
@@ -705,6 +705,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     setSavingActivity(false); setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); setModalOpen(false); setNotice(supplementalTarget ? 'บันทึกคำขอเพิ่มจำนวนเป็นแบบร่างแล้ว กรุณากดส่งให้ผู้มีสิทธิ์รับรอง โดยรายการต้นฉบับยังคงเดิม' : approveImmediately ? 'บันทึกและรับรองกิจกรรมให้บุคลากรที่เลือกเรียบร้อยแล้ว' : picker ? 'บันทึกเป็นแบบร่างแล้ว กิจกรรมยังไม่ถูกนับจนกว่าจะส่งให้ผู้มีสิทธิ์รับรอง' : 'บันทึกเป็นแบบร่างแล้ว กดปุ่ม "ส่ง" ในตารางเมื่อพร้อมให้หัวหน้ารับรอง (แบบร่างแก้ไขหรือลบได้ แต่เมื่อส่งแล้วจะล็อก)'); setSupplementalTarget(null); setSupplementalReason(''); reload(); onActivitySaved?.()
   }
   return <div className="space-y-4">
+    <MonthFilter month={month} setMonth={setMonth} description="เลือกเดือนสำหรับบันทึก ตรวจสอบ และสรุปกิจกรรม P4P" />
     <div className="space-y-3">
       {person && <div className="flex flex-wrap justify-end gap-2"><button type="button" className="btn sec" onClick={() => setPrinting(true)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปประจำเดือน (A4)</button><button type="button" className="btn" onClick={() => document.getElementById('saved-activity-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>ตรวจสอบรายการบันทึก</button></div>}
       {printing && printPerson && <PrintSheet sb={sb} person={printPerson} rows={printRows} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
