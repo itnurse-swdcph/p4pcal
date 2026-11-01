@@ -5,6 +5,9 @@ import P4PCommitteePage from './P4PCommitteePage'
 import { createPortal } from 'react-dom'
 import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardList, LibraryBig, ClipboardCheck, Users, Settings, LogOut, ChevronLeft, CalendarDays, Building2, Shield } from 'lucide-react'
 
+declare const __P4P_BUILD_ID__: string
+const CURRENT_BUILD_ID = typeof __P4P_BUILD_ID__ !== 'undefined' ? __P4P_BUILD_ID__ : 'unknown-build'
+
 const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_publishable_8qxOgD-AHGnv9RWWAZTUQQ_I0MPIMv3' }
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ว่าที่ร้อยตรี', 'ว่าที่ร้อยตรีหญิง']
 const FOOTER_TEXT = '© 2026 Developed By Natnarinthorn | Nursing Informatics System'
@@ -298,6 +301,7 @@ function Main({ sb, session }: any) {
   const [mobileNav, setMobileNav] = useState(false)
   const [compactNav, setCompactNav] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [updateAvailable, setUpdateAvailable] = useState(false)
   const [myLevel, setMyLevel] = useState(0); const [personLevel, setPersonLevel] = useState<Record<string, number>>({})
   useEffect(() => {
     if (!profile) return
@@ -334,6 +338,37 @@ function Main({ sb, session }: any) {
     if (profile?.role === 'group_head' && profile?.nursing_group) setReviewGroup(String(profile.nursing_group).trim())
   }, [profile?.role, profile?.nursing_group])
 
+  // ตรวจสอบเวอร์ชันจากไฟล์ที่สร้างใหม่ทุกครั้งที่ build โดยไม่พึ่ง cache ของ browser
+  const checkForUpdate = useMemo(() => async () => {
+    try {
+      const response = await fetch('/version.json?check=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
+      if (!response.ok) return
+      const latest = await response.json()
+      if (latest?.buildId && String(latest.buildId) !== CURRENT_BUILD_ID) setUpdateAvailable(true)
+    } catch (error) {
+      // การตรวจสอบเวอร์ชันล้มเหลวไม่ควรรบกวนการทำงานหลักของระบบ
+      console.debug('P4P version check unavailable', error)
+    }
+  }, [])
+  useEffect(() => {
+    void checkForUpdate()
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void checkForUpdate() }, 120000)
+    const onFocus = () => void checkForUpdate()
+    const onVisible = () => { if (document.visibilityState === 'visible') void checkForUpdate() }
+    const onOnline = () => void checkForUpdate()
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('online', onOnline)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('online', onOnline)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [checkForUpdate])
+  // ตรวจสอบซ้ำทุกครั้งที่เปลี่ยนหน้า/แท็บในระบบ
+  useEffect(() => { if (tab) void checkForUpdate() }, [tab, checkForUpdate])
+
   useEffect(() => { sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || [])) }, [actsVersion])
 
   // ตัวกรองวันที่ในทุกเมนู: เปลี่ยนเดือนบน Head bar ตามวันที่ที่ผู้ใช้เลือก
@@ -366,7 +401,7 @@ function Main({ sb, session }: any) {
   const scope = people.filter(p => (isRev || isHeadRole ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
-  const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
+  const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { void checkForUpdate(); if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
   return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
     {mobileNav && <button aria-label="ปิดเมนู" className="sidebar-scrim" onClick={() => setMobileNav(false)}/>}
     <aside className={'app-sidebar ' + (mobileNav ? 'mobile-open' : '')}>
@@ -382,6 +417,10 @@ function Main({ sb, session }: any) {
       <label className="topbar-month"><CalendarDays size={17}/><input type="month" aria-label="เดือนที่แสดง" className="inp" value={month} onChange={e => setMonth(e.target.value)} /></label>
       <div className="relative"><button type="button" className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50" aria-haspopup="menu" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen(v => !v)}><span className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-100 text-teal-800 font-bold">{(profile.full_name || profile.username || session.user.email || "U").trim().charAt(0)}</span><span className="max-w-40 truncate text-left">{profile.full_name || profile.username || session.user.email}</span><span aria-hidden="true">▾</span></button>{profileMenuOpen && <><button type="button" className="fixed inset-0 z-40 cursor-default" aria-label="ปิดเมนูบัญชี" onClick={() => setProfileMenuOpen(false)} /><div role="menu" className="absolute right-0 top-full z-50 mt-2 w-60 rounded-xl border border-stone-200 bg-white p-2 shadow-xl"><div className="border-b border-stone-100 px-3 py-2"><p className="truncate text-sm font-semibold text-stone-800">{profile.full_name || profile.username || session.user.email}</p><p className="text-xs text-stone-500">{ROLE_TH[role]}</p></div>{role !== "admin" && <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-stone-700 hover:bg-stone-50" onClick={() => { setTab("personal"); setProfileMenuOpen(false); setMobileNav(false) }}><Users size={17}/>แก้ไขข้อมูลส่วนตัว</button>}<button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50" onClick={() => sb.auth.signOut()}><LogOut size={17}/>ออกจากระบบ</button></div></>}</div>
       </div></header>
+      {updateAvailable && <div role="status" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm">
+        <div><strong>มี P4P เวอร์ชันใหม่พร้อมใช้งาน</strong><p className="mt-0.5 text-xs">กรุณาบันทึกงานที่กำลังทำให้เรียบร้อยก่อนกดอัปเดตระบบ</p></div>
+        <button type="button" className="btn !bg-amber-700 hover:!bg-amber-800" onClick={() => { if (window.confirm('ก่อนอัปเดต กรุณาตรวจสอบว่าบันทึกข้อมูลที่กำลังทำเรียบร้อยแล้ว\nต้องการโหลด P4P เวอร์ชันใหม่หรือไม่?')) window.location.reload() }}>อัปเดตระบบ</button>
+      </div>}
       <main className="app-content">
       {showLogNotice && cur === 'log' && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="presentation">
         <section role="alertdialog" aria-modal="true" aria-labelledby="log-notice-title" aria-describedby="log-notice-description" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
@@ -399,7 +438,7 @@ function Main({ sb, session }: any) {
     {cur === 'personal' && role !== 'admin' && <PersonalProfilePage sb={sb} profile={profile} role={role} units={directoryUnits} groupOptions={allGroupNames} positions={positions} session={session} reload={loadPeople} />}
     {cur === 'log' && (role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
-      : <LogPage key={logPageActivation} units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} profileOrgRole={profile.org_role} currentUserId={session.user.id} currentUserStaffDirectoryId={profile.staff_directory_id} groupOptions={allGroupNames} />)}
+      : <LogPage key={logPageActivation} units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} onActivitySaved={checkForUpdate} profileOrgRole={profile.org_role} currentUserId={session.user.id} currentUserStaffDirectoryId={profile.staff_directory_id} groupOptions={allGroupNames} />)}
     {(cur === 'certify' || cur === 'review') && (role === 'admin' || isHeadRole) && <div className="space-y-3">
       <div className="card space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -467,7 +506,7 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
   return [rows, () => setN(x => x + 1)] as const
 }
 
-function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId, currentUserStaffDirectoryId, groupOptions = [] }: any) {
+function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId, currentUserStaffDirectoryId, groupOptions = [], onActivitySaved }: any) {
   const picker = !!canApprove
   const me = useContext(MeCtx)
   const personRecords = [...(allPeople || []), ...(peopleProp || [])].filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i)
@@ -656,7 +695,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       const { error: approveError } = await sb.from('logs').update({ status: 'approved' }).eq('id', inserted.id)
       if (approveError) { setSavingActivity(false); setErr('บันทึกกิจกรรมและส่งเข้าคิวแล้ว แต่รับรองทันทีไม่สำเร็จ กรุณาให้ผู้มีสิทธิ์รับรองตรวจรายการ: ' + approveError.message); reload(); return }
     }
-    setSavingActivity(false); setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); setModalOpen(false); setNotice(supplementalTarget ? 'บันทึกคำขอเพิ่มจำนวนเป็นแบบร่างแล้ว กรุณากดส่งให้ผู้มีสิทธิ์รับรอง โดยรายการต้นฉบับยังคงเดิม' : approveImmediately ? 'บันทึกและรับรองกิจกรรมให้บุคลากรที่เลือกเรียบร้อยแล้ว' : picker ? 'บันทึกเป็นแบบร่างแล้ว กิจกรรมยังไม่ถูกนับจนกว่าจะส่งให้ผู้มีสิทธิ์รับรอง' : 'บันทึกเป็นแบบร่างแล้ว กดปุ่ม "ส่ง" ในตารางเมื่อพร้อมให้หัวหน้ารับรอง (แบบร่างแก้ไขหรือลบได้ แต่เมื่อส่งแล้วจะล็อก)'); setSupplementalTarget(null); setSupplementalReason(''); reload()
+    setSavingActivity(false); setEv(''); setSubActivity(''); setEvidenceFile(null); setQty('1'); setErr(''); setModalOpen(false); setNotice(supplementalTarget ? 'บันทึกคำขอเพิ่มจำนวนเป็นแบบร่างแล้ว กรุณากดส่งให้ผู้มีสิทธิ์รับรอง โดยรายการต้นฉบับยังคงเดิม' : approveImmediately ? 'บันทึกและรับรองกิจกรรมให้บุคลากรที่เลือกเรียบร้อยแล้ว' : picker ? 'บันทึกเป็นแบบร่างแล้ว กิจกรรมยังไม่ถูกนับจนกว่าจะส่งให้ผู้มีสิทธิ์รับรอง' : 'บันทึกเป็นแบบร่างแล้ว กดปุ่ม "ส่ง" ในตารางเมื่อพร้อมให้หัวหน้ารับรอง (แบบร่างแก้ไขหรือลบได้ แต่เมื่อส่งแล้วจะล็อก)'); setSupplementalTarget(null); setSupplementalReason(''); reload(); onActivitySaved?.()
   }
   return <div className="space-y-4">
     <div className="space-y-3">
@@ -739,7 +778,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     <div className="space-y-3">
       {notice && <p role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
       {myRejected.length > 0 && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900"><b>มี {myRejected.length} รายการที่หัวหน้าไม่รับรอง</b> ดูเหตุผลในตาราง แล้วกด "แก้ไข" หรือ "ส่งใหม่"</p>}
-      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} canApprove={canApprove} showName={!pid && people.length > 1} acts={acts} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
+      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!pid && people.length > 1} acts={acts} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
     </div>
   </div>
 }
@@ -965,7 +1004,7 @@ function Totals({ rows, people, positions }: any) {
 const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', 'bg-stone-200'], pending: ['ส่งแล้ว รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); alert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, readOnly = false, acts = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
+function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, acts = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
   const me = useContext(MeCtx); const ap = useContext(ApproverCtx)
   // แบบร่างเป็นของผู้บันทึกเท่านั้น คนอื่น (รวมหัวหน้า) ไม่เห็นจนกว่าจะส่ง
   const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me), [allRows, me])
@@ -1080,7 +1119,7 @@ function LogTable({ sb, rows: allRows, reload, canApprove, showName = true, read
     if (savedMonth && savedMonth !== month && typeof setMonth === 'function') setMonth(savedMonth)
     setFilterFrom(''); setFilterTo('')
     reload()
-    alert('บันทึกการแก้ไขเรียบร้อยแล้ว รายการและวันที่ล่าสุดได้รับการปรับปรุง')
+    alert('บันทึกการแก้ไขเรียบร้อยแล้ว รายการและวันที่ล่าสุดได้รับการปรับปรุง'); onActivitySaved?.()
   }
   return <div className="card overflow-x-auto p-0">
     <div className="flex flex-wrap items-end gap-3 border-b border-stone-200 p-3">
