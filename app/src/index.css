@@ -1497,3 +1497,70 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
   @page memoPage { size: A4 portrait !important; margin: 10mm 15mm 5mm 30mm; }
 }
 
+
+
+/* ===== Responsive data tables across every P4P menu =====
+   Keep columns readable; horizontal scrolling stays inside each table area. */
+.p4p-shell .overflow-x-auto {
+  display:block;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow-x:auto !important;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-inline:contain;
+}
+.p4p-shell .card:has(> table),
+.p4p-shell .card:has(> div > table) {
+  min-width:0;
+  max-width:100%;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.p4p-shell table:not(.pt) {
+  width:max-content;
+  min-width:900px;
+  max-width:none;
+  table-layout:auto;
+  border-collapse:separate;
+  border-spacing:0;
+}
+.p4p-shell table:not(.pt) th {
+  min-width:5.5rem;
+  max-width:18rem;
+  white-space:normal;
+  overflow-wrap:break-word;
+  word-break:normal;
+  line-height:1.4;
+}
+.p4p-shell table:not(.pt) td {
+  min-width:5rem;
+  max-width:22rem;
+  overflow-wrap:break-word;
+  word-break:normal;
+  vertical-align:top;
+  line-height:1.45;
+}
+.p4p-shell table:not(.pt) td button,
+.p4p-shell table:not(.pt) th button {
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+@media (max-width:900px) {
+  .p4p-shell table:not(.pt) th { padding:.5rem .45rem; font-size:.74rem; }
+  .p4p-shell table:not(.pt) td { padding:.5rem .45rem; font-size:.78rem; }
+}
+@media (max-width:520px) {
+  .p4p-shell table:not(.pt) { min-width:820px; }
+  .p4p-shell table:not(.pt) th { padding:.45rem .35rem; font-size:.72rem; }
+  .p4p-shell table:not(.pt) td { padding:.45rem .35rem; font-size:.75rem; }
+}
+/* Print layouts retain their intended A4 table dimensions. */
+.print-sheet table:not(.pt) {
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  table-layout:auto;
+}
