@@ -2315,13 +2315,21 @@ function PayGroupsCard({ sb }: any) {
     setBusy(true); setMsg('')
     if (editing.id === 1) body.fixed_pay = Math.round(Number(draft.full_amount) * 0.77 * 100) / 100
     const { error } = await sb.from('pay_groups').update(body).eq('id', editing.id)
+    if (error) { setBusy(false); setMsg('บันทึกไม่สำเร็จ: ' + error.message); return }
+    const { error: rateError } = await sb.from('positions').update({ rate: Number(draft.rate) }).eq('pay_group', editing.id)
     setBusy(false)
-    if (error) { setMsg('บันทึกไม่สำเร็จ: ' + error.message); return }
-    setMsg(`บันทึกกลุ่ม ${editing.id} แล้ว`); setEditing(null); setDraft(null); load()
+    if (rateError) { setMsg('บันทึกกลุ่มแล้ว แต่ปรับอัตราตำแหน่งไม่สำเร็จ: ' + rateError.message); load(); return }
+    setMsg(`บันทึกกลุ่ม ${editing.id} และซิงก์อัตราตำแหน่งแล้ว`); setEditing(null); setDraft(null); load()
   }
   const openEdit = (g: any, row: any) => { setEditing({ ...g, row }); setDraft({ ...g }) }
   const setPosLine = async (name: string, grp: string) => { const { error } = await sb.from('positions').update({ grp }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `กำหนดชุดกิจกรรมของ "${name}" เป็น ${grp} แล้ว`); load() }
-  const setPosGroup = async (name: string, id: number) => { const { error } = await sb.from('positions').update({ pay_group: id }).eq('name', name); setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `ย้าย "${name}" ไปกลุ่ม ${id} แล้ว`); load() }
+  const setPosGroup = async (name: string, id: number) => {
+    const target = gs.find((g: any) => Number(g.id) === Number(id))
+    if (!target) { setMsg('ไม่พบข้อมูลกลุ่มค่าตอบแทน'); return }
+    const { error } = await sb.from('positions').update({ pay_group: id, rate: Number(target.rate) }).eq('name', name)
+    setMsg(error ? 'บันทึกไม่สำเร็จ: ' + error.message : `ย้าย "${name}" ไปกลุ่ม ${id} และซิงก์อัตราแล้ว`)
+    load()
+  }
   const groupOneRows = [
     { label: 'พยาบาลวิชาชีพ หัวหน้ากลุ่มงาน', guarantee: 1200, key: 'leader', roleGuarantee: 240 },
     { label: 'พยาบาลวิชาชีพหัวหน้างาน', guarantee: 1200, key: 'supervisor', roleGuarantee: 120 },
