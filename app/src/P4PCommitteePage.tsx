@@ -231,15 +231,18 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
           <table className="w-full min-w-[800px] text-sm">
             <thead className="sticky top-0 bg-white"><tr className="border-b text-left">
               <th className="p-2">ชื่อ-สกุล</th><th className="p-2">ตำแหน่ง</th><th className="p-2">หน่วยงาน</th>
-              <th className="p-2 text-right">กลุ่ม</th><th className="p-2 text-right">คะแนนนับได้</th>
-              <th className="p-2 text-right">เงินเพิ่มประมาณการ</th>
+              <th className="p-2 text-right">กลุ่ม</th><th className="p-2 text-right">วันทำงาน</th><th className="p-2">สิทธิ์</th>
+              <th className="p-2 text-right">คะแนนนับได้</th><th className="p-2 text-right">เงินเพิ่มประมาณการ</th>
             </tr></thead>
             <tbody>{lines.map((line: any, index: number) => <tr key={line.id || index} className="border-b last:border-0">
               <td className="p-2">{line.name || '—'}</td><td className="p-2">{line.position || '—'}</td><td className="p-2">{line.unit_name || '—'}</td>
-              <td className="p-2 text-right">{line.pay_group || '—'}</td><td className="p-2 text-right tabular-nums">{number(line.counted)}</td>
+              <td className="p-2 text-right">{line.pay_group || '—'}</td>
+              <td className="p-2 text-right tabular-nums" title={line.eligibility_reason || ''}>{number(line.work_days)} วัน</td>
+              <td className="p-2"><span className={line.eligible ? 'text-emerald-700 font-medium' : 'text-red-700 font-medium'}>{line.eligible ? 'มีสิทธิ์' : 'ไม่มีสิทธิ์'}</span><div className="text-xs text-stone-500">{line.eligibility_reason || ''}</div></td>
+              <td className="p-2 text-right tabular-nums">{number(line.counted)}</td>
               <td className="p-2 text-right tabular-nums font-semibold">{money(line.extra)} บาท</td>
             </tr>)}
-            {!lines.length && <tr><td colSpan={6} className="p-5 text-center text-stone-500">ไม่พบข้อมูลรายบุคคล</td></tr>}
+            {!lines.length && <tr><td colSpan={8} className="p-5 text-center text-stone-500">ไม่พบข้อมูลรายบุคคล</td></tr>}
           </tbody></table>
         </div>
       </div>
