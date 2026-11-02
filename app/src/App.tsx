@@ -355,7 +355,7 @@ function AccountCredentialsPanel({ sb, profile, onUpdated }: any) {
     <button className="btn" disabled={busy || !valid || !changed || !currentPassword || (!!newPassword && (newPassword.length < 6 || newPassword !== confirmPassword))} onClick={save}>{busy ? 'กำลังบันทึก…' : 'บันทึกข้อมูลบัญชี'}</button></section>
 }
 function Main({ sb, session }: any) {
-  const [profile, setProfile] = useState<any>(null); const [noProfile, setNoProfile] = useState(false)
+  const [profile, setProfile] = useState<any>(null); const [noProfile, setNoProfile] = useState(false); const [profileLoadError, setProfileLoadError] = useState('')
   const [people, setPeople] = useState<any[]>([]); const [acts, setActs] = useState<any[]>([]); const [units, setUnits] = useState<any[]>([])
   const [directoryUnitNames, setDirectoryUnitNames] = useState<string[] | null>(null)
   const [directoryGroupNames, setDirectoryGroupNames] = useState<string[]>([])
@@ -383,7 +383,29 @@ function Main({ sb, session }: any) {
     sb.rpc('person_levels').then((r: any) => setPersonLevel(Object.fromEntries((r.data || []).map((x: any) => [x.person_id, Number(x.lvl)]))))
   }
   useEffect(() => {
-    sb.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle().then((r: any) => { if (!r.data) { setNoProfile(true); return } setProfile(r.data); setUnit((r.data.role === 'admin' || r.data.role === 'group_head') ? null : (r.data.unit_id ?? null)) })
+    let alive = true
+    // ป้องกันหน้าเว็บค้างที่ "กำลังโหลดโปรไฟล์…" หากเครือข่ายหรือคำขอ Supabase ไม่ตอบกลับ
+    const loadProfile = async () => {
+      let timeoutId: number | undefined
+      try {
+        const timeout = new Promise<never>((_, reject) => {
+          timeoutId = window.setTimeout(() => reject(new Error('หมดเวลารอข้อมูลโปรไฟล์จากระบบ')), 12000)
+        })
+        const request = sb.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle()
+        const r: any = await Promise.race([request, timeout])
+        if (!alive) return
+        if (r.error) throw r.error
+        if (!r.data) { setNoProfile(true); return }
+        setProfile(r.data)
+        setUnit((r.data.role === 'admin' || r.data.role === 'group_head') ? null : (r.data.unit_id ?? null))
+      } catch (error: any) {
+        console.error('โหลดโปรไฟล์ไม่สำเร็จ', error)
+        if (alive) setProfileLoadError(error?.message || 'ไม่สามารถโหลดข้อมูลโปรไฟล์ได้')
+      } finally {
+        if (timeoutId !== undefined) window.clearTimeout(timeoutId)
+      }
+    }
+    void loadProfile()
     sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || []))
     sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
     // ใช้ชื่อหน่วยงานจาก staff_directory ที่ active เป็นแหล่งอ้างอิงของ dropdown
@@ -403,7 +425,8 @@ function Main({ sb, session }: any) {
     sb.rpc('my_approval_level').then((r: any) => setMyLevel(Number(r.data || 0)))
     sb.rpc('my_units').then((r: any) => setMyUnits((r.data || []).map((x: any) => (typeof x === 'object' && x ? Object.values(x)[0] : x) as number)))
     loadPeople()
-  }, [])
+    return () => { alive = false }
+  }, [sb, session.user.id])
   useEffect(() => {
     if (profile?.role === 'group_head' && profile?.nursing_group) setReviewGroup(String(profile.nursing_group).trim())
   }, [profile?.role, profile?.nursing_group])
@@ -448,6 +471,7 @@ function Main({ sb, session }: any) {
 
   useEffect(() => { sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || [])) }, [actsVersion])
 
+  if (profileLoadError) return <div className="p-8 space-y-3"><p>ไม่สามารถโหลดข้อมูลโปรไฟล์ได้: {profileLoadError}</p><p>กรุณากลับไปหน้าเข้าสู่ระบบแล้วลองใหม่อีกครั้ง</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>กลับไปหน้าเข้าสู่ระบบ</button></div>
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'; const isHeadRole = role === 'head' || role === 'group_head'
