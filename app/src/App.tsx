@@ -1165,7 +1165,10 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const [detailRow, setDetailRow] = useState<any>(null)
   const detailActivity = detailRow ? (acts || []).find((a: any) => String(a.code) === String(detailRow.activity_code)) : null
   const detailPerson = detailRow ? (people || []).find((p: any) => String(p.id) === String(detailRow.person_id)) : null
-  const detailPosition = detailPerson ? (positions || []).find((p: any) => String(p.name) === String(detailPerson.position)) : null
+  // v_logs/v_logs_base ส่งตำแหน่งและอัตราคะแนนที่ใช้คำนวณมาพร้อมรายการอยู่แล้ว
+  // ใช้ข้อมูลจากระเบียนเป็น fallback เมื่อหน้ารายงานไม่ได้โหลด people/positions เข้ามา
+  const detailPosition = (detailPerson ? (positions || []).find((p: any) => String(p.name || '').trim() === String(detailPerson.position || '').trim()) : null)
+    || (detailRow?.rate != null ? { name: detailRow.position || detailPerson?.position || '', rate: detailRow.rate, grp: detailRow.grp } : null)
   const detailMinutes = Number(detailActivity?.minutes ?? 0)
   const detailRate = Number(detailPosition?.rate ?? 0)
   const detailWorkValue = 1
