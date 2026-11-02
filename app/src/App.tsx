@@ -1162,6 +1162,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   // แบบร่างเป็นของผู้บันทึกเท่านั้น คนอื่น (รวมหัวหน้า) ไม่เห็นจนกว่าจะส่ง
   const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me), [allRows, me])
   const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
+  const [detailRow, setDetailRow] = useState<any>(null)
   const submitRows = async (ids: number[]) => {
     if (!ids.length) return
     const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', ids)
@@ -1299,7 +1300,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
         const sameActivityRows = rows.filter((x: any) => x.person_id === r.person_id && x.activity_code === r.activity_code)
         if (Number(r.max_day) > 0 && sameActivityRows.filter((x: any) => x.work_date === r.work_date).reduce((sum: number, x: any) => sum + Number(x.qty || 0), 0) > Number(r.max_day)) addOnce(checkWarnings, `เกินเพดาน/วัน (${r.max_day})`)
         if (Number(r.max_month) > 0 && sameActivityRows.filter((x: any) => String(x.work_date || '').slice(0, 7) === String(r.work_date || '').slice(0, 7)).reduce((sum: number, x: any) => sum + Number(x.qty || 0), 0) > Number(r.max_month)) addOnce(checkWarnings, `เกินเพดาน/เดือน (${r.max_month})`)
-        return <tr key={r.id}>
+        return <tr key={r.id} onClick={() => setDetailRow(r)} className="cursor-pointer hover:bg-teal-50/60" title="คลิกเพื่อดูรายละเอียดและพิจารณารับรอง">
         {canApprove && !readOnly && <td className="log-col-select text-center">{r.status === 'pending' && canDecideRow(ap, me, r) ? <input aria-label={'เลือกกิจกรรม ' + r.activity_code} type="checkbox" checked={selectedApprovableIds.includes(Number(r.id))} onChange={e => toggleApprovalSelection(Number(r.id), e.target.checked)} /> : null}</td>}
         <td className="log-col-date whitespace-nowrap">{formatThaiShortDate(r.work_date)}<div className="text-xs text-stone-500">{r.shift === 'เช้า' || r.shift === 'บ่าย' || r.shift === 'ดึก' ? 'เวร' + r.shift : 'แสตนด์เช้า'}</div></td>{showName && <td className="log-col-name">{r.person_name}</td>}
         <td className="log-col-activity whitespace-normal break-words"><div><b>{r.activity_code}</b> — {r.title}</div>{r.parent_log_id && <div className="mt-1 inline-flex rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">คำขอเพิ่มจำนวน · อ้างอิงรายการ #{r.parent_log_id}</div>}{r.supplemental_reason && <div className="mt-1 rounded-md bg-amber-50 p-2 text-xs text-amber-900">เหตุผลที่ขอเพิ่ม: {r.supplemental_reason}</div>}{r.sub_activity?.trim() && <div className="text-sm mt-1 whitespace-pre-wrap break-words">กิจกรรมย่อย: {r.sub_activity}</div>}{r.evidence_image_path && <div className="mt-1"><button type="button" className="inline-flex items-center gap-1 rounded-md border border-teal-300 bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-100" onClick={() => openEvidence(sb, r.evidence_image_path)} aria-label={`ดูรูปหลักฐานของกิจกรรม ${r.activity_code}`}>ดูหลักฐานแนบ</button></div>}</td>
@@ -1311,9 +1312,24 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
             <button className="btn !py-0.5" onClick={() => submitRows([r.id])}>{r.status === 'rejected' ? 'ส่งใหม่' : 'ส่ง'}</button>
             <button className="btn sec !py-0.5" onClick={() => beginEdit(r)}>แก้ไข</button>
             <button className="text-xs underline text-red-700" onClick={() => del(r.id)}>ลบ</button></>}
-          {!readOnly && r.status === 'pending' && canDecideRow(ap, me, r) && <><button className="btn !py-0.5" onClick={() => set(r.id, 'approved')}>รับรอง</button><button className="btn red !py-0.5" onClick={() => { setRejecting(r); setReason('') }}>ไม่รับรอง</button></>}
+          {!readOnly && r.status === 'pending' && canDecideRow(ap, me, r) && <button className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); setDetailRow(r) }}>รายละเอียด / รับรอง</button>}
           {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}</td>
       </tr>})}{!displayedRows.length && <tr><td colSpan={canApprove && !readOnly ? 10 : 9} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
+    {detailRow && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="activity-detail-title" onClick={() => setDetailRow(null)}><div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="flex items-start justify-between gap-3 border-b pb-3"><div><h3 id="activity-detail-title" className="text-lg font-bold">รายละเอียดกิจกรรมที่ส่งรับรอง</h3><p className="text-sm text-stone-500">{detailRow.person_name || 'ผู้บันทึก'} · {formatThaiShortDate(detailRow.work_date)}</p></div><button type="button" className="btn sec" onClick={() => setDetailRow(null)}>ปิด</button></div>
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div><div className="text-xs text-stone-500">ชื่อกิจกรรม</div><div className="font-semibold">{detailRow.title || detailRow.activity_code || '—'}</div></div>
+        <div><div className="text-xs text-stone-500">หน่วยนับ</div><div>{detailRow.uom || '—'}</div></div>
+        <div><div className="text-xs text-stone-500">เวลาพื้นฐาน</div><div>{detailRow.base_time ?? detailRow.base_minutes ?? detailRow.standard_time ?? '—'}</div></div>
+        <div><div className="text-xs text-stone-500">คะแนนปรับต่อหน่วย</div><div>{detailRow.adjustment_per_unit ?? detailRow.adjust_per_unit ?? detailRow.adjustment_points ?? '—'}</div></div>
+        <div><div className="text-xs text-stone-500">จำนวนที่บันทึก</div><div className="font-semibold">{detailRow.qty ?? '—'} {detailRow.uom || ''}</div></div>
+        <div><div className="text-xs text-stone-500">สถานะ</div><div>{ST[detailRow.status]?.[0] || detailRow.status}</div></div>
+      </section>
+      <div><div className="text-xs text-stone-500 mb-1">กิจกรรมย่อย</div><div className="rounded-lg bg-stone-50 p-3 text-sm whitespace-pre-wrap">{detailRow.sub_activity || 'ไม่ได้ระบุ'}</div></div>
+      <div><div className="text-xs text-stone-500 mb-1">หลักฐานข้อความ</div><div className="rounded-lg bg-stone-50 p-3 text-sm whitespace-pre-wrap">{detailRow.evidence || 'ไม่ได้ระบุ'}</div></div>
+      {detailRow.evidence_image_path && <button type="button" className="btn sec" onClick={() => openEvidence(sb, detailRow.evidence_image_path)}>เปิดดูรูปหลักฐาน</button>}
+      {detailRow.status === 'pending' && canDecideRow(ap, me, detailRow) && !readOnly && <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><button type="button" className="btn sec" onClick={() => { setRejecting(detailRow); setReason(''); setDetailRow(null) }}>ไม่รับรอง</button><button type="button" className="btn" onClick={async () => { await set(Number(detailRow.id), 'approved'); setDetailRow(null) }}>รับรองกิจกรรม</button></div>}
+    </div></div>}
     {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="reject-title"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-3">
       <h3 id="reject-title" className="text-lg font-bold">ไม่รับรองรายการ</h3>
       <p className="text-sm text-stone-700"><b>{rejecting.person_name}</b> · {formatThaiShortDate(rejecting.work_date)} · {rejecting.activity_code} {rejecting.title}</p>
@@ -1557,6 +1573,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
   const [groupLeaveDrafts, setGroupLeaveDrafts] = useState<Record<string, any>>({})
   const [groupLeaveSaving, setGroupLeaveSaving] = useState<Record<string, boolean>>({})
   const [groupLeaveMessages, setGroupLeaveMessages] = useState<Record<string, string>>({})
+  const [groupLeaveEditing, setGroupLeaveEditing] = useState<Record<string, boolean>>({})
   const [printingPerson, setPrintingPerson] = useState<any>(null)
   const [rates, setRates] = useState<Record<string, number>>({})
   const [rowsAll, reload] = useLogs(sb, month, null, null)
@@ -1610,6 +1627,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
         setGroupLeaveDrafts(Object.fromEntries(Object.entries(mapped).map(([k, v]) => [k, {
           personal_leave_days: String((v as any).personal_leave_days), sick_leave_days: String((v as any).sick_leave_days), annual_leave_days: String((v as any).annual_leave_days)
         }])))
+        setGroupLeaveEditing({})
       })
     return () => { alive = false }
   }, [sb, groupName, month])
@@ -1632,6 +1650,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     else {
       setGroupLeaveData(v => ({ ...v, [key]: values }))
       setGroupLeaveMessages(v => ({ ...v, [key]: 'บันทึกแล้ว' }))
+      setGroupLeaveEditing(v => ({ ...v, [key]: false }))
     }
   }
   const groupRate = Object.values(rates).find((n: number) => Number.isFinite(n)) || 0
@@ -1685,10 +1704,10 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
           const setLeave = (field: string, value: string) => setGroupLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
           return <tr key={x.p.id || key}>
             <td className="p-2 text-center">{x.order}</td><td className="p-2 font-semibold">{x.p.displayName}</td><td className="p-2">{x.p.position || '—'}</td><td className="p-2 text-center font-semibold">{workDays}</td>
-            <td className="p-2"><input aria-label={'ลากิจของ ' + x.p.displayName} type="number" min="0" step="0.5" className="inp !w-24" value={draft.personal_leave_days} onChange={e => setLeave('personal_leave_days', e.target.value)} /></td>
-            <td className="p-2"><input aria-label={'ลาป่วยของ ' + x.p.displayName} type="number" min="0" step="0.5" className="inp !w-24" value={draft.sick_leave_days} onChange={e => setLeave('sick_leave_days', e.target.value)} /></td>
-            <td className="p-2"><input aria-label={'ลาพักผ่อนของ ' + x.p.displayName} type="number" min="0" step="0.5" className="inp !w-24" value={draft.annual_leave_days} onChange={e => setLeave('annual_leave_days', e.target.value)} /></td>
-            <td className="p-2"><button type="button" className="btn !py-1" disabled={!staffId || !!groupLeaveSaving[key]} onClick={() => saveGroupLeave(x.p)}>{groupLeaveSaving[key] ? 'กำลังบันทึก…' : 'บันทึกข้อมูล'}</button>{groupLeaveMessages[key] && <div className={'mt-1 text-xs ' + (groupLeaveMessages[key].startsWith('บันทึกแล้ว') ? 'text-emerald-700' : 'text-red-700')}>{groupLeaveMessages[key]}</div>}</td>
+            <td className="p-2"><input disabled={!groupLeaveEditing[key]} aria-label={'ลากิจของ ' + x.p.displayName} type="number" min="0" step="0.5" className="inp !w-24" value={draft.personal_leave_days} onChange={e => setLeave('personal_leave_days', e.target.value)} /></td>
+            <td className="p-2"><input disabled={!groupLeaveEditing[key]} aria-label={'ลาป่วยของ ' + x.p.displayName} type="number" min="0" step="0.5" className="inp !w-24" value={draft.sick_leave_days} onChange={e => setLeave('sick_leave_days', e.target.value)} /></td>
+            <td className="p-2"><input disabled={!groupLeaveEditing[key]} aria-label={'ลาพักผ่อนของ ' + x.p.displayName} type="number" min="0" step="0.5" className="inp !w-24" value={draft.annual_leave_days} onChange={e => setLeave('annual_leave_days', e.target.value)} /></td>
+            <td className="p-2"><button type="button" className="btn !py-1" disabled={!staffId || !!groupLeaveSaving[key]} onClick={() => groupLeaveEditing[key] ? saveGroupLeave(x.p) : setGroupLeaveEditing(v => ({ ...v, [key]: true }))}>{groupLeaveSaving[key] ? 'กำลังบันทึก…' : groupLeaveEditing[key] ? 'บันทึกข้อมูล' : 'แก้ไข'}</button>{groupLeaveMessages[key] && <div className={'mt-1 text-xs ' + (groupLeaveMessages[key].startsWith('บันทึกแล้ว') ? 'text-emerald-700' : 'text-red-700')}>{groupLeaveMessages[key]}</div>}</td>
             <td className="p-2"><button type="button" className="btn sec !py-1" disabled={!x.p.id} onClick={() => setPrintingPerson({ ...x.p, name: x.p.displayName, group_name: groupName, staff_directory_id: staffId || x.p.staff_directory_id })}>พิมพ์</button></td>
           </tr>
         })}
@@ -1734,6 +1753,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   const [leaveDrafts, setLeaveDrafts] = useState<Record<string, any>>({})
   const [leaveSaving, setLeaveSaving] = useState<Record<string, boolean>>({})
   const [leaveMessages, setLeaveMessages] = useState<Record<string, string>>({})
+  const [leaveEditing, setLeaveEditing] = useState<Record<string, boolean>>({})
   const [certificationSearch, setCertificationSearch] = useState('')
   const [certificationSearchOpen, setCertificationSearchOpen] = useState(false)
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
@@ -1750,6 +1770,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
         setLeaveDrafts(Object.fromEntries((data || []).map((x: any) => [String(x.staff_directory_id), {
           personal_leave_days: String(x.personal_leave_days ?? 0), sick_leave_days: String(x.sick_leave_days ?? 0), annual_leave_days: String(x.annual_leave_days ?? 0)
         }])))
+        setLeaveEditing({})
       })
     return () => { alive = false }
   }, [sb, unit, month])
@@ -1909,6 +1930,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const { error } = await sb.from('p4p_monthly_leave').upsert({ staff_directory_id: staffId, unit_id: Number(unit), month: month + '-01', ...values }, { onConflict: 'staff_directory_id,month' })
     setLeaveSaving(v => ({ ...v, [staffId]: false }))
     setLeaveMessages(v => ({ ...v, [staffId]: error ? 'บันทึกไม่สำเร็จ: ' + error.message : 'บันทึกแล้ว' }))
+    if (!error) setLeaveEditing(v => ({ ...v, [String(staffId)]: false }))
   }
   const selectedUnit = (units || []).find((u: any) => Number(u.id) === Number(unit))
   const unitName = selectedUnit?.name || ''
@@ -2001,10 +2023,10 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
             const setLeave = (field: string, value: string) => setLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
             return <tr key={x.p.id}>
               <td className="text-center">{x.order}</td><td className="font-semibold">{x.p.name}</td><td>{x.p.position || '—'}</td><td className="text-center font-semibold">{workDays}</td>
-              <td><input aria-label={'ลากิจของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.personal_leave_days} onChange={e => setLeave('personal_leave_days', e.target.value)} /></td>
-              <td><input aria-label={'ลาป่วยของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.sick_leave_days} onChange={e => setLeave('sick_leave_days', e.target.value)} /></td>
-              <td><input aria-label={'ลาพักผ่อนของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.annual_leave_days} onChange={e => setLeave('annual_leave_days', e.target.value)} /></td>
-              <td><button type="button" className="btn !py-1" disabled={!staffId || !!leaveSaving[key]} onClick={() => saveLeaveData(x.p)}>{leaveSaving[key] ? 'กำลังบันทึก…' : 'บันทึกข้อมูล'}</button>{leaveMessages[key] && <div className={'mt-1 text-xs ' + (leaveMessages[key].startsWith('บันทึกแล้ว') ? 'text-emerald-700' : 'text-red-700')}>{leaveMessages[key]}</div>}</td>
+              <td><input disabled={!leaveEditing[key]} aria-label={'ลากิจของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.personal_leave_days} onChange={e => setLeave('personal_leave_days', e.target.value)} /></td>
+              <td><input disabled={!leaveEditing[key]} aria-label={'ลาป่วยของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.sick_leave_days} onChange={e => setLeave('sick_leave_days', e.target.value)} /></td>
+              <td><input disabled={!leaveEditing[key]} aria-label={'ลาพักผ่อนของ ' + x.p.name} type="number" min="0" step="0.5" className="inp !w-24" value={draft.annual_leave_days} onChange={e => setLeave('annual_leave_days', e.target.value)} /></td>
+              <td><button type="button" className="btn !py-1" disabled={!staffId || !!leaveSaving[key]} onClick={() => leaveEditing[key] ? saveLeaveData(x.p) : setLeaveEditing(v => ({ ...v, [key]: true }))}>{leaveSaving[key] ? 'กำลังบันทึก…' : leaveEditing[key] ? 'บันทึกข้อมูล' : 'แก้ไข'}</button>{leaveMessages[key] && <div className={'mt-1 text-xs ' + (leaveMessages[key].startsWith('บันทึกแล้ว') ? 'text-emerald-700' : 'text-red-700')}>{leaveMessages[key]}</div>}</td>
               <td><button type="button" className="btn sec !py-1" onClick={() => setPrintingPerson({ ...x.p, staff_directory_id: staffId || x.p.staff_directory_id })}>พิมพ์</button></td>
             </tr>
           })}
