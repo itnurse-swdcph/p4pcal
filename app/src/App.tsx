@@ -323,7 +323,7 @@ function PersonalProfilePage({ sb, profile, role, units, groupOptions = [], posi
     <p className="text-xs text-stone-500">บทบาทการอนุมัติไม่สามารถเปลี่ยนจากหน้านี้ได้ เพื่อป้องกันการเปลี่ยนสิทธิ์ด้วยตนเอง</p>
     {message && <p role="status" className="text-sm">{message}</p>}
     {!locked && <button className="btn" onClick={save} disabled={busy}>{busy ? 'กำลังบันทึก…' : 'บันทึกข้อมูลบุคลากร'}</button>}
-    {!locked && <AccountCredentialsPanel sb={sb} profile={profile} onUpdated={() => {}} />}
+    {!locked && <AccountCredentialsPanel sb={sb} profile={profile} onUpdated={(nextUsername: string) => setProfile((old: any) => ({ ...old, username: nextUsername }))} />}
   </div>
 }
 
@@ -343,7 +343,7 @@ function AccountCredentialsPanel({ sb, profile, onUpdated }: any) {
     try {
       const { data, error } = await sb.functions.invoke('p4p-update-credentials', { body: { username: username.trim().toLowerCase(), current_password: currentPassword, ...(newPassword ? { new_password: newPassword } : {}) } })
       if (error || data?.error) { let detail = data?.error || ''; if (!detail) { try { detail = (await error?.context?.json?.())?.error || '' } catch {} }; setMessage(detail || 'บันทึกข้อมูลบัญชีไม่สำเร็จ'); return }
-      setSuccess(true); setMessage('บันทึกข้อมูลบัญชีเรียบร้อยแล้ว'); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); onUpdated?.(data?.username || username.trim().toLowerCase())
+      setSuccess(true); setMessage('บันทึกข้อมูลบัญชีเรียบร้อยแล้ว'); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); onUpdated?.(data?.username || username.trim().toLowerCase()); await sb.auth.refreshSession()
     } catch { setMessage('เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่') } finally { setBusy(false) }
   }
   return <section className="card space-y-3"><div><h3 className="text-lg font-bold">ข้อมูลบัญชีผู้ใช้งาน</h3><p className="text-sm text-stone-600">เปลี่ยนชื่อผู้ใช้หรือรหัสผ่านได้ด้วยตนเอง</p></div>
