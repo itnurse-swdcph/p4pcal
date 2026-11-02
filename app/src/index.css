@@ -1481,7 +1481,7 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
   body.print-payment-memo .memo-preview-wrap { display: block !important; width: auto !important; height: auto !important; max-height: none !important; overflow: visible !important; padding: 0 !important; margin: 0 !important; background: #fff !important; border: 0 !important; box-shadow: none !important; }
   body.print-payment-memo .memo-head,
   body.print-payment-memo .memo-editor { display: none !important; }
-  body.print-payment-memo .memo-paper { width: auto !important; height: 277mm !important; min-height: 277mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; box-shadow: none !important; font-size: 16pt !important; line-height: 1.04 !important; }
+  body.print-payment-memo .memo-paper { width: auto !important; height: 277mm !important; min-height: 277mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; box-shadow: none !important; font-size: 16pt !important; line-height: 1 !important; }
   body.print-payment-memo .memo-letterhead { height: 33mm !important; }
   body.print-payment-memo .memo-letterhead h1 { font-size: 24pt !important; }
   body.print-payment-memo .memo-garuda { width: 30mm !important; height: 30mm !important; }
