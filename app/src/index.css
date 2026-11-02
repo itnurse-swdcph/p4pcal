@@ -1435,15 +1435,16 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
 .memo-history-item.selected { border-color: #078777; background: #effaf7; }
 .memo-history-item span { color: #687782; font-size: .69rem; }
 .memo-preview-wrap { min-width: 0; overflow: auto; padding: 1rem; background: #e5e9ec; }
-.memo-paper { box-sizing: border-box; width: 210mm; height: 297mm; margin: 0 auto; padding: 15mm 17.5mm 5mm 30mm; overflow: hidden; background: #fff; color: #111; box-shadow: 0 3px 18px rgba(0,0,0,.16); font-family: 'Sarabun', 'Noto Sans Thai', sans-serif; font-size: 14pt; line-height: 1.04; }
+.memo-paper { box-sizing: border-box; width: 210mm; height: 297mm; margin: 0 auto; padding: 15mm 17.5mm 5mm 30mm; overflow: hidden; background: #fff; color: #111; box-shadow: 0 3px 18px rgba(0,0,0,.16); font-family: 'TH SarabunPSK', 'TH Sarabun New', 'THSarabun', 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.04; }
+.memo-paper, .memo-paper * { font-family: 'TH SarabunPSK', 'TH Sarabun New', 'THSarabun', 'Sarabun', sans-serif !important; }
 .memo-paper p { margin: 0 0 1.2mm; }
 .memo-letterhead { position: relative; height: 33mm; margin-bottom: .5mm; display: flex; align-items: flex-start; justify-content: center; padding-top: 3mm; }
 .memo-garuda { position: absolute; top: 0; left: 0; width: 30mm; height: 30mm; object-fit: contain; }
-.memo-letterhead h1 { margin: 0; font-size: 23pt; line-height: 1.15; font-weight: 700; }
+.memo-letterhead h1 { margin: 0; font-size: 26pt; line-height: 1.15; font-weight: 700; }
 .memo-official-line { display: grid; grid-template-columns: 36mm minmax(0,1fr); align-items: baseline; gap: 1mm; height: 8mm; white-space: nowrap; overflow: hidden; }
-.memo-official-line b, .memo-number b, .memo-subject b { font-size: 18pt; line-height: 1; font-weight: 700; }
-.memo-official-line > span { width: 122%; min-width: 0; max-width: none; overflow: visible; transform: scaleX(.82); transform-origin: left bottom; font-size: 11.5pt; letter-spacing: -.12mm; }
-.memo-meta { display: flex; gap: 4mm; justify-content: space-between; margin-bottom: 1mm; font-size: 14pt; }
+.memo-official-line b, .memo-number b, .memo-subject b { font-size: 20pt; line-height: 1; font-weight: 700; }
+.memo-official-line > span { width: 122%; min-width: 0; max-width: none; overflow: visible; transform: scaleX(.82); transform-origin: left bottom; font-size: 16pt; letter-spacing: -.12mm; }
+.memo-meta { display: flex; gap: 4mm; justify-content: space-between; margin-bottom: 1mm; font-size: 16pt; }
 .memo-number { min-height: 8mm; margin: 0 0 1mm; }
 .memo-number > span:first-child { flex: 1; }
 .memo-number > span:last-child { min-width: 46%; }
@@ -1451,14 +1452,14 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
 .memo-to { margin: 1.5mm 0 1mm !important; }
 .memo-body { text-indent: 12mm; text-align: justify; line-height: 1.08; }
 .memo-closing { text-indent: 12mm; margin-top: 1.5mm !important; }
-.memo-sign { width: 48%; margin: 1mm 0 1.3mm auto; text-align: center; line-height: 1.02; font-size: 14pt; }
+.memo-sign { width: 48%; margin: 1mm 0 1.3mm auto; text-align: center; line-height: 1.02; font-size: 16pt; }
 .memo-sign-space { height: 2.5mm; }
 .memo-approval { margin-top: 1mm; break-inside: avoid; }
 .memo-approval > p { margin: 0 0 .5mm; }
 .memo-approval .memo-sign { margin: .2mm 0 .4mm 5%; }
-.memo-final-approval { margin-top: 1mm; break-inside: avoid; font-size: 14pt; }
+.memo-final-approval { margin-top: 1mm; break-inside: avoid; font-size: 16pt; }
 .memo-final-approval .memo-sign { margin: .2mm 0 0 5%; }
-.memo-preview-wrap .memo-paper { font-size: 14pt; }
+.memo-preview-wrap .memo-paper { font-size: 16pt; }
 @media (max-width: 900px) {
   .memo-overlay { padding: 0; }
   .memo-dialog { width: 100%; height: 100dvh; border-radius: 0; }
@@ -1481,9 +1482,9 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
   body.print-payment-memo .memo-preview-wrap { display: block !important; width: auto !important; height: auto !important; max-height: none !important; overflow: visible !important; padding: 0 !important; margin: 0 !important; background: #fff !important; border: 0 !important; box-shadow: none !important; }
   body.print-payment-memo .memo-head,
   body.print-payment-memo .memo-editor { display: none !important; }
-  body.print-payment-memo .memo-paper { width: auto !important; height: 277mm !important; min-height: 277mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; box-shadow: none !important; font-size: 14pt !important; line-height: 1 !important; }
+  body.print-payment-memo .memo-paper { width: auto !important; height: 277mm !important; min-height: 277mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; box-shadow: none !important; font-size: 16pt !important; line-height: 1 !important; }
   body.print-payment-memo .memo-letterhead { height: 33mm !important; }
-  body.print-payment-memo .memo-letterhead h1 { font-size: 23pt !important; }
+  body.print-payment-memo .memo-letterhead h1 { font-size: 26pt !important; }
   body.print-payment-memo .memo-garuda { width: 30mm !important; height: 30mm !important; }
   body.print-payment-memo .memo-sign-space { height: 2.5mm !important; }
   body.print-payment-memo .memo-paper p { margin-bottom: 1mm !important; }
@@ -1493,3 +1494,4 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
   body.print-payment-memo .memo-approval .memo-sign { margin-left: 5% !important; }
   @page memoPage { size: A4 portrait !important; margin: 15mm 17.5mm 5mm 30mm; }
 }
+
