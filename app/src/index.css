@@ -1453,7 +1453,7 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
 .memo-body { text-indent: 12mm; text-align: justify; line-height: 1.08; }
 .memo-closing { text-indent: 12mm; margin-top: 1.5mm !important; }
 .memo-sign { width: 48%; margin: 1mm 0 1.3mm auto; text-align: center; line-height: 1.02; font-size: 16pt; }
-.memo-sign-space { height: 2.5mm; }
+.memo-sign-space { height: 8mm; }
 .memo-approval { margin-top: 1mm; break-inside: avoid; }
 .memo-approval > p { margin: 0 0 .5mm; }
 .memo-approval .memo-sign { margin: .2mm 0 .4mm 5%; }
@@ -1486,7 +1486,7 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
   body.print-payment-memo .memo-letterhead { height: 33mm !important; }
   body.print-payment-memo .memo-letterhead h1 { font-size: 26pt !important; }
   body.print-payment-memo .memo-garuda { width: 30mm !important; height: 30mm !important; }
-  body.print-payment-memo .memo-sign-space { height: 2.5mm !important; }
+  body.print-payment-memo .memo-sign-space { height: 8mm !important; }
   body.print-payment-memo .memo-paper p { margin-bottom: 1mm !important; }
   body.print-payment-memo .memo-meta { gap: 2mm !important; }
   body.print-payment-memo .memo-sign { margin-top: .5mm !important; margin-bottom: .5mm !important; }
