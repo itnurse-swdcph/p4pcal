@@ -27,7 +27,6 @@ function moneyText(value: number) {
   return `${baht ? thaiInteger(baht) + 'บาท' : ''}${satang ? thaiInteger(satang) + 'สตางค์' : baht ? 'ถ้วน' : 'ศูนย์บาทถ้วน'}`
 }
 const monthLabel = (month: string) => { const [y, m] = month.split('-').map(Number); return `${thaiMonths[(m || 1) - 1]} พ.ศ. ${(y || 0) + 543}` }
-const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10) }
 const dateThai = (value: string) => { if (!value) return '................................'; const [y, m, d] = value.split('-').map(Number); return `${d} ${thaiMonths[m - 1]} ${y + 543}` }
 const officeUnitName = (value: string, prefix: 'งาน' | 'กลุ่มงาน') => {
   const name = String(value || '').trim().replace(/^(?:(?:กลุ่มงาน|งาน)\s*)+/u, '').trim()
@@ -75,7 +74,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const newMemo = async () => {
     const n = Number(amount || 0)
     const signers = await loadSignerDefaults()
-    setForm({ docNo: prefixData?.prefix || '', date: today(), phone: prefixData?.phone || '', work: unitName || profile?.staff_group || '', group: groupName || profile?.nursing_group || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), ...fixedSigners, ...signers })
+    setForm({ docNo: prefixData?.prefix || '', date: '', phone: prefixData?.phone || '', work: unitName || profile?.staff_group || '', group: groupName || profile?.nursing_group || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), ...fixedSigners, ...signers, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ' })
     setAmountTextTouched(false); setError('')
   }
   const field = (key: string, value: any) => setForm((v: any) => ({ ...v, [key]: value }))
@@ -131,7 +130,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
           {form && <div className="memo-preview-wrap"><div className="memo-paper">
             <div className="memo-letterhead"><img src="/garuda-emblem.png" alt="" className="memo-garuda" /><h1>บันทึกข้อความ</h1></div>
             <div className="memo-official-line"><b>ส่วนราชการ</b><span>{officialLine}</span></div>
-            <div className="memo-meta memo-number"><span><b>ที่</b> {form.docNo || 'สน 0033.305/................'}</span><span>วันที่ {dateThai(form.date)}</span></div>
+            <div className="memo-meta memo-number"><span><b>ที่</b> {form.docNo || 'สน 0033.305/................'}</span><span>วันที่ {form.date ? dateThai(form.date) : ''}</span></div>
             <p className="memo-subject"><b>เรื่อง</b> ขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน (ฉ.12)</p>
             <p className="memo-to"><b>เรียน</b> ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</p>
             <p className="memo-body">ด้วย{officeName || '................................'} โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข ประจำเดือน {form.monthText || '................'} จำนวนเงิน {money.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท ({form.amountText || moneyText(money)}) ตามรายละเอียดที่แนบมาพร้อมนี้</p>
