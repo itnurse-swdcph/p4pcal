@@ -1735,6 +1735,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   const [leaveSaving, setLeaveSaving] = useState<Record<string, boolean>>({})
   const [leaveMessages, setLeaveMessages] = useState<Record<string, string>>({})
   const [certificationSearch, setCertificationSearch] = useState('')
+  const [certificationSearchOpen, setCertificationSearchOpen] = useState(false)
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
   const [rowsAll, reload] = useLogs(sb, month, null, unit)
   const calendarWorkingDays = useCalendarWorkingDays(sb, month)
@@ -2033,15 +2034,15 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     {certificationOnly && <>
       <div className="card space-y-3">
         <div><h2 className="font-bold text-lg">รายการกิจกรรมที่รอรับรอง</h2><p className="text-sm text-stone-600">แสดงรายการที่อยู่ในขอบเขตสิทธิ์การรับรองของคุณในหน่วยงานที่เลือก</p></div>
-        <label className="block space-y-1"><span className="field-label">ค้นหาชื่อเจ้าหน้าที่</span><input className="inp w-full" type="search" value={certificationSearch} onChange={e => setCertificationSearch(e.target.value)} placeholder="พิมพ์ชื่อ-สกุลเจ้าหน้าที่ที่ต้องการค้นหา" /></label>
-        {certificationSearch.trim() && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3 space-y-2">
+        <label className="block space-y-1"><span className="field-label">ค้นหาชื่อเจ้าหน้าที่</span><input className="inp w-full" type="search" value={certificationSearch} onFocus={() => { if (certificationSearch.trim()) setCertificationSearchOpen(true) }} onChange={e => { setCertificationSearch(e.target.value); setCertificationSearchOpen(true) }} placeholder="พิมพ์ชื่อ-สกุลเจ้าหน้าที่ที่ต้องการค้นหา" /></label>
+        {certificationSearch.trim() && certificationSearchOpen && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3 space-y-2">
           <div className="font-semibold text-sm">ผลการค้นหา</div>
-          {certificationPeople.length > 0 ? certificationPeople.map((person: any) => <div key={String(person.id)} className="flex flex-col gap-1 border-b border-teal-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
-            <div><div className="font-semibold">{person.name || person.displayName}</div><div className="text-xs text-stone-600">{person.position || 'ไม่ระบุตำแหน่ง'}</div></div>
-            <div className="text-sm font-semibold">รายการกิจกรรมที่รอรับรอง {person.pendingCount.toLocaleString('th-TH')} รายการ</div>
-          </div>) : <p className="text-sm text-stone-600">ไม่พบชื่อเจ้าหน้าที่ในหน่วยงานที่เลือก</p>}
+          {certificationPeople.length > 0 ? certificationPeople.map((person: any) => <button type="button" key={String(person.id)} onClick={() => { setCertificationSearch(String(person.name || person.displayName || '')); setCertificationSearchOpen(false) }} className="w-full flex flex-col gap-1 border-b border-teal-100 pb-2 text-left last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between hover:bg-teal-100/50 rounded-lg px-2 py-2">
+            <span><span className="block font-semibold">{person.name || person.displayName}</span><span className="block text-xs text-stone-600">{person.position || 'ไม่ระบุตำแหน่ง'}</span></span>
+            <span className="text-sm font-semibold">รายการกิจกรรมที่รอรับรอง {person.pendingCount.toLocaleString('th-TH')} รายการ</span>
+          </button>) : <p className="text-sm text-stone-600">ไม่พบชื่อเจ้าหน้าที่ในหน่วยงานที่เลือก</p>}
         </div>}
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span>รายการที่รับรองได้ {certificationRows.length.toLocaleString('th-TH')} รายการ</span><button type="button" className="btn sec" onClick={() => setCertificationSearch('')}>ล้างคำค้นหา</button></div>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span>รายการที่รับรองได้ {certificationRows.length.toLocaleString('th-TH')} รายการ</span><button type="button" className="btn sec" onClick={() => { setCertificationSearch(''); setCertificationSearchOpen(false) }}>ล้างคำค้นหา</button></div>
       </div>
       <LogTable sb={sb} rows={certificationRows} reload={reload} canApprove={!audit} readOnly={!!audit} acts={acts} month={month} />
     </>}
