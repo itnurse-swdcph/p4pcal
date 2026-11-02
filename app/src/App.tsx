@@ -1170,6 +1170,10 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const detailRate = Number(detailPosition?.rate ?? 0)
   const detailWorkValue = 1
   const detailWorkpoint = Math.round(detailMinutes * detailRate * detailWorkValue * 100) / 100
+  // คะแนนที่ได้ยึดค่าจาก view ฐานข้อมูลเป็นหลัก; fallback ใช้จำนวน × Workpoint/หน่วย
+  const detailEarnedPoints = detailRow ? Number(detailRow.points ?? (Number(detailRow.qty || 0) * detailWorkpoint)) : 0
+  const detailCountedPoints = detailRow ? Number(detailRow.counted_points ?? detailEarnedPoints) : 0
+  const detailEligible = detailActivity && detailPosition ? (Array.isArray(detailActivity.eligible) ? detailActivity.eligible.includes(detailPosition.grp) : true) : null
   const submitRows = async (ids: number[]) => {
     if (!ids.length) return
     const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', ids)
@@ -1337,7 +1341,12 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
           <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">คุณค่างาน</div><div className="font-semibold">{nf(detailWorkValue, 2)}</div></div>
           <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 col-span-2 sm:col-span-2"><div className="text-xs text-stone-600">คะแนนปรับแล้ว (Workpoint) / หน่วย</div><div className="text-lg font-bold text-teal-900">{detailActivity && detailPosition ? nf(detailWorkpoint, 2) : '—'}</div><div className="text-xs text-stone-500">เวลามาตรฐาน × คะแนนต่อนาที × คุณค่างาน</div></div>
         </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3"><div className="text-xs text-indigo-700">คะแนนที่ได้ (ก่อนหักเพดาน)</div><div className="text-xl font-bold text-indigo-900">{detailActivity && detailPosition ? nf(detailEarnedPoints, 2) : nf(detailRow.points, 2)}</div><div className="text-xs text-indigo-700">จำนวน × Workpoint / หน่วย</div></div>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3"><div className="text-xs text-emerald-700">คะแนนที่นับได้ (หลังเพดาน)</div><div className="text-xl font-bold text-emerald-900">{nf(detailCountedPoints, 2)}</div><div className="text-xs text-emerald-700">ค่าจากระบบคำนวณ P4P</div></div>
+        </div>
         <div className="rounded-lg border p-3"><div className="text-xs text-stone-500">จำนวนที่บันทึก</div><div className="font-semibold">{detailRow.qty ?? '—'} {detailActivity?.uom || detailRow.uom || ''}</div></div>
+        {detailEligible === false && <p className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-800">ตำแหน่ง {detailPosition?.name} ไม่อยู่ในกลุ่มที่มีสิทธิทำกิจกรรมนี้ ({detailPosition?.grp}) กรุณาตรวจสอบรายการก่อนรับรอง</p>}
         {(!detailActivity || !detailPosition) && <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">{!detailActivity ? 'ไม่พบรหัสกิจกรรมนี้ในคลังกิจกรรมที่โหลดอยู่' : 'ไม่พบอัตราคะแนนต่อนาทีของตำแหน่งผู้บันทึก จึงยังคำนวณ Workpoint ไม่ได้'}</p>}
       </section>
       <div><div className="text-xs text-stone-500 mb-1">กิจกรรมย่อย</div><div className="rounded-lg bg-stone-50 p-3 text-sm whitespace-pre-wrap">{detailRow.sub_activity || 'ไม่ได้ระบุ'}</div></div>
