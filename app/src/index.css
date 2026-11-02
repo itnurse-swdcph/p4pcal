@@ -1438,7 +1438,7 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
 .memo-paper { box-sizing: border-box; width: 210mm; height: 297mm; margin: 0 auto; padding: 10mm 15mm 5mm 30mm; overflow: hidden; background: #fff; color: #111; box-shadow: 0 3px 18px rgba(0,0,0,.16); font-family: 'TH SarabunPSK', 'TH Sarabun New', 'THSarabun', 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.04; }
 .memo-paper, .memo-paper * { font-family: 'TH SarabunPSK', 'TH Sarabun New', 'THSarabun', 'Sarabun', sans-serif !important; }
 .memo-paper p { margin: 0 0 1.2mm; }
-.memo-letterhead { position: relative; height: 33mm; margin-bottom: .5mm; display: flex; align-items: center; justify-content: center; padding-top: 0; }
+.memo-letterhead { position: relative; height: 24mm; margin-bottom: .5mm; display: flex; align-items: center; justify-content: center; padding-top: 0; }
 .memo-garuda { position: absolute; top: 50%; left: 0; width: 30mm; height: 30mm; transform: translateY(calc(-50% - 5.5mm)); object-fit: contain; }
 .memo-letterhead h1 { margin: 0; font-size: 26pt; line-height: 1.15; font-weight: 700; }
 .memo-official-line { display: grid; grid-template-columns: 25mm minmax(0,1fr); align-items: baseline; gap: 1mm; min-height: 8mm; white-space: normal; }
@@ -1459,6 +1459,7 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
 .memo-approval .memo-sign { margin: .2mm 0 .4mm 5%; }
 .memo-final-approval { margin-top: 1mm; break-inside: avoid; font-size: 16pt; }
 .memo-final-approval .memo-sign { margin: .2mm 0 0 5%; }
+.memo-final-approval .memo-approver-sign { width: 100%; margin-left: 0; white-space: nowrap; }
 .memo-preview-wrap .memo-paper { font-size: 16pt; }
 @media (max-width: 900px) {
   .memo-overlay { padding: 0; }
@@ -1483,7 +1484,7 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
   body.print-payment-memo .memo-head,
   body.print-payment-memo .memo-editor { display: none !important; }
   body.print-payment-memo .memo-paper { width: auto !important; height: 282mm !important; min-height: 282mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; box-shadow: none !important; font-size: 16pt !important; line-height: 1 !important; }
-  body.print-payment-memo .memo-letterhead { height: 33mm !important; }
+  body.print-payment-memo .memo-letterhead { height: 24mm !important; }
   body.print-payment-memo .memo-letterhead h1 { font-size: 26pt !important; }
   body.print-payment-memo .memo-garuda { width: 30mm !important; height: 30mm !important; }
   body.print-payment-memo .memo-sign-space { height: 8mm !important; }
