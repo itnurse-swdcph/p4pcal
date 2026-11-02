@@ -1451,7 +1451,7 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
 .memo-number > span:last-child { min-width: 46%; }
 .memo-subject { margin: 0 0 1.5mm !important; }
 .memo-to { margin: 1.5mm 0 1mm !important; }
-.memo-body { text-indent: 12mm; text-align: justify; line-height: 1.08; line-break: strict; word-break: normal; overflow-wrap: normal; }
+.memo-body { text-indent: 12mm; text-align: left; line-height: 1.08; line-break: strict; word-break: normal; overflow-wrap: normal; }
 .memo-closing { text-indent: 12mm; margin-top: 1.5mm !important; }
 .memo-sign { width: 48%; margin: 1mm 0 1.3mm auto; text-align: center; line-height: 1.02; font-size: 16pt; }
 .memo-sign-space { height: 8mm; }
