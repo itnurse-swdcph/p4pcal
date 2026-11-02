@@ -95,7 +95,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     document.getElementById('payment-memo-page-rule')?.remove()
     const pageRule = document.createElement('style')
     pageRule.id = 'payment-memo-page-rule'
-    pageRule.textContent = '@page { size: A4 portrait !important; margin: 10mm 17.5mm 5mm 30mm !important; }'
+    pageRule.textContent = '@page { size: A4 portrait !important; margin: 10mm 15mm 5mm 30mm !important; }'
     document.head.appendChild(pageRule)
     document.body.classList.add('print-payment-memo')
     window.requestAnimationFrame(() => window.print())
