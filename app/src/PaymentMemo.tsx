@@ -105,6 +105,9 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const officeName = unitName
     ? officeUnitName(form?.work, 'งาน')
     : officeUnitName(form?.group, 'กลุ่มงาน')
+  const bodyOfficeName = unitName
+    ? [officeUnitName(form?.work, 'งาน'), officeUnitName(form?.group, 'กลุ่มงาน')].filter(Boolean).join(' ')
+    : officeUnitName(form?.group, 'กลุ่มงาน')
   const officialLine = `โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน${officeName ? ` ${officeName}` : ''}${form?.phone ? ` โทร. ${form.phone}` : ''}`
   const setAmount = (value: string) => { setForm((old: any) => ({ ...old, amount: value, ...(!amountTextTouched ? { amountText: moneyText(Number(value)) } : {}) })) }
   const textInput = (label: string, key: string, placeholder = '') => <label className="memo-field"><span>{label}</span><input value={form?.[key] ?? ''} onChange={e => { if (key === 'amountText') setAmountTextTouched(true); field(key, e.target.value) }} placeholder={placeholder} /></label>
@@ -133,7 +136,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             <div className="memo-meta memo-number"><span><b>ที่</b> {form.docNo || 'สน 0033.305/................'}</span><span>วันที่ {form.date ? dateThai(form.date) : ''}</span></div>
             <p className="memo-subject"><b>เรื่อง</b> ขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน (ฉ.12)</p>
             <p className="memo-to"><b>เรียน</b> ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</p>
-            <p className="memo-body">ด้วย{officeName || '................................'} โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข ประจำเดือน {form.monthText || '................'} จำนวนเงิน {money.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท ({form.amountText || moneyText(money)}) ตามรายละเอียดที่แนบมาพร้อมนี้</p>
+            <p className="memo-body">ด้วย{bodyOfficeName || '................................'} โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข ประจำเดือน {form.monthText || '................'} จำนวนเงิน {money.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท ({form.amountText || moneyText(money)}) ตามรายละเอียดที่แนบมาพร้อมนี้</p>
             <p className="memo-closing">จึงเรียนมาเพื่อโปรดพิจารณา</p><MemoSign name={form.authorName} position={form.authorPosition} />
             <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.committeeName} position={form.committeePosition} />
             <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.directorName} position={form.directorPosition} />
