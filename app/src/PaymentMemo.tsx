@@ -29,7 +29,7 @@ function moneyText(value: number) {
 const monthLabel = (month: string) => { const [y, m] = month.split('-').map(Number); return `${thaiMonths[(m || 1) - 1]} พ.ศ. ${(y || 0) + 543}` }
 const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10) }
 const dateThai = (value: string) => { if (!value) return '................................'; const [y, m, d] = value.split('-').map(Number); return `${d} ${thaiMonths[m - 1]} ${y + 543}` }
-const initialSigners = {
+const fixedSigners = {
   authorName: '', authorPosition: '', committeeName: '', committeePosition: '',
   directorName: 'นายสิทธิพงษ์ ดำรงค์พิวัฒน์', directorPosition: 'นายแพทย์ชำนาญการพิเศษ',
   deputyName: 'นางสาววิยะดา สุวรรณเพชร', deputyPosition: 'นักวิชาการเงินและบัญชีปฏิบัติการ',
@@ -50,9 +50,28 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     if (e) setError(e.message); else setHistory(data || [])
   }
   useEffect(() => { if (open) loadHistory() }, [open, groupName, month])
-  const newMemo = () => {
+  const signerName = (d: any) => d?.full_name || `${d?.prefix || ''}${d?.first_name || ''} ${d?.last_name || ''}`.trim()
+  const loadSignerDefaults = async () => {
+    const { data } = await sb.from('staff_directory')
+      .select('prefix,first_name,last_name,position,org_role,unit_name,extra_unit_names,nursing_group,extra_nursing_group_names')
+      .eq('active', true)
+      .or('org_role.ilike.%หัวหน้างาน%,org_role.ilike.%หัวหน้ากลุ่มงาน%,org_role.ilike.%หัวหน้าพยาบาล%,org_role.ilike.%ภารกิจด้านการพยาบาล%')
+    const people = data || []
+    const includesName = (value: any, expected: string) => String(value || '').split(/[,;|]/).some(name => name.trim() === expected)
+    const author = unitName
+      ? people.find((d: any) => String(d.org_role || '').includes('หัวหน้างาน') && (String(d.unit_name || '').trim() === unitName || includesName(d.extra_unit_names, unitName)))
+      : people.find((d: any) => String(d.org_role || '').includes('หัวหน้ากลุ่มงาน') && (String(d.nursing_group || '').trim() === groupName || includesName(d.extra_nursing_group_names, groupName)))
+    const chiefs = people.filter((d: any) => /หัวหน้าพยาบาล|หัวหน้าภารกิจด้านการพยาบาล/.test(String(d.org_role || '')))
+    const committee = chiefs.find((d: any) => /รักษาการ/.test(String(d.org_role || ''))) || chiefs.find((d: any) => !/รักษาการ/.test(String(d.org_role || '')))
+    return {
+      authorName: signerName(author), authorPosition: author?.position || '',
+      committeeName: signerName(committee), committeePosition: committee?.position || '',
+    }
+  }
+  const newMemo = async () => {
     const n = Number(amount || 0)
-    setForm({ docNo: prefixData?.prefix || '', date: today(), phone: prefixData?.phone || '', work: unitName || '', group: groupName || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), ...initialSigners, authorName: profile?.full_name || `${profile?.prefix || ''}${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(), authorPosition: profile?.position || '' })
+    const signers = await loadSignerDefaults()
+    setForm({ docNo: prefixData?.prefix || '', date: today(), phone: prefixData?.phone || '', work: unitName || profile?.staff_group || '', group: groupName || profile?.nursing_group || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), ...fixedSigners, ...signers })
     setAmountTextTouched(false); setError('')
   }
   const field = (key: string, value: any) => setForm((v: any) => ({ ...v, [key]: value }))
@@ -70,14 +89,15 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     setForm({ ...(result.data.payload || {}), id: result.data.id }); await loadHistory()
   }
   const print = () => {
+    document.getElementById('payment-memo-page-rule')?.remove()
+    const pageRule = document.createElement('style')
+    pageRule.id = 'payment-memo-page-rule'
+    pageRule.textContent = '@page { size: A4 portrait !important; margin: 15mm 17.5mm 5mm 30mm !important; }'
+    document.head.appendChild(pageRule)
     document.body.classList.add('print-payment-memo')
-    window.requestAnimationFrame(() => {
-      const paper = document.querySelector<HTMLElement>('.memo-paper')
-      if (paper) paper.style.zoom = String(Math.min(1, (277 * 96 / 25.4) / paper.scrollHeight))
-      window.requestAnimationFrame(() => window.print())
-    })
+    window.requestAnimationFrame(() => window.print())
   }
-  useEffect(() => { const after = () => { document.body.classList.remove('print-payment-memo'); const paper = document.querySelector<HTMLElement>('.memo-paper'); if (paper) paper.style.zoom = '' }; window.addEventListener('afterprint', after); return () => window.removeEventListener('afterprint', after) }, [])
+  useEffect(() => { const after = () => { document.body.classList.remove('print-payment-memo'); document.getElementById('payment-memo-page-rule')?.remove() }; window.addEventListener('afterprint', after); return () => window.removeEventListener('afterprint', after) }, [])
   const money = Number(form?.amount || 0)
   const setAmount = (value: string) => { setForm((old: any) => ({ ...old, amount: value, ...(!amountTextTouched ? { amountText: moneyText(Number(value)) } : {}) })) }
   const textInput = (label: string, key: string, placeholder = '') => <label className="memo-field"><span>{label}</span><input value={form?.[key] ?? ''} onChange={e => { if (key === 'amountText') setAmountTextTouched(true); field(key, e.target.value) }} placeholder={placeholder} /></label>
@@ -101,9 +121,9 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             <section className="memo-section"><h3><Clock3 size={15} className="inline mr-1" />ประวัติเอกสารของเดือนนี้</h3>{history.length ? <div className="memo-history">{history.map(row => <button key={row.id} type="button" className={'memo-history-item ' + (form?.id === row.id ? 'selected' : '')} onClick={() => openHistory(row)}><b>{row.doc_no || 'ไม่ระบุเลขที่'}</b><span>{row.memo_date ? dateThai(row.memo_date) : ''} · แก้ไขล่าสุด {row.updated_at ? new Date(row.updated_at).toLocaleString('th-TH') : ''}{Number(row.revision || 1) > 1 ? ` · รุ่น ${row.revision}` : ''}</span><span>{Number(row.amount ?? row.payload?.amount ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</span></button>)}</div> : <p className="text-xs text-stone-500">ยังไม่มีประวัติที่บันทึกไว้ในเดือนนี้</p>}</section>
           </aside>
           {form && <div className="memo-preview-wrap"><div className="memo-paper">
-            <p className="memo-agency">ส่วนราชการ โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</p>
-            <div className="memo-meta"><span>งาน {form.work || '................................'}</span><span>กลุ่มงาน {form.group || '................................'}</span><span>โทร. {form.phone || '................'}</span></div>
-            <div className="memo-meta memo-number"><span>ที่ {form.docNo || 'สน 0033.305/................'}</span><span>วันที่ {dateThai(form.date)}</span></div>
+            <div className="memo-letterhead"><img src="/garuda-emblem.png" alt="" className="memo-garuda" /><h1>บันทึกข้อความ</h1></div>
+            <div className="memo-official-line"><b>ส่วนราชการ</b><span>โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน{form.work ? ` งาน ${form.work}` : ''}{form.group ? ` กลุ่มงาน ${form.group}` : ''}{form.phone ? ` โทร. ${form.phone}` : ''}</span></div>
+            <div className="memo-meta memo-number"><span><b>ที่</b> {form.docNo || 'สน 0033.305/................'}</span><span>วันที่ {dateThai(form.date)}</span></div>
             <p className="memo-subject"><b>เรื่อง</b> ขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน (ฉ.12)</p>
             <p className="memo-to"><b>เรียน</b> ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</p>
             <p className="memo-body">ด้วยงาน {form.work || '................................'} กลุ่ม {form.group || '................................'} โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข ประจำเดือน {form.monthText || '................'} จำนวนเงิน {money.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท ({form.amountText || moneyText(money)}) ตามรายละเอียดที่แนบมาพร้อมนี้</p>
@@ -119,5 +139,5 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     </div>, document.body)}
   </>
 }
-function MemoSign({ name, position }: any) { return <div className="memo-sign"><div>ลงชื่อ ........................................................</div><div>({name || '................................................'})</div><div>{position || 'ตำแหน่ง................................................'}</div></div> }
+function MemoSign({ name, position }: any) { return <div className="memo-sign"><div className="memo-sign-space" aria-hidden="true" /><div>({name || '................................................'})</div><div>{position || 'ตำแหน่ง................................................'}</div></div> }
 function ApprovalBlock({ heading, note, name, position }: any) { return <section className="memo-approval"><p>{heading}</p><p>– {note}</p><MemoSign name={name} position={position} /></section> }
