@@ -323,9 +323,37 @@ function PersonalProfilePage({ sb, profile, role, units, groupOptions = [], posi
     <p className="text-xs text-stone-500">บทบาทการอนุมัติไม่สามารถเปลี่ยนจากหน้านี้ได้ เพื่อป้องกันการเปลี่ยนสิทธิ์ด้วยตนเอง</p>
     {message && <p role="status" className="text-sm">{message}</p>}
     {!locked && <button className="btn" onClick={save} disabled={busy}>{busy ? 'กำลังบันทึก…' : 'บันทึกข้อมูลบุคลากร'}</button>}
+    {!locked && <AccountCredentialsPanel sb={sb} profile={profile} onUpdated={() => {}} />}
   </div>
 }
 
+function AccountCredentialsPanel({ sb, profile, onUpdated }: any) {
+  const [username, setUsername] = useState(String(profile?.username || ''))
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [success, setSuccess] = useState(false)
+  const valid = /^[a-z0-9][a-z0-9._-]{2,29}$/.test(username.trim().toLowerCase())
+  const changed = username.trim().toLowerCase() !== String(profile?.username || '').toLowerCase() || !!newPassword
+  const save = async () => {
+    if (!valid || !changed || !currentPassword || (newPassword && (newPassword.length < 6 || newPassword !== confirmPassword))) return
+    setBusy(true); setMessage(''); setSuccess(false)
+    try {
+      const { data, error } = await sb.functions.invoke('p4p-update-credentials', { body: { username: username.trim().toLowerCase(), current_password: currentPassword, ...(newPassword ? { new_password: newPassword } : {}) } })
+      if (error || data?.error) { let detail = data?.error || ''; if (!detail) { try { detail = (await error?.context?.json?.())?.error || '' } catch {} }; setMessage(detail || 'บันทึกข้อมูลบัญชีไม่สำเร็จ'); return }
+      setSuccess(true); setMessage('บันทึกข้อมูลบัญชีเรียบร้อยแล้ว'); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); onUpdated?.(data?.username || username.trim().toLowerCase())
+    } catch { setMessage('เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่') } finally { setBusy(false) }
+  }
+  return <section className="card space-y-3"><div><h3 className="text-lg font-bold">ข้อมูลบัญชีผู้ใช้งาน</h3><p className="text-sm text-stone-600">เปลี่ยนชื่อผู้ใช้หรือรหัสผ่านได้ด้วยตนเอง</p></div>
+    <label className="block space-y-1"><span className="field-label">ชื่อผู้ใช้ (Username)</span><input className="inp w-full" value={username} autoComplete="username" onChange={e => setUsername(e.target.value.toLowerCase())}/><span className="field-hint">ใช้ a–z, 0–9, จุด ขีดกลาง หรือขีดล่าง 3–30 ตัวอักษร</span></label>
+    <label className="block space-y-1"><span className="field-label">รหัสผ่านปัจจุบัน (ยืนยันตัวตน)</span><input className="inp w-full" type="password" autoComplete="current-password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}/></label>
+    <div className="grid gap-3 sm:grid-cols-2"><label className="block space-y-1"><span className="field-label">รหัสผ่านใหม่ (ไม่เปลี่ยนให้เว้นว่าง)</span><input className="inp w-full" type="password" autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)}/></label><label className="block space-y-1"><span className="field-label">ยืนยันรหัสผ่านใหม่</span><input className="inp w-full" type="password" autoComplete="new-password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}/></label></div>
+    {newPassword && newPassword.length < 6 && <p className="field-error">รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร</p>}{newPassword && confirmPassword && newPassword !== confirmPassword && <p className="field-error">รหัสผ่านใหม่ไม่ตรงกัน</p>}
+    <p className="text-xs text-stone-500">ต้องยืนยันด้วยรหัสผ่านปัจจุบันก่อนบันทึก ระบบจะไม่แสดงรหัสผ่านเดิม</p>{message && <p role={success ? 'status' : 'alert'} className={success ? 'text-sm text-emerald-700' : 'text-sm text-red-700'}>{message}</p>}
+    <button className="btn" disabled={busy || !valid || !changed || !currentPassword || (!!newPassword && (newPassword.length < 6 || newPassword !== confirmPassword))} onClick={save}>{busy ? 'กำลังบันทึก…' : 'บันทึกข้อมูลบัญชี'}</button></section>
+}
 function Main({ sb, session }: any) {
   const [profile, setProfile] = useState<any>(null); const [noProfile, setNoProfile] = useState(false)
   const [people, setPeople] = useState<any[]>([]); const [acts, setActs] = useState<any[]>([]); const [units, setUnits] = useState<any[]>([])
