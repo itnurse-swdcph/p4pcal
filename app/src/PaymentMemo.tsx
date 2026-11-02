@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Clock3, FilePlus2, Printer, Save, X } from 'lucide-react'
 import { MEMO_PREFIXES } from './data/memoPrefixes'
@@ -28,6 +28,19 @@ function moneyText(value: number) {
 }
 const monthLabel = (month: string) => { const [y, m] = month.split('-').map(Number); return `${thaiMonths[(m || 1) - 1]} พ.ศ. ${(y || 0) + 543}` }
 const dateThai = (value: string) => { if (!value) return '................................'; const [y, m, d] = value.split('-').map(Number); return `${d} ${thaiMonths[m - 1]} ${y + 543}` }
+const thaiWordSegmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('th', { granularity: 'word' }) : null
+const thaiProtectedWords = ['ผลการปฏิบัติงาน', 'กลุ่มการพยาบาล', 'งานการพยาบาล', 'โรงพยาบาล', 'ผู้อำนวยการ', 'พระยุพราช', 'การพยาบาล', 'ค่าตอบแทน', 'กลุ่มงาน', 'เบิกจ่าย', 'ผู้ป่วย', 'สงฆ์อาพาธ', 'อายุรกรรม']
+const thaiProtectedSet = new Set(thaiProtectedWords)
+const thaiProtectedPattern = new RegExp(`(${thaiProtectedWords.join('|')})`, 'gu')
+function ThaiText({ text }: { text: string }) {
+  if (!thaiWordSegmenter) return <span>{text}</span>
+  const renderSegment = (segment: string, key: string) => <>{Array.from(thaiWordSegmenter.segment(segment)).map((part, index) => part.isWordLike
+    ? <Fragment key={`${key}-${index}`}><span className="memo-word">{part.segment}</span><wbr /></Fragment>
+    : <Fragment key={`${key}-${index}`}>{part.segment}</Fragment>)}</>
+  return <>{text.split(thaiProtectedPattern).map((segment, index) => thaiProtectedSet.has(segment)
+    ? <Fragment key={index}><span className="memo-word">{segment}</span><wbr /></Fragment>
+    : <Fragment key={index}>{renderSegment(segment, String(index))}</Fragment>)}</>
+}
 const officeUnitName = (value: string, prefix: 'งาน' | 'กลุ่มงาน') => {
   const name = String(value || '').trim().replace(/^(?:(?:กลุ่มงาน|งาน)\s*)+/u, '').trim()
   return name ? `${prefix}${name}` : ''
@@ -132,12 +145,12 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
           </aside>
           {form && <div className="memo-preview-wrap"><div className="memo-paper" lang="th">
             <div className="memo-letterhead"><img src="/garuda-emblem.png" alt="" className="memo-garuda" /><h1>บันทึกข้อความ</h1></div>
-            <div className="memo-official-line"><b>ส่วนราชการ</b><span>{officialLine}</span></div>
+            <div className="memo-official-line"><b>ส่วนราชการ</b><span><ThaiText text={officialLine} /></span></div>
             <div className="memo-meta memo-number"><span><b>ที่</b> {form.docNo || 'สน 0033.305/................'}</span><span>วันที่ {form.date ? dateThai(form.date) : ''}</span></div>
-            <p className="memo-subject"><b>เรื่อง</b> ขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน (ฉ.12)</p>
-            <p className="memo-to"><b>เรียน</b> ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</p>
-            <p className="memo-body">ด้วย{bodyOfficeName || '................................'} กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข ประจำเดือน {form.monthText || '................'} จำนวนเงิน {money.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท ({form.amountText || moneyText(money)}) ตามรายละเอียดที่แนบมาพร้อมนี้</p>
-            <p className="memo-closing">จึงเรียนมาเพื่อโปรดพิจารณา</p><MemoSign name={form.authorName} position={form.authorPosition} />
+            <p className="memo-subject"><b>เรื่อง</b> <ThaiText text="ขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน (ฉ.12)" /></p>
+            <p className="memo-to"><b>เรียน</b> <ThaiText text="ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" /></p>
+            <p className="memo-body"><ThaiText text={`ด้วย${bodyOfficeName || '................................'} กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข ประจำเดือน ${form.monthText || '................'} จำนวนเงิน ${money.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท (${form.amountText || moneyText(money)}) ตามรายละเอียดที่แนบมาพร้อมนี้`} /></p>
+            <p className="memo-closing"><ThaiText text="จึงเรียนมาเพื่อโปรดพิจารณา" /></p><MemoSign name={form.authorName} position={form.authorPosition} />
             <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.committeeName} position={form.committeePosition} />
             <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.directorName} position={form.directorPosition} />
             <ApprovalBlock heading="เรียน รองผู้อำนวยการฝ่ายบริหาร" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.deputyName} position={form.deputyPosition} />
@@ -149,6 +162,6 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     </div>, document.body)}
   </>
 }
-function MemoSign({ name, position, className = '' }: any) { return <div className={`memo-sign ${className}`}><div className="memo-sign-space" aria-hidden="true" /><div>({name || '................................................'})</div><div>{position || 'ตำแหน่ง................................................'}</div></div> }
-function ApprovalBlock({ heading, note, name, position }: any) { return <section className="memo-approval"><p>{heading}</p><p>– {note}</p><MemoSign name={name} position={position} /></section> }
+function MemoSign({ name, position, className = '' }: any) { return <div className={`memo-sign ${className}`}><div className="memo-sign-space" aria-hidden="true" /><div>(<ThaiText text={name || '................................................'} />)</div><div><ThaiText text={position || 'ตำแหน่ง................................................'} /></div></div> }
+function ApprovalBlock({ heading, note, name, position }: any) { return <section className="memo-approval"><p><ThaiText text={heading} /></p><p>– <ThaiText text={note} /></p><MemoSign name={name} position={position} /></section> }
 
