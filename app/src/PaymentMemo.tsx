@@ -142,13 +142,13 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.directorName} position={form.directorPosition} />
             <ApprovalBlock heading="เรียน รองผู้อำนวยการฝ่ายบริหาร" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.deputyName} position={form.deputyPosition} />
             <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณาอนุมัติ" name={form.adminName} position={form.adminPosition} />
-            <div className="memo-final-approval">อนุมัติ　 /　 ไม่อนุมัติ ........................................<MemoSign name={form.approverName} position={form.approverPosition} /></div>
+            <div className="memo-final-approval">อนุมัติ　 /　 ไม่อนุมัติ ........................................<MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" /></div>
           </div></div>}
         </div>
       </div>
     </div>, document.body)}
   </>
 }
-function MemoSign({ name, position }: any) { return <div className="memo-sign"><div className="memo-sign-space" aria-hidden="true" /><div>({name || '................................................'})</div><div>{position || 'ตำแหน่ง................................................'}</div></div> }
+function MemoSign({ name, position, className = '' }: any) { return <div className={`memo-sign ${className}`}><div className="memo-sign-space" aria-hidden="true" /><div>({name || '................................................'})</div><div>{position || 'ตำแหน่ง................................................'}</div></div> }
 function ApprovalBlock({ heading, note, name, position }: any) { return <section className="memo-approval"><p>{heading}</p><p>– {note}</p><MemoSign name={name} position={position} /></section> }
 
