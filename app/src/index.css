@@ -1438,12 +1438,12 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
 .memo-paper { box-sizing: border-box; width: 210mm; height: 297mm; margin: 0 auto; padding: 15mm 17.5mm 5mm 30mm; overflow: hidden; background: #fff; color: #111; box-shadow: 0 3px 18px rgba(0,0,0,.16); font-family: 'TH SarabunPSK', 'TH Sarabun New', 'THSarabun', 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.04; }
 .memo-paper, .memo-paper * { font-family: 'TH SarabunPSK', 'TH Sarabun New', 'THSarabun', 'Sarabun', sans-serif !important; }
 .memo-paper p { margin: 0 0 1.2mm; }
-.memo-letterhead { position: relative; height: 33mm; margin-bottom: .5mm; display: flex; align-items: flex-start; justify-content: center; padding-top: 3mm; }
-.memo-garuda { position: absolute; top: 0; left: 0; width: 30mm; height: 30mm; object-fit: contain; }
+.memo-letterhead { position: relative; height: 33mm; margin-bottom: .5mm; display: flex; align-items: center; justify-content: center; padding-top: 0; }
+.memo-garuda { position: absolute; top: 50%; left: 0; width: 30mm; height: 30mm; transform: translateY(-50%); object-fit: contain; }
 .memo-letterhead h1 { margin: 0; font-size: 26pt; line-height: 1.15; font-weight: 700; }
-.memo-official-line { display: grid; grid-template-columns: 36mm minmax(0,1fr); align-items: baseline; gap: 1mm; height: 8mm; white-space: nowrap; overflow: hidden; }
+.memo-official-line { display: grid; grid-template-columns: 25mm minmax(0,1fr); align-items: baseline; gap: 1mm; min-height: 8mm; white-space: normal; }
 .memo-official-line b, .memo-number b, .memo-subject b { font-size: 20pt; line-height: 1; font-weight: 700; }
-.memo-official-line > span { width: 122%; min-width: 0; max-width: none; overflow: visible; transform: scaleX(.82); transform-origin: left bottom; font-size: 16pt; letter-spacing: -.12mm; }
+.memo-official-line > span { min-width: 0; max-width: none; font-size: 16pt; letter-spacing: 0; line-height: 1.05; overflow-wrap: anywhere; }
 .memo-meta { display: flex; gap: 4mm; justify-content: space-between; margin-bottom: 1mm; font-size: 16pt; }
 .memo-number { min-height: 8mm; margin: 0 0 1mm; }
 .memo-number > span:first-child { flex: 1; }
