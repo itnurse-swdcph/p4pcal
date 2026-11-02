@@ -29,16 +29,18 @@ function moneyText(value: number) {
 const monthLabel = (month: string) => { const [y, m] = month.split('-').map(Number); return `${thaiMonths[(m || 1) - 1]} พ.ศ. ${(y || 0) + 543}` }
 const dateThai = (value: string) => { if (!value) return '................................'; const [y, m, d] = value.split('-').map(Number); return `${d} ${thaiMonths[m - 1]} ${y + 543}` }
 const thaiWordSegmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('th', { granularity: 'word' }) : null
-const thaiProtectedWords = ['ผลการปฏิบัติงาน', 'กลุ่มการพยาบาล', 'งานการพยาบาล', 'โรงพยาบาล', 'ผู้อำนวยการ', 'พระยุพราช', 'การพยาบาล', 'ค่าตอบแทน', 'กลุ่มงาน', 'เบิกจ่าย', 'ผู้ป่วย', 'สงฆ์อาพาธ', 'อายุรกรรม']
+const thaiHospitalFullName = 'โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน'
+const thaiProtectedWords = [thaiHospitalFullName, 'ผลการปฏิบัติงาน', 'กลุ่มการพยาบาล', 'งานการพยาบาล', 'โรงพยาบาล', 'ผู้อำนวยการ', 'พระยุพราช', 'การพยาบาล', 'ค่าตอบแทน', 'กลุ่มงาน', 'เบิกจ่าย', 'ผู้ป่วย', 'สงฆ์อาพาธ', 'อายุรกรรม']
 const thaiProtectedSet = new Set(thaiProtectedWords)
 const thaiProtectedPattern = new RegExp(`(${thaiProtectedWords.join('|')})`, 'gu')
 function ThaiText({ text }: { text: string }) {
-  if (!thaiWordSegmenter) return <span>{text}</span>
-  const renderSegment = (segment: string, key: string) => <>{Array.from(thaiWordSegmenter.segment(segment)).map((part, index) => part.isWordLike
+  const renderSegment = (segment: string, key: string) => thaiWordSegmenter ? <>{Array.from(thaiWordSegmenter.segment(segment)).map((part, index) => part.isWordLike
     ? <Fragment key={`${key}-${index}`}><span className="memo-word">{part.segment}</span><wbr /></Fragment>
-    : <Fragment key={`${key}-${index}`}>{part.segment}</Fragment>)}</>
-  return <>{text.split(thaiProtectedPattern).map((segment, index) => thaiProtectedSet.has(segment)
-    ? <Fragment key={index}><span className="memo-word">{segment}</span><wbr /></Fragment>
+    : <Fragment key={`${key}-${index}`}>{part.segment}</Fragment>)}</> : <span>{segment}</span>
+  return <>{text.split(thaiProtectedPattern).map((segment, index) => segment === thaiHospitalFullName
+    ? <Fragment key={index}><span className="memo-word">โรงพยาบาล</span><wbr /><span className="memo-word">สมเด็จพระยุพราช</span><wbr /><span className="memo-word">สว่างแดนดิน</span><wbr /></Fragment>
+    : thaiProtectedSet.has(segment)
+      ? <Fragment key={index}><span className="memo-word">{segment}</span><wbr /></Fragment>
     : <Fragment key={index}>{renderSegment(segment, String(index))}</Fragment>)}</>
 }
 const officeUnitName = (value: string, prefix: 'งาน' | 'กลุ่มงาน') => {
