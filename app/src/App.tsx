@@ -379,25 +379,75 @@ function Main({ sb, session }: any) {
     if (initialTab === 'log') setShowLogNotice(true)
   }, [profile, tab, logPageActivation])
     const loadPeople = () => {
+    // บุคลากรทั่วไปต้องเห็นเฉพาะระเบียนของตนเอง ไม่ต้องเรียก person_levels (ซึ่งเดิมคำนวณซ้ำทุกคน)
+    if (profile?.role !== 'admin' && profile?.role !== 'head' && profile?.role !== 'group_head') {
+      sb.from('people').select('*').eq('active', true).eq('user_id', session.user.id).order('name')
+        .then((r: any) => setPeople(r.data || []))
+      setPersonLevel({})
+      return
+    }
     sb.from('people').select('*').eq('active', true).order('name').then((r: any) => setPeople(r.data || []))
     sb.rpc('person_levels').then((r: any) => setPersonLevel(Object.fromEntries((r.data || []).map((x: any) => [x.person_id, Number(x.lvl)]))))
   }
   useEffect(() => {
     let alive = true
-    // ป้องกันหน้าเว็บค้างที่ "กำลังโหลดโปรไฟล์…" หากเครือข่ายหรือคำขอ Supabase ไม่ตอบกลับ
-    const loadProfile = async () => {
+    // โหลดโปรไฟล์ก่อน แล้วจึงโหลดเฉพาะข้อมูลที่จำเป็นต่อบทบาท ลดคำขอพร้อมกันช่วงเข้าสู่ระบบ
+    const loadProfileAndRoleData = async () => {
       let timeoutId: number | undefined
       try {
         const timeout = new Promise<never>((_, reject) => {
-          timeoutId = window.setTimeout(() => reject(new Error('หมดเวลารอข้อมูลโปรไฟล์จากระบบ')), 12000)
+          timeoutId = window.setTimeout(() => reject(new Error('หมดเวลารอข้อมูลโปรไฟล์จากระบบ')), 15000)
         })
         const request = sb.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle()
         const r: any = await Promise.race([request, timeout])
         if (!alive) return
         if (r.error) throw r.error
         if (!r.data) { setNoProfile(true); return }
-        setProfile(r.data)
-        setUnit((r.data.role === 'admin' || r.data.role === 'group_head') ? null : (r.data.unit_id ?? null))
+        const loadedProfile = r.data
+        setProfile(loadedProfile)
+        setUnit((loadedProfile.role === 'admin' || loadedProfile.role === 'group_head') ? null : (loadedProfile.unit_id ?? null))
+
+        const isManager = ['admin', 'head', 'group_head'].includes(loadedProfile.role)
+        const baseRequests: Promise<any>[] = [
+          sb.from('activities').select('*').eq('active', true).order('code').then((x: any) => { if (alive) setActs(x.data || []) }),
+          (isManager
+            ? sb.from('units').select('*').order('id')
+            : loadedProfile.unit_id != null
+              ? sb.from('units').select('*').eq('id', loadedProfile.unit_id)
+              : Promise.resolve({ data: [] })
+          ).then((x: any) => { if (alive) setUnits(x.data || []) }),
+          sb.from('positions').select('*').then((x: any) => { if (alive) setPositions(x.data || []) }),
+          (async () => {
+            let query = sb.from('people').select('*').eq('active', true)
+            if (!isManager) query = query.eq('user_id', session.user.id)
+            const x: any = await query.order('name')
+            if (alive) setPeople(x.data || [])
+          })()
+        ]
+
+        if (isManager) {
+          baseRequests.push(
+            sb.rpc('directory_unit_names').then((x: any) => {
+              if (!alive) return
+              if (x.error || !Array.isArray(x.data)) { console.error('โหลดรายชื่อหน่วยงานจาก staff_directory ไม่สำเร็จ', x.error); setDirectoryUnitNames(null); return }
+              setDirectoryUnitNames([...new Set(x.data.map((v: any) => String(typeof v === 'string' ? v : v?.unit_name ?? Object.values(v || {})[0] ?? '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')))
+            }),
+            sb.from('staff_directory').select('nursing_group,extra_nursing_group_names').eq('active', true).then(({ data, error }: any) => {
+              if (!alive || error) return
+              const names = (data || []).flatMap((d: any) => [d.nursing_group, ...String(d.extra_nursing_group_names || '').split(/[|,;]/)])
+                .map((v: any) => String(v || '').trim()).filter(Boolean)
+              setDirectoryGroupNames([...new Set(names)].sort((a: string, b: string) => a.localeCompare(b, 'th')))
+            }),
+            sb.rpc('my_approval_level').then((x: any) => { if (alive) setMyLevel(Number(x.data || 0)) }),
+            sb.rpc('my_units').then((x: any) => { if (alive) setMyUnits((x.data || []).map((v: any) => (typeof v === 'object' && v ? Object.values(v)[0] : v) as number)) }),
+            sb.rpc('person_levels').then((x: any) => { if (alive) setPersonLevel(Object.fromEntries((x.data || []).map((v: any) => [v.person_id, Number(v.lvl)]))) })
+          )
+        } else {
+          setPersonLevel({})
+          setMyLevel(0)
+          setMyUnits(loadedProfile.unit_id == null ? [] : [Number(loadedProfile.unit_id)])
+        }
+        await Promise.all(baseRequests)
       } catch (error: any) {
         console.error('โหลดโปรไฟล์ไม่สำเร็จ', error)
         if (alive) setProfileLoadError(error?.message || 'ไม่สามารถโหลดข้อมูลโปรไฟล์ได้')
@@ -405,26 +455,7 @@ function Main({ sb, session }: any) {
         if (timeoutId !== undefined) window.clearTimeout(timeoutId)
       }
     }
-    void loadProfile()
-    sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || []))
-    sb.from('units').select('*').order('id').then((r: any) => setUnits(r.data || []))
-    // ใช้ชื่อหน่วยงานจาก staff_directory ที่ active เป็นแหล่งอ้างอิงของ dropdown
-    // แล้วจับคู่กับ units.name เพื่อคง unit_id/foreign keys เดิมโดยไม่แก้ข้อมูลฐานข้อมูล
-    sb.rpc('directory_unit_names').then((r: any) => {
-      if (r.error || !Array.isArray(r.data)) { console.error('โหลดรายชื่อหน่วยงานจาก staff_directory ไม่สำเร็จ', r.error); setDirectoryUnitNames(null); return }
-      setDirectoryUnitNames([...new Set(r.data.map((x: any) => String(typeof x === 'string' ? x : x?.unit_name ?? Object.values(x || {})[0] ?? '').trim()).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')))
-    })
-    // รวมกลุ่มงานจากทะเบียนบุคลากร เพื่อให้กลุ่มที่ยังไม่มีหน่วยงานใน units ปรากฏใน Dropdown ด้วย
-    sb.from('staff_directory').select('nursing_group,extra_nursing_group_names').eq('active', true).then(({ data, error }: any) => {
-      if (error) { console.error('โหลดรายชื่อกลุ่มงานจากทะเบียนบุคลากรไม่สำเร็จ', error); return }
-      const names = (data || []).flatMap((d: any) => [d.nursing_group, ...String(d.extra_nursing_group_names || '').split(/[|,;]/)])
-        .map((v: any) => String(v || '').trim()).filter(Boolean)
-      setDirectoryGroupNames([...new Set(names)].sort((a: string, b: string) => a.localeCompare(b, 'th')))
-    })
-    sb.from('positions').select('*').then((r: any) => setPositions(r.data || []))
-    sb.rpc('my_approval_level').then((r: any) => setMyLevel(Number(r.data || 0)))
-    sb.rpc('my_units').then((r: any) => setMyUnits((r.data || []).map((x: any) => (typeof x === 'object' && x ? Object.values(x)[0] : x) as number)))
-    loadPeople()
+    void loadProfileAndRoleData()
     return () => { alive = false }
   }, [sb, session.user.id])
   useEffect(() => {
