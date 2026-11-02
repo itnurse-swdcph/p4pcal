@@ -1957,10 +1957,24 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   }
   const shown = sel ? rows.filter((r: any) => r.person_id === sel) : rows
   const stat = (l: string, v: any) => <div className="card text-center"><div className="text-xs text-stone-600">{l}</div><div className="text-xl font-bold">{v}</div></div>
+  const certificationPeople = useMemo(() => {
+    const query = certificationSearch.trim().toLocaleLowerCase('th')
+    if (!query) return []
+    return roster.filter((p: any) =>
+      String(p.name || p.displayName || '').toLocaleLowerCase('th').includes(query)
+    ).map((p: any) => {
+      const pendingCount = rows.filter((r: any) =>
+        r.status === 'pending' && canDecideRow(ap, me, r) &&
+        (String(r.person_id) === String(p.id) ||
+          (p.staff_directory_id != null && String(r.staff_directory_id || r.directory_source_row || '') === String(p.staff_directory_id)))
+      ).length
+      return { ...p, pendingCount }
+    })
+  }, [roster, rows, ap, me, certificationSearch])
   const certificationRows = useMemo(() => rows.filter((r: any) =>
     r.status === 'pending' &&
     canDecideRow(ap, me, r) &&
-    (!certificationSearch.trim() || String(r.person_name || roster.find((p: any) => p.id === r.person_id)?.name || '').toLocaleLowerCase('th').includes(certificationSearch.trim().toLocaleLowerCase('th')))
+    (!certificationSearch.trim() || String(r.person_name || roster.find((p: any) => String(p.id) === String(r.person_id))?.name || '').toLocaleLowerCase('th').includes(certificationSearch.trim().toLocaleLowerCase('th')))
   ), [rows, ap, me, roster, certificationSearch])
   return <div className="space-y-4">
     {!certificationOnly && <>
@@ -2020,6 +2034,13 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       <div className="card space-y-3">
         <div><h2 className="font-bold text-lg">รายการกิจกรรมที่รอรับรอง</h2><p className="text-sm text-stone-600">แสดงรายการที่อยู่ในขอบเขตสิทธิ์การรับรองของคุณในหน่วยงานที่เลือก</p></div>
         <label className="block space-y-1"><span className="field-label">ค้นหาชื่อเจ้าหน้าที่</span><input className="inp w-full" type="search" value={certificationSearch} onChange={e => setCertificationSearch(e.target.value)} placeholder="พิมพ์ชื่อ-สกุลเจ้าหน้าที่ที่ต้องการค้นหา" /></label>
+        {certificationSearch.trim() && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3 space-y-2">
+          <div className="font-semibold text-sm">ผลการค้นหา</div>
+          {certificationPeople.length > 0 ? certificationPeople.map((person: any) => <div key={String(person.id)} className="flex flex-col gap-1 border-b border-teal-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+            <div><div className="font-semibold">{person.name || person.displayName}</div><div className="text-xs text-stone-600">{person.position || 'ไม่ระบุตำแหน่ง'}</div></div>
+            <div className="text-sm font-semibold">รายการกิจกรรมที่รอรับรอง {person.pendingCount.toLocaleString('th-TH')} รายการ</div>
+          </div>) : <p className="text-sm text-stone-600">ไม่พบชื่อเจ้าหน้าที่ในหน่วยงานที่เลือก</p>}
+        </div>}
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span>รายการที่รับรองได้ {certificationRows.length.toLocaleString('th-TH')} รายการ</span><button type="button" className="btn sec" onClick={() => setCertificationSearch('')}>ล้างคำค้นหา</button></div>
       </div>
       <LogTable sb={sb} rows={certificationRows} reload={reload} canApprove={!audit} readOnly={!!audit} acts={acts} month={month} />
