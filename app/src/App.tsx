@@ -932,7 +932,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     <div className="space-y-3">
       {notice && <p role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
       {myRejected.length > 0 && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900"><b>มี {myRejected.length} รายการที่หัวหน้าไม่รับรอง</b> ดูเหตุผลในตาราง แล้วกด "แก้ไข" หรือ "ส่งใหม่"</p>}
-      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!pid && people.length > 1} acts={acts} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
+      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!pid && people.length > 1} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
     </div>
   </div>
 }
@@ -1157,12 +1157,19 @@ function Totals({ rows, people, positions }: any) {
 const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', 'bg-stone-200'], pending: ['ส่งแล้ว รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); alert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, acts = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
+function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
   const me = useContext(MeCtx); const ap = useContext(ApproverCtx)
   // แบบร่างเป็นของผู้บันทึกเท่านั้น คนอื่น (รวมหัวหน้า) ไม่เห็นจนกว่าจะส่ง
   const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me), [allRows, me])
   const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
   const [detailRow, setDetailRow] = useState<any>(null)
+  const detailActivity = detailRow ? (acts || []).find((a: any) => String(a.code) === String(detailRow.activity_code)) : null
+  const detailPerson = detailRow ? (people || []).find((p: any) => String(p.id) === String(detailRow.person_id)) : null
+  const detailPosition = detailPerson ? (positions || []).find((p: any) => String(p.name) === String(detailPerson.position)) : null
+  const detailMinutes = Number(detailActivity?.minutes ?? 0)
+  const detailRate = Number(detailPosition?.rate ?? 0)
+  const detailWorkValue = 1
+  const detailWorkpoint = Math.round(detailMinutes * detailRate * detailWorkValue * 100) / 100
   const submitRows = async (ids: number[]) => {
     if (!ids.length) return
     const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', ids)
@@ -1317,18 +1324,26 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
       </tr>})}{!displayedRows.length && <tr><td colSpan={canApprove && !readOnly ? 10 : 9} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
     {detailRow && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="activity-detail-title" onClick={() => setDetailRow(null)}><div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
       <div className="flex items-start justify-between gap-3 border-b pb-3"><div><h3 id="activity-detail-title" className="text-lg font-bold">รายละเอียดกิจกรรมที่ส่งรับรอง</h3><p className="text-sm text-stone-500">{detailRow.person_name || 'ผู้บันทึก'} · {formatThaiShortDate(detailRow.work_date)}</p></div><button type="button" className="btn sec" onClick={() => setDetailRow(null)}>ปิด</button></div>
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-        <div><div className="text-xs text-stone-500">ชื่อกิจกรรม</div><div className="font-semibold">{detailRow.title || detailRow.activity_code || '—'}</div></div>
-        <div><div className="text-xs text-stone-500">หน่วยนับ</div><div>{detailRow.uom || '—'}</div></div>
-        <div><div className="text-xs text-stone-500">เวลาพื้นฐาน</div><div>{detailRow.base_time ?? detailRow.base_minutes ?? detailRow.standard_time ?? '—'}</div></div>
-        <div><div className="text-xs text-stone-500">คะแนนปรับต่อหน่วย</div><div>{detailRow.adjustment_per_unit ?? detailRow.adjust_per_unit ?? detailRow.adjustment_points ?? '—'}</div></div>
-        <div><div className="text-xs text-stone-500">จำนวนที่บันทึก</div><div className="font-semibold">{detailRow.qty ?? '—'} {detailRow.uom || ''}</div></div>
-        <div><div className="text-xs text-stone-500">สถานะ</div><div>{ST[detailRow.status]?.[0] || detailRow.status}</div></div>
+      <section className="space-y-3 text-sm">
+        <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+          <div className="text-xs text-stone-500">ชื่อกิจกรรม</div>
+          <div className="font-semibold">{detailActivity?.title || detailRow.title || detailRow.activity_code || '—'}</div>
+          <div className="text-xs text-stone-500 mt-1">รหัสกิจกรรม: {detailRow.activity_code || '—'} · สถานะ: {ST[detailRow.status]?.[0] || detailRow.status}</div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">หน่วยนับ</div><div className="font-semibold">{detailActivity?.uom || detailRow.uom || '—'}</div></div>
+          <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">เวลามาตรฐาน (นาที)</div><div className="font-semibold">{detailActivity ? nf(detailMinutes, 2) : '—'}</div></div>
+          <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">คะแนนต่อนาที</div><div className="font-semibold">{detailPosition ? nf(detailRate, 3) : '—'}</div></div>
+          <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">คุณค่างาน</div><div className="font-semibold">{nf(detailWorkValue, 2)}</div></div>
+          <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 col-span-2 sm:col-span-2"><div className="text-xs text-stone-600">คะแนนปรับแล้ว (Workpoint) / หน่วย</div><div className="text-lg font-bold text-teal-900">{detailActivity && detailPosition ? nf(detailWorkpoint, 2) : '—'}</div><div className="text-xs text-stone-500">เวลามาตรฐาน × คะแนนต่อนาที × คุณค่างาน</div></div>
+        </div>
+        <div className="rounded-lg border p-3"><div className="text-xs text-stone-500">จำนวนที่บันทึก</div><div className="font-semibold">{detailRow.qty ?? '—'} {detailActivity?.uom || detailRow.uom || ''}</div></div>
+        {(!detailActivity || !detailPosition) && <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">{!detailActivity ? 'ไม่พบรหัสกิจกรรมนี้ในคลังกิจกรรมที่โหลดอยู่' : 'ไม่พบอัตราคะแนนต่อนาทีของตำแหน่งผู้บันทึก จึงยังคำนวณ Workpoint ไม่ได้'}</p>}
       </section>
       <div><div className="text-xs text-stone-500 mb-1">กิจกรรมย่อย</div><div className="rounded-lg bg-stone-50 p-3 text-sm whitespace-pre-wrap">{detailRow.sub_activity || 'ไม่ได้ระบุ'}</div></div>
       <div><div className="text-xs text-stone-500 mb-1">หลักฐานข้อความ</div><div className="rounded-lg bg-stone-50 p-3 text-sm whitespace-pre-wrap">{detailRow.evidence || 'ไม่ได้ระบุ'}</div></div>
       {detailRow.evidence_image_path && <button type="button" className="btn sec" onClick={() => openEvidence(sb, detailRow.evidence_image_path)}>เปิดดูรูปหลักฐาน</button>}
-      {detailRow.status === 'pending' && canDecideRow(ap, me, detailRow) && !readOnly && <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><button type="button" className="btn sec" onClick={() => { setRejecting(detailRow); setReason(''); setDetailRow(null) }}>ไม่รับรอง</button><button type="button" className="btn" onClick={async () => { await set(Number(detailRow.id), 'approved'); setDetailRow(null) }}>รับรองกิจกรรม</button></div>}
+      {detailRow.status === 'pending' && canDecideRow(ap, me, detailRow) && !readOnly && <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><button type="button" className="btn red" onClick={() => { setRejecting(detailRow); setReason(''); setDetailRow(null) }}>ไม่รับรอง</button><button type="button" className="btn !bg-emerald-600 !text-white hover:!bg-emerald-700" onClick={async () => { await set(Number(detailRow.id), 'approved'); setDetailRow(null) }}>รับรองกิจกรรม</button></div>}
     </div></div>}
     {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="reject-title"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-3">
       <h3 id="reject-title" className="text-lg font-bold">ไม่รับรองรายการ</h3>
