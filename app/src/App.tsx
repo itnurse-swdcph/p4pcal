@@ -1373,6 +1373,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
           <div className="text-xs text-stone-500">ชื่อกิจกรรม</div>
           <div className="font-semibold">{detailActivity?.title || detailRow.title || detailRow.activity_code || '—'}</div>
           <div className="text-xs text-stone-500 mt-1">รหัสกิจกรรม: {detailRow.activity_code || '—'} · สถานะ: {ST[detailRow.status]?.[0] || detailRow.status}</div>
+          {detailRow.status === 'pending' && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"><span className="text-xs text-amber-800">ผู้รับรองขั้นถัดไป</span><div className="font-semibold">{nextApproverNames[String(detailRow.person_id)] || 'ไม่พบชื่อผู้รับรองในระบบ'}</div></div>}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">หน่วยนับ</div><div className="font-semibold">{detailActivity?.uom || detailRow.uom || '—'}</div></div>
