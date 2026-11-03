@@ -17,6 +17,8 @@ const SHIFTS: [string, string][] = [['ดึก', 'เวรดึก (00.00-08.
 const LINE_ORDER = ['พยาบาล', 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก', 'พนักงานธุรการ', 'พนักงานเปล', 'Paramedic', 'EMT']
 const LINE_LABEL: Record<string, string> = { 'พยาบาล': 'พยาบาล (รวมหัวหน้า)', 'ผู้ช่วยเหลือคนไข้': 'ผู้ช่วยเหลือคนไข้ / ผู้ช่วยช่าง' }
 const NO_LINE = 'ยังไม่กำหนดสายงาน'
+// ตัวนำหน้ารหัสกิจกรรมของแต่ละสายงาน (เลขรันต่อเนื่องต่อสายงาน เช่น NUR-094)
+const LINE_CODE_PREFIX: Record<string, string> = { 'พยาบาล': 'NUR', 'ผู้ช่วยเหลือคนไข้': 'AID', 'พนักงานประจำตึก': 'WARD', 'พนักงานธุรการ': 'ADMIN', 'พนักงานเปล': 'STRETCHER', 'Paramedic': 'PMD', 'EMT': 'EMT' }
 // รหัสผู้ใช้ที่ล็อกอิน ใช้ตัดสินว่าปุ่ม ส่ง/แก้ไข/ลบ ของแบบร่างเป็นของใคร (ฐานข้อมูลบังคับกฎซ้ำอีกชั้น)
 const MeCtx = createContext<string | null>(null)
 // ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล
@@ -1516,28 +1518,37 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const [msg, setMsg] = useState('')
   const groups = [...new Set((positions || []).map((p: any) => p.grp).filter((g: any) => g && g !== NO_LINE))] as string[]
   const [formLine, setFormLine] = useState<string>(line || '')
-  const emptyForm = (selectedLine: string = formLine) => ({ code: '', title: '', domain: 'บริการ', main_activity: '', uom: '', minutes: '1', max_day: '', max_month: '', eligible: selectedLine ? [selectedLine] : [], need_evidence: false, definition: '', note: '' })
-  const [form, setForm] = useState<any>(() => emptyForm(line || ''))
+  const emptyForm = (_selectedLine: string = formLine) => ({ code: '', title: '', domain: 'บริการ', main_activity: '', uom: '', minutes: '1', max_day: '', max_month: '', coLines: [] as string[], need_evidence: false, definition: '', note: '' })
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
   const inLine = (acts || []).filter((a: any) => (a.eligible || []).includes(line))
   const activityPrintSet = [...inLine].sort(byCode)
   const summaryHeaders = ['ลำดับ', 'กิจกรรม', 'หน่วยนับ', 'เวลามาตรฐาน (นาที)', 'คะแนนต่อนาที', 'คุณค่างาน', 'คะแนนปรับแล้ว (Workpoint)']
-  const ratePerMinute = Number(positions.find((p: any) => p.grp === line)?.rate || 0)
+  // อัตราคะแนนต่อนาทีของสายงาน = ค่าที่พบมากที่สุดในตำแหน่งของสายงานนั้น
+  const lineRateOf = (grp: string) => {
+    const rates = (positions || []).filter((p: any) => p.grp === grp).map((p: any) => Number(p.rate)).filter((r: number) => r > 0)
+    if (!rates.length) return 0
+    const count = new Map<number, number>(); rates.forEach((r: number) => count.set(r, (count.get(r) || 0) + 1))
+    return [...count.entries()].sort((x, y) => y[1] - x[1] || x[0] - y[0])[0][0]
+  }
+  const ratePerMinute = lineRateOf(line)
   const activityDescription = (a: any) => [String(a.main_activity || '').trim(), String(a.title || '').trim().replace(/\s+(?=\d+\s*[.)]\s*\S)/g, '\n')].filter(Boolean).join('\n')
   const activityRows = (items: any[]) => items.map((a, index) => [index + 1, activityDescription(a), a.uom || '', Math.round(Number(a.minutes || 0)), ratePerMinute, 1, Math.round(Number(a.minutes || 0) * ratePerMinute * 100) / 100])
   const mainsOfLine = [...new Set(inLine.map((a: any) => a.main_activity).filter(Boolean))] as string[]
-  const nextActivityCode = (selectedLine: string, selectedDomain: string) => {
-    const prefix = ({ 'บริหาร': 'ADM', 'บริการ': 'SVC', 'วิชาการ': 'ACD' } as Record<string, string>)[selectedDomain] || 'ACT'
-    const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && String(a.code || '').toUpperCase().startsWith(prefix + '-'))
-    const structured = matching.map((a: any) => String(a.code || '').trim().match(/^([A-Z]+)-(\d+)-(\d+)$/i)).filter(Boolean)
-    if (structured.length) {
-      const latest = structured.map((m: any) => ({ group: Number(m[2]), item: Number(m[3]) })).sort((a: any, b: any) => b.group - a.group || b.item - a.item)[0]
-      return prefix + '-' + String(latest.group).padStart(2, '0') + '-' + String(latest.item + 1).padStart(2, '0')
-    }
-    const simple = matching.map((a: any) => Number(String(a.code || '').match(/(\d+)$/)?.[1] || 0)).reduce((a: number, b: number) => Math.max(a, b), 0)
-    return prefix + '-01-' + String(simple + 1).padStart(2, '0')
+  const codePrefixOf = (l: string) => {
+    if (LINE_CODE_PREFIX[l]) return LINE_CODE_PREFIX[l]
+    const own = (acts || []).find((x: any) => (x.eligible || [])[0] === l && /^[A-Za-z]+-/.test(String(x.code || '')))
+    return own ? String(own.code).match(/^([A-Za-z]+)-/)![1].toUpperCase() : 'ACT'
   }
+  // รหัสถัดไปของสายงาน = ตัวนำหน้าสายงาน + เลขรันสูงสุดที่มีอยู่ + 1 (3 หลัก)
+  const nextCodeFor = (l: string, codes: string[]) => {
+    const prefix = codePrefixOf(l)
+    const max = codes.map(c => String(c || '').toUpperCase()).filter(c => c.startsWith(prefix + '-')).map(c => Number(c.match(/(\d+)$/)?.[1] || 0)).reduce((m: number, n: number) => Math.max(m, n), 0)
+    return prefix + '-' + String(max + 1).padStart(3, '0')
+  }
+  const localCodes = (acts || []).map((x: any) => x.code)
+  const formRate = lineRateOf(formLine)
+  const formWorkpoint = Math.round(Number(form.minutes || 0) * formRate * 1 * 100) / 100
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const filtered = inLine.filter((a: any) => terms.every(t => [a.code, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
   const exportActivitySet = () => {
@@ -1586,61 +1597,58 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     const timer = window.setTimeout(() => window.print(), 100)
     return () => { window.clearTimeout(timer); window.removeEventListener('afterprint', afterPrint) }
   }, [printingActivities])
+  const buildPayload = () => ({
+    title: form.title.trim(), domain: form.domain, category: null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
+    minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
+    max_month: form.max_month === '' ? null : Number(form.max_month),
+    // สายงานหลักอยู่ลำดับแรก ตามด้วยสายงานที่มีสิทธิ์ทำร่วม
+    eligible: [formLine, ...(form.coLines || []).filter((l: string) => l && l !== formLine)],
+    need_evidence: form.need_evidence, definition: form.definition.trim() || null,
+    use_role_mult: false, note: form.note.trim() || null
+  })
+  const validateForm = () => {
+    if (!formLine) return 'กรุณาเลือกสายงานก่อน'
+    if (!form.title.trim() || !form.uom.trim()) return 'กรุณากรอกชื่อกิจกรรมและหน่วยนับให้ครบ'
+    if (!form.minutes || Number(form.minutes) <= 0) return 'เวลามาตรฐาน (นาที) ต้องมากกว่า 0'
+    if (form.need_evidence && !form.definition.trim()) return 'กิจกรรมที่บังคับแนบหลักฐาน ต้องระบุรายละเอียด/หลักฐานที่ต้องใช้ให้ชัดเจนก่อนบันทึก'
+    return ''
+  }
   const add = async () => {
     setMsg('')
-    if (!formLine || !form.code.trim() || !form.title.trim() || !form.uom.trim() || !form.minutes || Number(form.minutes) <= 0 || !form.eligible.length) {
-      setMsg('กรุณาเลือกสายงาน แล้วกรอกชื่อกิจกรรม หน่วยนับ และนาที/หน่วยให้ครบ')
-      return
-    }
-    if (form.need_evidence && !form.definition.trim()) {
-      setMsg('กิจกรรมที่บังคับใช้หลักฐาน ต้องระบุรายละเอียดหลักฐานให้ชัดเจนก่อนบันทึก')
-      return
-    }
+    const problem = validateForm()
+    if (problem) { setMsg(problem); return }
     setBusy(true)
-    const payload = {
-      code: form.code.trim(), title: form.title.trim(), domain: form.domain, category: null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
-      minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
-      max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
-      need_evidence: form.need_evidence, definition: form.definition.trim() || null,
-      use_role_mult: false, note: form.note.trim() || null, active: true
-    }
-    const { error } = await sb.from('activities').insert(payload)
+    // นับรหัสต่อจากฐานข้อมูลจริง (รวมกิจกรรมที่ถูกเพิกถอน) เพื่อไม่ให้ซ้ำ
+    const prefix = codePrefixOf(formLine)
+    const { data: existing, error: codeError } = await sb.from('activities').select('code').ilike('code', prefix + '-%')
+    if (codeError) { setBusy(false); setMsg('ตรวจรหัสกิจกรรมไม่สำเร็จ: ' + codeError.message); return }
+    const code = nextCodeFor(formLine, (existing || []).map((r: any) => r.code))
+    const { error } = await sb.from('activities').insert({ ...buildPayload(), code, active: true })
     setBusy(false)
-    if (error) { setMsg(error.code === '23505' ? 'รหัสกิจกรรมนี้มีอยู่แล้ว กรุณาใช้รหัสอื่น' : 'เพิ่มกิจกรรมไม่สำเร็จ: ' + error.message); return }
-    setForm(emptyForm()); setShowAdd(false); setMsg('เพิ่มกิจกรรมสำเร็จ'); reloadActs()
+    if (error) { setMsg(error.code === '23505' ? 'รหัสกิจกรรมซ้ำกับที่เพิ่งมีการเพิ่ม กรุณากดบันทึกอีกครั้ง' : 'เพิ่มกิจกรรมไม่สำเร็จ: ' + error.message); return }
+    setForm(emptyForm()); setShowAdd(false); setMsg(`เพิ่มกิจกรรม ${code} สำเร็จ`); reloadActs()
   }
   const beginEditActivity = (a: any) => {
+    const elig: string[] = Array.isArray(a.eligible) ? a.eligible : []
     setEditingCode(a.code)
-    setFormLine((a.eligible || [])[0] || line || '')
-    setForm({ code: a.code, title: a.title || '', domain: a.domain || 'บริการ', main_activity: a.main_activity || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), eligible: Array.isArray(a.eligible) ? a.eligible : [], need_evidence: Boolean(a.need_evidence), definition: a.definition || '', note: a.note || '' })
+    setFormLine(elig[0] || line || '')
+    setForm({ code: a.code, title: a.title || '', domain: a.domain || 'บริการ', main_activity: a.main_activity || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), coLines: elig.slice(1), need_evidence: Boolean(a.need_evidence), definition: a.definition || '', note: a.note || '' })
     setShowAdd(true)
     setMsg('')
   }
   const saveActivityEdit = async () => {
     setMsg('')
     if (!editingCode) return
-    if (!form.title.trim() || !form.uom.trim() || !form.minutes || Number(form.minutes) <= 0 || !form.eligible.length) {
-      setMsg('กรุณากรอกชื่อกิจกรรม หน่วยนับ นาที/หน่วย และเลือกกลุ่มตำแหน่งที่มีสิทธิ์ให้ครบ')
-      return
-    }
-    if (form.need_evidence && !form.definition.trim()) {
-      setMsg('กิจกรรมที่บังคับใช้หลักฐาน ต้องระบุรายละเอียดหลักฐานให้ชัดเจนก่อนบันทึก')
-      return
-    }
+    const problem = validateForm()
+    if (problem) { setMsg(problem); return }
     setBusy(true)
-    const payload = {
-      title: form.title.trim(), domain: form.domain, category: null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
-      minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
-      max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
-      need_evidence: form.need_evidence, definition: form.definition.trim() || null,
-      use_role_mult: false, note: form.note.trim() || null
-    }
-    const { error } = await sb.from('activities').update(payload).eq('code', editingCode)
+    const { error } = await sb.from('activities').update(buildPayload()).eq('code', editingCode)
     setBusy(false)
     if (error) { setMsg('แก้ไขกิจกรรมไม่สำเร็จ: ' + error.message); return }
     setForm(emptyForm()); setShowAdd(false); setEditingCode(null); setMsg(`บันทึกการแก้ไขกิจกรรม ${editingCode} สำเร็จ`); reloadActs()
   }
   const cancelForm = () => { setShowAdd(false); setEditingCode(null); setFormLine(line || ''); setForm(emptyForm(line || '')); setMsg('') }
+  const toggleCoLine = (l: string, on: boolean) => setForm({ ...form, coLines: on ? [...new Set([...(form.coLines || []), l])] : (form.coLines || []).filter((x: string) => x !== l) })
   const deactivate = async (a: any) => {
     if (!confirm(`ยืนยันเพิกถอนกิจกรรม ${a.code} — ${a.title} หรือไม่? กิจกรรมจะไม่ปรากฏในรายการบันทึกใหม่ แต่ประวัติที่บันทึกไว้จะยังคงอยู่`)) return
     const { error } = await sb.from('activities').update({ active: false }).eq('code', a.code)
@@ -1655,22 +1663,31 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
       {showAdd && isAdmin && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
         <h3 className="font-bold">{editingCode ? `แก้ไขกิจกรรม ${editingCode}` : 'เพิ่มกิจกรรมเข้าคลัง'}</h3>
         <div className="grid sm:grid-cols-2 gap-3">
-          <label className="field-label">1. เลือกตำแหน่งสายงาน<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({...form, eligible: l ? [l] : [], code:l ? nextActivityCode(l,form.domain) : ''}) }}><option value="">-- เลือกสายงานก่อน --</option>{groups.map((g: string) => <option key={g} value={g}>{g}</option>)}</select></label>
-          <label className="field-label">รหัสกิจกรรม (สร้างอัตโนมัติ)<input className="inp mt-1" value={form.code} readOnly placeholder="เลือกสายงานก่อน" /><span className="mt-1 block text-xs text-stone-500">ระบบสร้างรหัสต่อจากรายการล่าสุดของสายงานและด้านที่เลือก</span></label>
-          <label className="field-label">กิจกรรมหลัก<input className="inp mt-1" list="main-options" value={form.main_activity} onChange={e => setForm({...form, main_activity:e.target.value})} placeholder="เช่น การเคลื่อนย้ายผู้ป่วย" /></label>
-          <label className="field-label">ด้านในใบสรุปคะแนน<select className="inp mt-1" value={form.domain} onChange={e => setForm({...form, domain:e.target.value, code:formLine && !editingCode ? nextActivityCode(formLine,e.target.value) : form.code})}>{['บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></label>
-          <datalist id="main-options">{mainsOfLine.map(c => <option key={c} value={c} />)}</datalist>
-          <label className="field-label sm:col-span-2">ชื่อกิจกรรมย่อย (ใช้ค้นหาตอนบันทึก)<input className="inp mt-1" value={form.title} onChange={e => setForm({...form, title:e.target.value})} /></label>
-          <label className="field-label">หน่วยนับ<input className="inp mt-1" value={form.uom} onChange={e => setForm({...form, uom:e.target.value})} placeholder="เช่น ครั้ง, ราย, ชั่วโมง" /></label>
-          <label className="field-label">นาทีต่อหน่วย<input type="number" min="0.01" step="0.01" className="inp mt-1" value={form.minutes} onChange={e => setForm({...form, minutes:e.target.value})} /></label>
-          <label className="field-label">จำกัดจำนวนต่อวัน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_day} onChange={e => setForm({...form, max_day:e.target.value})} /></label>
-          <label className="field-label">จำกัดจำนวนต่อเดือน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_month} onChange={e => setForm({...form, max_month:e.target.value})} /></label>
+          <label className="field-label">1. เลือกสายงาน<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({ ...form, coLines: (form.coLines || []).filter((x: string) => x !== l), code: l ? nextCodeFor(l, localCodes) : '' }) }}><option value="">-- เลือกสายงานก่อน --</option>{groups.map((g: string) => <option key={g} value={g}>{g}</option>)}</select></label>
+          <label className="field-label">2. รหัสกิจกรรม (นับต่ออัตโนมัติตามสายงาน)<input className="inp mt-1 bg-stone-100" value={form.code} readOnly placeholder="เลือกสายงานก่อน" /><span className="mt-1 block text-xs text-stone-500">ระบบนับต่อจากรหัสล่าสุดของสายงานที่เลือก และตรวจซ้ำอีกครั้งตอนบันทึก</span></label>
+          <label className="field-label sm:col-span-2">3. ชื่อกิจกรรม<input className="inp mt-1" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="ชื่อกิจกรรม (ใช้ค้นหาตอนบันทึก)" /></label>
+          <label className="field-label">4. หน่วยนับ<input className="inp mt-1" value={form.uom} onChange={e => setForm({ ...form, uom: e.target.value })} placeholder="เช่น ครั้ง, ราย, ชั่วโมง" /></label>
+          <label className="field-label">5. เวลามาตรฐาน (นาที)<input type="number" min="0.01" step="0.01" className="inp mt-1" value={form.minutes} onChange={e => setForm({ ...form, minutes: e.target.value })} /></label>
+          <label className="field-label">6. คะแนนต่อนาที (ตามอัตราของสายงาน)<input className="inp mt-1 bg-stone-100" readOnly value={formLine ? formRate.toFixed(3) : ''} placeholder="เลือกสายงานก่อน" />{formLine && !formRate && <span className="mt-1 block text-xs text-red-700">สายงานนี้ยังไม่มีอัตราคะแนนต่อนาที โปรดตั้งค่าที่แท็บ "ตั้งค่า"</span>}</label>
+          <label className="field-label">7. คุณค่างาน (กำหนดตายตัว)<input className="inp mt-1 bg-stone-100" readOnly value="1" /></label>
+          <label className="field-label sm:col-span-2">8. คะแนนปรับแล้ว (Workpoint) — คำนวณอัตโนมัติ<input className="inp mt-1 bg-stone-100 font-semibold" readOnly value={formLine ? formWorkpoint.toFixed(2) : ''} placeholder="เลือกสายงานก่อน" /><span className="mt-1 block text-xs text-stone-500">= เวลามาตรฐาน × คะแนนต่อนาที × คุณค่างาน</span></label>
         </div>
-        <div><p className="field-label mb-2">สายงานที่มีสิทธิ์ทำกิจกรรม</p><p className="text-sm text-stone-700">{formLine || 'กรุณาเลือกสายงานด้านบนก่อน'}</p><p className="mt-1 text-xs text-stone-500">กิจกรรมใหม่จะผูกกับสายงานที่เลือกเพียงสายงานเดียว</p></div>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.need_evidence} onChange={e => setForm({...form, need_evidence:e.target.checked})} />บังคับแนบหลักฐานประกอบ</label>
-        <label className="field-label">รายละเอียดกิจกรรม / หลักฐานที่ต้องใช้<textarea className="inp mt-1 min-h-24" value={form.definition} onChange={e => setForm({...form, definition:e.target.value})} placeholder="อธิบายขอบเขต เกณฑ์การนับ และเอกสาร/หลักฐานที่ต้องแนบให้ตรวจสอบได้" /></label>
-        <label className="field-label">หมายเหตุ / เงื่อนไขเพิ่มเติม<textarea className="inp mt-1 min-h-16" value={form.note} onChange={e => setForm({...form, note:e.target.value})} /></label>
-        
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.need_evidence} onChange={e => setForm({ ...form, need_evidence: e.target.checked })} />9. บังคับแนบหลักฐานประกอบ</label>
+        <label className="field-label">10. รายละเอียดกิจกรรม / หลักฐานที่ต้องใช้{form.need_evidence && <span className="text-red-700"> *</span>}<textarea className="inp mt-1 min-h-24" value={form.definition} onChange={e => setForm({ ...form, definition: e.target.value })} placeholder="อธิบายขอบเขต เกณฑ์การนับ และเอกสาร/หลักฐานที่ต้องแนบให้ตรวจสอบได้" /></label>
+        <label className="field-label">11. หมายเหตุ<textarea className="inp mt-1 min-h-16" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} /></label>
+        <fieldset className="rounded-lg border border-stone-300 bg-white p-3"><legend className="field-label px-1">12. สายงานที่มีสิทธิ์ทำกิจกรรมร่วม (นอกเหนือจากสายงานหลัก) เลือกได้หลายสายงาน</legend>
+          {!formLine ? <p className="text-sm text-stone-500">เลือกสายงานหลักด้านบนก่อน</p> : <div className="grid sm:grid-cols-2 gap-1">{groups.filter((g: string) => g !== formLine).map((g: string) => <label key={g} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={(form.coLines || []).includes(g)} onChange={e => toggleCoLine(g, e.target.checked)} />{g}</label>)}</div>}
+          <p className="mt-2 text-xs text-stone-500">สายงานหลัก: <b>{formLine || '—'}</b>{(form.coLines || []).length > 0 && <> · ทำร่วมได้: <b>{(form.coLines || []).join(', ')}</b></>} · ผลตามที่เลือกทันที: ตำแหน่งในสายงานเหล่านี้จะเห็นและบันทึกกิจกรรมนี้ได้ และนับคะแนนตามอัตราของสายงานตนเอง</p>
+        </fieldset>
+        <details className="rounded-lg border border-stone-300 bg-white p-3"><summary className="cursor-pointer text-sm font-semibold">ตั้งค่าเพิ่มเติม (ไม่บังคับ)</summary>
+          <div className="mt-3 grid sm:grid-cols-2 gap-3">
+            <label className="field-label">กิจกรรมหลัก<input className="inp mt-1" list="main-options" value={form.main_activity} onChange={e => setForm({ ...form, main_activity: e.target.value })} placeholder="เช่น การเคลื่อนย้ายผู้ป่วย" /></label>
+            <datalist id="main-options">{mainsOfLine.map(c => <option key={c} value={c} />)}</datalist>
+            <label className="field-label">ด้านในใบสรุปคะแนน<select className="inp mt-1" value={form.domain} onChange={e => setForm({ ...form, domain: e.target.value })}>{['บริหาร', 'บริการ', 'วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></label>
+            <label className="field-label">จำกัดจำนวนต่อวัน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_day} onChange={e => setForm({ ...form, max_day: e.target.value })} /></label>
+            <label className="field-label">จำกัดจำนวนต่อเดือน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_month} onChange={e => setForm({ ...form, max_month: e.target.value })} /></label>
+          </div></details>
+        {msg && <p role="alert" className="text-sm text-red-700">{msg}</p>}
         <div className="flex flex-wrap gap-2"><button className="btn" disabled={busy} onClick={editingCode ? saveActivityEdit : add}>{busy ? 'กำลังบันทึก…' : editingCode ? 'บันทึกการแก้ไข' : 'บันทึกกิจกรรมใหม่'}</button><button className="btn sec" disabled={busy} onClick={cancelForm}>ยกเลิก</button></div>
       </div>}
       <div className="grid gap-3">
