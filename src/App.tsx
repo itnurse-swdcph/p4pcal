@@ -1296,6 +1296,9 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const [filterTo, setFilterTo] = useState('')
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<number[]>([])
   const [bulkApproving, setBulkApproving] = useState(false)
+  const [approvalDialog, setApprovalDialog] = useState<'confirm' | 'result' | null>(null)
+  const [approvalDialogMessage, setApprovalDialogMessage] = useState('')
+  const [approvalDialogError, setApprovalDialogError] = useState(false)
   const sortedRows = useMemo(() => [...(rows || [])].sort((a: any, b: any) => {
     // เรียงตามวันที่ปฏิบัติงานล่าสุดก่อน ไม่ใช่เวลาที่กดบันทึก
     const dateOrder = String(b.work_date || '').localeCompare(String(a.work_date || ''))
@@ -1313,17 +1316,34 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const allApprovableSelected = approvableDisplayedRows.length > 0 && approvableDisplayedRows.every((r: any) => selectedApprovableIds.includes(Number(r.id)))
   const toggleApprovalSelection = (id: number, checked: boolean) => setSelectedApprovalIds(current => checked ? [...new Set([...current, Number(id)])] : current.filter(x => Number(x) !== Number(id)))
   const toggleAllApprovals = (checked: boolean) => setSelectedApprovalIds(current => checked ? [...new Set([...current, ...approvableDisplayedRows.map((r: any) => Number(r.id))])] : current.filter(id => !approvableDisplayedRows.some((r: any) => Number(r.id) === Number(id))))
-  const approveSelected = async () => {
+  const approveSelected = () => {
+    if (!selectedApprovableIds.length || bulkApproving) return
+    setApprovalDialog('confirm')
+  }
+  const executeApproveSelected = async () => {
     const ids = selectedApprovableIds
     if (!ids.length || bulkApproving) return
-    if (!confirm('ยืนยันรับรองกิจกรรมที่เลือกจำนวน ' + ids.length.toLocaleString('th-TH') + ' รายการ?')) return
     setBulkApproving(true)
-    const result = await sb.from('logs').update({ status: 'approved' }).in('id', ids).eq('status', 'pending')
-    setBulkApproving(false)
-    if (result.error) { alert('รับรองรายการที่เลือกไม่สำเร็จ: ' + result.error.message); return }
-    setSelectedApprovalIds(current => current.filter(id => !ids.includes(Number(id))))
-    reload()
-    alert('รับรองรายการเรียบร้อยแล้ว ' + ids.length.toLocaleString('th-TH') + ' รายการ')
+    setApprovalDialog(null)
+    try {
+      const result = await sb.from('logs').update({ status: 'approved' }).in('id', ids).eq('status', 'pending').select('id')
+      if (result.error) throw result.error
+      const changedIds = (result.data || []).map((r: any) => Number(r.id))
+      const changedSet = new Set(changedIds)
+      const missed = ids.filter((id: number) => !changedSet.has(Number(id)))
+      setSelectedApprovalIds(current => current.filter(id => !ids.includes(Number(id))))
+      await Promise.resolve(reload())
+      setApprovalDialogError(missed.length > 0)
+      setApprovalDialogMessage(missed.length
+        ? 'รับรองสำเร็จ ' + changedIds.length.toLocaleString('th-TH') + ' จาก ' + ids.length.toLocaleString('th-TH') + ' รายการ รายการที่เหลืออาจถูกรับรองไปแล้วหรือไม่มีสิทธิ์ กรุณาตรวจสอบรายการอีกครั้ง'
+        : 'รับรองกิจกรรมสำเร็จครบ ' + changedIds.length.toLocaleString('th-TH') + ' รายการ')
+      setApprovalDialog('result')
+    } catch (error: any) {
+      setApprovalDialogError(true)
+      setApprovalDialogMessage('รับรองรายการไม่สำเร็จ: ' + (error?.message || 'เกิดข้อผิดพลาด'))
+      setApprovalDialog('result')
+      await Promise.resolve(reload())
+    } finally { setBulkApproving(false) }
   }
   const selectedEditActivity = (acts || []).find((a: any) => a.code === form.activity_code)
   const editPointsPerUnit = selectedEditActivity && editing ? Number(selectedEditActivity.minutes || 0) * Number(editing.rate || 0) : 0
@@ -1385,6 +1405,14 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
     alert('บันทึกการแก้ไขเรียบร้อยแล้ว รายการและวันที่ล่าสุดได้รับการปรับปรุง'); onActivitySaved?.()
   }
   return <div className="card overflow-x-auto p-0">
+    {approvalDialog && <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={e => { if (e.target === e.currentTarget && !bulkApproving) setApprovalDialog(null) }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="approval-dialog-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-full ${approvalDialog === 'result' && approvalDialogError ? 'bg-rose-100 text-rose-700' : 'bg-teal-100 text-teal-700'}`}>{approvalDialog === 'result' && approvalDialogError ? <X size={25}/> : <ShieldCheck size={25}/>}</div>
+        <h3 id="approval-dialog-title" className="text-lg font-bold text-slate-900">{approvalDialog === 'confirm' ? 'ยืนยันการรับรองกิจกรรม' : approvalDialogError ? 'ดำเนินการไม่ครบถ้วน' : 'รับรองกิจกรรมสำเร็จ'}</h3>
+        <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">{approvalDialog === 'confirm' ? 'ต้องการรับรองกิจกรรมที่เลือกจำนวน ' + selectedApprovableIds.length.toLocaleString('th-TH') + ' รายการใช่หรือไม่?' : approvalDialogMessage}</p>
+        <div className="mt-6 flex justify-end gap-2">{approvalDialog === 'confirm' ? <><button type="button" className="btn sec" disabled={bulkApproving} onClick={() => setApprovalDialog(null)}>ยกเลิก</button><button type="button" className="btn" disabled={bulkApproving} onClick={executeApproveSelected}>ยืนยันรับรอง</button></> : <button type="button" className="btn" onClick={() => setApprovalDialog(null)}>ปิดหน้าต่าง</button>}</div>
+      </section>
+    </div>}
     <div className="flex flex-wrap items-end gap-3 border-b border-stone-200 p-3">
       <div><label className="field-label" htmlFor="log-filter-from">วันที่ตั้งแต่</label><input id="log-filter-from" type="date" lang="th-TH" className="inp mt-1 !w-auto" value={filterFrom} max={filterTo || undefined} onChange={e => setFilterFrom(e.target.value)} /></div>
       <div><label className="field-label" htmlFor="log-filter-to">ถึงวันที่</label><input id="log-filter-to" type="date" lang="th-TH" className="inp mt-1 !w-auto" value={filterTo} min={filterFrom || undefined} onChange={e => setFilterTo(e.target.value)} /></div>
