@@ -2528,9 +2528,9 @@ function UsersPage({ sb, units }: any) {
   const remove = async (uid: string, unitId: number) => { await sb.from('profile_units').delete().eq('user_id', uid).eq('unit_id', unitId); refresh() }
   const uname = (id: number) => units.find((u: any) => u.id === id)?.name || id
   const groupOf = (r: any) => units.find((u: any) => u.id === r.unit_id)?.parent_group
-  return <div className="card p-0 overflow-x-auto"><table className="w-full"><thead><tr><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>หน่วยงานหลัก</th><th>สิทธิ์</th><th>หน่วยงานที่ดูแลเพิ่ม (หัวหน้างาน)</th><th>บัญชีผู้ใช้</th></tr></thead>
+  return <div className="card p-0 overflow-x-auto"><table className="w-full"><thead><tr><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>หน่วยงานหลัก</th><th>สิทธิ์</th><th>หน่วยงานที่ดูแลเพิ่ม (หัวหน้างาน)</th></tr></thead>
     <tbody>{rows.map(r => { const mine = pu.filter(x => x.user_id === r.user_id); return <tr key={r.user_id}>
-      <td><b>{r.full_name || '(ไม่ระบุ)'}</b>{r.username && <div className="text-xs text-stone-500">{r.username}</div>}</td><td className="text-xs">{r.position}</td>
+      <td><b>{r.full_name || '(ไม่ระบุ)'}</b>{r.username && <div className="text-xs text-stone-500">{r.username}</div>}<button type="button" className="btn sec mt-2 whitespace-nowrap" onClick={() => openEdit(r)}>แก้ไขบัญชี</button></td><td className="text-xs">{r.position}</td>
       <td><select className="inp" value={r.unit_id ?? ''} onChange={e => upd(r.user_id, { unit_id: +e.target.value || null })}><option value="">-</option>{units.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></td>
       <td><select className="inp" value={r.role} onChange={e => upd(r.user_id, { role: e.target.value })}>{Object.keys(ROLE_TH).map(k => <option key={k} value={k}>{ROLE_TH[k]}</option>)}</select></td>
       <td className="min-w-[16rem]">
@@ -2541,7 +2541,7 @@ function UsersPage({ sb, units }: any) {
           <button className="ml-1 text-red-700" aria-label="ลบ" onClick={() => remove(x.user_id, x.unit_id)}>×</button></span>)}</div>
         <select className="inp" value="" onChange={e => addUnit(r.user_id, +e.target.value)}><option value="">+ เพิ่มหน่วยงาน</option>{units.filter((u: any) => u.id !== r.unit_id && !mine.some(x => x.unit_id === u.id)).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
       </td>
-      <td><button type="button" className="btn sec whitespace-nowrap" onClick={() => openEdit(r)}>แก้ไขบัญชี</button></td>
+      
     </tr> })}</tbody></table>
     {editUser && <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-3" onMouseDown={e => { if (e.target === e.currentTarget && !editBusy) setEditUser(null) }}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4 text-slate-800">
