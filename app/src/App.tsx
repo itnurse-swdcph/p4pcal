@@ -1819,7 +1819,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     const excess = scoring.excess
     const rate = p.unit_id != null && rates[String(p.unit_id)] != null ? rates[String(p.unit_id)] : groupRate
     return { p, order: index + 1, g, roleGuarantee, workPoints: displayedWorkPoints, performancePoints, excess, rate, payout: excess * rate, rs }
-  }), [heads, rowsAll, positions, rates, groupRate])
+  }), [heads, rowsAll, positions, rates, groupRate, month])
   useEffect(() => {
     if (!printReport) return
     const afterPrint = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
@@ -2068,7 +2068,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints: displayedWorkPoints, performancePoints, roleGuarantee, excess, days, rate: unitRate, basePay, payout, g, appr: displayedWorkPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
-  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays])
+  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays, month])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const saveLeaveData = async (person: any) => {
     const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
