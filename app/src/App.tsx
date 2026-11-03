@@ -112,15 +112,20 @@ export default function App() {
   const [session, setSession] = useState<any>(undefined)
   useEffect(() => {
     if (!sb) return
-    // ตรวจกับเซิร์ฟเวอร์ว่าบัญชีใน session ยังมีอยู่จริง (กรณีผู้ดูแลลบบัญชีไปแล้ว แต่เบราว์เซอร์ยังจำ session เก่า)
-    sb.auth.getSession().then(async ({ data }: any) => {
-      if (!data.session) return setSession(null)
-      const { data: u, error } = await sb.auth.getUser()
-      if (error || !u?.user) { await sb.auth.signOut({ scope: 'local' }); return setSession(null) }
-      setSession(data.session)
+    let alive = true
+    // อ่าน session จาก storage ก่อน ไม่เรียก getUser ซ้ำระหว่างเริ่มแอป เพราะทำให้ทุกการเปิดหน้าเว็บต้องรอ Auth API
+    // หาก Auth API ตอบช้า/504 ให้ผู้ใช้เห็นหน้าล็อกอินและลองใหม่ได้ แทนการล้าง session ทิ้ง
+    sb.auth.getSession().then(({ data, error }: any) => {
+      if (!alive) return
+      if (error) console.warn('อ่าน session ไม่สำเร็จ:', error.message)
+      setSession(data?.session || null)
+    }).catch((error: any) => {
+      if (alive) { console.error('เริ่มต้น session ไม่สำเร็จ:', error); setSession(null) }
     })
-    const { data } = sb.auth.onAuthStateChange((_e: any, s: any) => setSession(s))
-    return () => data.subscription.unsubscribe()
+    const { data } = sb.auth.onAuthStateChange((_e: any, s: any) => {
+      if (alive) setSession(s)
+    })
+    return () => { alive = false; data.subscription.unsubscribe() }
   }, [sb])
   if (session === undefined) return <p className="p-8">กำลังโหลด…</p>
   if (!session) return <Login sb={sb} reset={() => {}} />
@@ -597,35 +602,46 @@ async function fetchPages(mk: (from: number, to: number) => any) {
   const out: any[] = []
   for (let i = 0; ; i += 1000) {
     const { data, error } = await mk(i, i + 999)
-    if (error || !data) break
+    if (error) throw error
+    if (!data) throw new Error('ไม่สามารถอ่านข้อมูลจากฐานข้อมูลได้')
     out.push(...data); if (data.length < 1000) break
   }
   return out
 }
 function useLogs(sb: any, month: string, personIds: string[] | null, unit?: number | null) {
-  const [rows, setRows] = useState<any[]>([]); const [n, setN] = useState(0)
+  const [rows, setRows] = useState<any[]>([])
+  const [n, setN] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
   useEffect(() => {
     let alive = true
     const [a, b] = mRange(month)
+    setLoading(true); setLoadError('')
     ;(async () => {
-      const baseRows = await fetchPages((x, y) => {
-        let q = sb.from('v_logs').select('*').gte('work_date', a).lte('work_date', b).order('work_date', { ascending: true }).order('id', { ascending: true })
-        if (unit) q = q.eq('unit_id', unit)
-        if (personIds) q = q.in('person_id', personIds)
-        return q.range(x, y)
-      })
-      if (!alive) return
-      if (!baseRows.length) { setRows([]); return }
-      const extraMap = new Map<any, any>()
-      for (let i = 0; i < baseRows.length; i += 200) {
-        const { data } = await sb.from('logs').select('id, sub_activity, evidence_image_path, entered_by, reject_reason, submitted_at, parent_log_id, supplemental_reason').in('id', baseRows.slice(i, i + 200).map((x: any) => x.id))
-        ;(data || []).forEach((x: any) => extraMap.set(x.id, x))
-      }
-      if (alive) setRows(baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) })))
+      try {
+        const baseRows = await fetchPages((x, y) => {
+          let q = sb.from('v_logs').select('*').gte('work_date', a).lte('work_date', b).order('work_date', { ascending: true }).order('id', { ascending: true })
+          if (unit) q = q.eq('unit_id', unit)
+          if (personIds) q = q.in('person_id', personIds)
+          return q.range(x, y)
+        })
+        if (!alive) return
+        if (!baseRows.length) { setRows([]); return }
+        const extraMap = new Map<any, any>()
+        for (let i = 0; i < baseRows.length; i += 200) {
+          const { data, error } = await sb.from('logs').select('id, sub_activity, evidence_image_path, entered_by, reject_reason, submitted_at, parent_log_id, supplemental_reason').in('id', baseRows.slice(i, i + 200).map((x: any) => x.id))
+          if (error) throw error
+          ;(data || []).forEach((x: any) => extraMap.set(x.id, x))
+        }
+        if (alive) setRows(baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) })))
+      } catch (error: any) {
+        console.error('โหลดรายการกิจกรรมไม่สำเร็จ:', error)
+        if (alive) { setRows([]); setLoadError(error?.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล กรุณาลองใหม่') }
+      } finally { if (alive) setLoading(false) }
     })()
     return () => { alive = false }
   }, [month, n, unit, personIds?.join(',')])
-  return [rows, () => setN(x => x + 1)] as const
+  return [rows, () => setN(x => x + 1), { loading, error: loadError }] as const
 }
 
 function MonthFilter({ month, setMonth, description = 'เลือกเดือนที่ต้องการแสดงข้อมูล' }: any) {
@@ -1863,7 +1879,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   const [certificationSearch, setCertificationSearch] = useState('')
   const [certificationSearchOpen, setCertificationSearchOpen] = useState(false)
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
-  const [rowsAll, reload] = useLogs(sb, month, null, unit)
+  const [rowsAll, reload, logsState] = useLogs(sb, month, null, unit)
   const calendarWorkingDays = useCalendarWorkingDays(sb, month)
   useEffect(() => {
     let alive = true
@@ -2106,6 +2122,8 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     (!certificationSearch.trim() || String(r.person_name || roster.find((p: any) => String(p.id) === String(r.person_id))?.name || '').toLocaleLowerCase('th').includes(certificationSearch.trim().toLocaleLowerCase('th')))
   ), [rows, ap, me, roster, certificationSearch])
   return <div className="space-y-4">
+    {logsState.loading && <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800" role="status">กำลังโหลดรายการกิจกรรมของเดือน {monthText}…</div>}
+    {logsState.error && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800" role="alert"><div className="font-semibold">โหลดรายการกิจกรรมไม่สำเร็จ</div><div className="mt-1 break-words">{logsState.error}</div><button type="button" className="btn sec mt-2" onClick={reload}>ลองโหลดอีกครั้ง</button></div>}
     {!certificationOnly && <>
       {!reportOnly && <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         {stat('บุคลากร', roster.length)}{stat('รายการไม่นับแต้ม', rows.filter((r: any) => r.errors.length).length)}{stat('รายการต้องตรวจทาน', rows.filter((r: any) => r.warnings.length).length)}
