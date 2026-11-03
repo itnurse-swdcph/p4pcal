@@ -19,19 +19,23 @@ const LINE_LABEL: Record<string, string> = { 'พยาบาล': 'พยาบ
 const NO_LINE = 'ยังไม่กำหนดสายงาน'
 // รหัสผู้ใช้ที่ล็อกอิน ใช้ตัดสินว่าปุ่ม ส่ง/แก้ไข/ลบ ของแบบร่างเป็นของใคร (ฐานข้อมูลบังคับกฎซ้ำอีกชั้น)
 const MeCtx = createContext<string | null>(null)
-// ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล (ระดับมาจากทะเบียนบุคลากร org_role; ฐานข้อมูลบังคับซ้ำ และรับรองรายการของตนเองไม่ได้)
-// ระดับ 0 เจ้าหน้าที่ 1 หัวหน้างาน 2 หัวหน้ากลุ่มงาน 3 รักษาการหัวหน้าพยาบาล
+// ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล
+// บุคลากร 5 รายที่ควบหน้าที่หัวหน้างานและหัวหน้ากลุ่มงาน รับรองเจ้าหน้าที่ในหน่วยงานที่ตนดูแลได้
+const DUAL_HEAD_GROUP_STAFF_IDS = [6, 21, 148, 165, 412]
 const approverLabel = (subjectLevel: number) => subjectLevel >= 3 ? 'ผู้ดูแลระบบ' : subjectLevel === 2 ? 'รักษาการหัวหน้าพยาบาล' : subjectLevel === 1 ? 'หัวหน้ากลุ่มงาน' : 'หัวหน้างาน'
-const ApproverCtx = createContext<{ role: string; level: number; personUser: Record<string, string | null>; personLevel: Record<string, number> } | null>(null)
+const ApproverCtx = createContext<{ role: string; level: number; staffDirectoryId?: number; myUnits?: number[]; personUser: Record<string, string | null>; personUnit: Record<string, number | null>; personLevel: Record<string, number> } | null>(null)
 function canDecideRow(ap: any, me: string | null, r: any) {
   if (!ap || !r || !me) return false
   const isOwnRecord = ap.personUser[r.person_id] === me
   // ผู้ดูแลระบบรับรองได้ทุกคนยกเว้นรายการของตนเอง; รักษาการหัวหน้าพยาบาล (ทะเบียนบุคลากรแถว 2) รับรองของตนเองได้
-  if (isOwnRecord) return Number(ap.staffDirectoryId) === 2 || ['หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล', 'หัวหน้าพยาบาล(รักษาการ)'].includes(String(ap.position || ap.orgRole || '').replace(/\s/g, ''))
+  if (isOwnRecord) return Number(ap.staffDirectoryId) === 2 || ['หัวหน้าพยาบาล', 'รักษาการหัวหน้าพยาบาล', 'หัวหน้าพยาบาล(รักษาการ)'].includes(String(ap.position || ap.orgRole || '').replace(/\\s/g, ''))
   if (ap.role === 'admin') return true
   if (ap.role !== 'head' && ap.role !== 'group_head') return false
   const sl = ap.personLevel[r.person_id] ?? 0
-  return (ap.level === 1 && sl === 0) || (ap.level === 2 && sl === 1) || (ap.level === 3 && sl === 2)
+  const unitId = ap.personUnit?.[r.person_id]
+  const dualRoleUnitHead = DUAL_HEAD_GROUP_STAFF_IDS.includes(Number(ap.staffDirectoryId)) &&
+    sl === 0 && unitId != null && (ap.myUnits || []).map(Number).includes(Number(unitId))
+  return dualRoleUnitHead || (ap.level === 1 && sl === 0) || (ap.level === 2 && sl === 1) || (ap.level === 3 && sl === 2)
 }
 const ROLE_TH: any = { staff: 'เจ้าหน้าที่', head: 'หัวหน้างาน', group_head: 'หัวหน้ากลุ่มงาน', committee: 'กรรมการ P4P', admin: 'ผู้ดูแลระบบ' }
 const ROLES = ['ประธาน', 'เลขานุการ/กรรมการ', 'สมาชิก/ผู้เข้าร่วม']
@@ -520,7 +524,7 @@ function Main({ sb, session }: any) {
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { void checkForUpdate(); if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
-  return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, staffDirectoryId: profile?.staff_directory_id, position: profile?.position, orgRole: profile?.org_role, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
+  return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, staffDirectoryId: profile?.staff_directory_id, position: profile?.position, orgRole: profile?.org_role, myUnits, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personUnit: Object.fromEntries(people.map((p: any) => [p.id, p.unit_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
     {mobileNav && <button aria-label="ปิดเมนู" className="sidebar-scrim" onClick={() => setMobileNav(false)}/>}
     <aside className={'app-sidebar ' + (mobileNav ? 'mobile-open' : '')}>
       <div className="sidebar-brand"><img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/icon.png" alt="P4P" /><div className="sidebar-brand-copy"><strong>P4P Nursing</strong><span>SMART WORKFLOW</span></div><button className="sidebar-icon mobile-close" aria-label="ปิดเมนู" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
@@ -1219,7 +1223,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
         const level = Number(ap?.personLevel?.[personId] ?? 0)
         let candidate: any = null
         if (level === 0) {
-          candidate = approvers.find((p: any) => (p.role === 'head' || p.org_role === 'หัวหน้างาน') && Number(p.unit_id) === Number(unitId))
+          candidate = approvers.find((p: any) => (p.role === 'head' || p.org_role === 'หัวหน้างาน' || DUAL_HEAD_GROUP_STAFF_IDS.includes(Number(p.staff_directory_id))) && Number(p.unit_id) === Number(unitId))
         } else if (level === 1) {
           const group = String(unit?.parent_group || '').trim()
           candidate = approvers.find((p: any) => (p.role === 'group_head' || p.org_role === 'หัวหน้ากลุ่มงาน') && [p.nursing_group, p.extra_nursing_group_names].some((v: any) => String(v || '').split('|').map(x => x.trim()).includes(group)))
