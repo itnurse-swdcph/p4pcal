@@ -23,7 +23,7 @@ const LINE_CODE_PREFIX: Record<string, string> = { 'พยาบาล': 'NUR', 
 const MeCtx = createContext<string | null>(null)
 // ลำดับการรับรอง: เจ้าหน้าที่ → หัวหน้างาน → หัวหน้ากลุ่มงาน → รักษาการหัวหน้าพยาบาล
 // บุคลากร 5 รายที่ควบหน้าที่หัวหน้างานและหัวหน้ากลุ่มงาน รับรองเจ้าหน้าที่ในหน่วยงานที่ตนดูแลได้
-const DUAL_HEAD_GROUP_STAFF_IDS = [6, 21, 148, 165, 412]
+const DUAL_HEAD_GROUP_STAFF_IDS = [6, 21, 148, 165]
 const approverLabel = (subjectLevel: number) => subjectLevel >= 3 ? 'ผู้ดูแลระบบ' : subjectLevel === 2 ? 'รักษาการหัวหน้าพยาบาล' : subjectLevel === 1 ? 'หัวหน้ากลุ่มงาน' : 'หัวหน้างาน'
 const ApproverCtx = createContext<{ role: string; level: number; staffDirectoryId?: number; myUnits?: number[]; personUser: Record<string, string | null>; personUnit: Record<string, number | null>; personLevel: Record<string, number> } | null>(null)
 function canDecideRow(ap: any, me: string | null, r: any) {
