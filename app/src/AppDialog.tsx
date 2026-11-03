@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react'
+import { AlertTriangle, Info } from 'lucide-react'
 
 type DialogRequest = { id:number; kind:'alert'|'confirm'; title:string; message:string; resolve:(value:boolean)=>void }
 let nextId=0
