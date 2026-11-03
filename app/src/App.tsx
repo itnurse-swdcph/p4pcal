@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import PersonnelPage from './PersonnelPage'
 import PaymentMemo from './PaymentMemo'
 import P4PCommitteePage from './P4PCommitteePage'
+import AppDialogHost, { appAlert, appConfirm } from './AppDialog'
 import { createPortal } from 'react-dom'
 import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardList, LibraryBig, ClipboardCheck, Users, Settings, LogOut, ChevronLeft, CalendarDays, Building2, Shield } from 'lucide-react'
 
@@ -536,7 +537,7 @@ function Main({ sb, session }: any) {
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { void checkForUpdate(); if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
-  return <MeCtx.Provider value={session.user.id}><ApproverCtx.Provider value={{ role, level: myLevel, staffDirectoryId: profile?.staff_directory_id, position: profile?.position, orgRole: profile?.org_role, myUnits, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personUnit: Object.fromEntries(people.map((p: any) => [p.id, p.unit_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
+  return <MeCtx.Provider value={session.user.id}><AppDialogHost/><ApproverCtx.Provider value={{ role, level: myLevel, staffDirectoryId: profile?.staff_directory_id, position: profile?.position, orgRole: profile?.org_role, myUnits, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personUnit: Object.fromEntries(people.map((p: any) => [p.id, p.unit_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
     {mobileNav && <button aria-label="ปิดเมนู" className="sidebar-scrim" onClick={() => setMobileNav(false)}/>}
     <aside className={'app-sidebar ' + (mobileNav ? 'mobile-open' : '')}>
       <div className="sidebar-brand"><img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/icon.png" alt="P4P" /><div className="sidebar-brand-copy"><strong>P4P Nursing</strong><span>SMART WORKFLOW</span></div><button className="sidebar-icon mobile-close" aria-label="ปิดเมนู" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
@@ -552,7 +553,7 @@ function Main({ sb, session }: any) {
       </div></header>
       {updateAvailable && <div role="status" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm">
         <div><strong>มี P4P เวอร์ชันใหม่พร้อมใช้งาน</strong><p className="mt-0.5 text-xs">กรุณาบันทึกงานที่กำลังทำให้เรียบร้อยก่อนกดอัปเดตระบบ</p></div>
-        <button type="button" className="btn !bg-amber-700 hover:!bg-amber-800" onClick={() => { if (window.confirm('ก่อนอัปเดต กรุณาตรวจสอบว่าบันทึกข้อมูลที่กำลังทำเรียบร้อยแล้ว\nต้องการโหลด P4P เวอร์ชันใหม่หรือไม่?')) window.location.reload() }}>อัปเดตระบบ</button>
+        <button type="button" className="btn !bg-amber-700 hover:!bg-amber-800" onClick={async () => { if (await appConfirm('ก่อนอัปเดต กรุณาตรวจสอบว่าบันทึกข้อมูลที่กำลังทำเรียบร้อยแล้ว\nต้องการโหลด P4P เวอร์ชันใหม่หรือไม่?')) window.location.reload() }}>อัปเดตระบบ</button>
       </div>}
       <main className="app-content">
       {showLogNotice && cur === 'log' && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="presentation">
@@ -913,7 +914,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       {person && <div className="flex flex-wrap justify-end gap-2"><button type="button" className="btn sec" onClick={() => setPrinting(true)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปประจำเดือน (A4)</button><button type="button" className="btn" onClick={() => document.getElementById('saved-activity-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>ตรวจสอบรายการบันทึก</button></div>}
       {printing && printPerson && <PrintSheet sb={sb} person={printPerson} rows={printRows} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
       {myDrafts.length > 0 && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-stone-300 bg-white p-3 text-sm"><span>แบบร่างที่ยังไม่ส่ง <b>{myDrafts.length}</b> รายการ (ยังไม่นับคะแนน)</span>
-        <button type="button" className="btn" onClick={async () => { if (!confirm(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรอง? เมื่อส่งแล้วจะแก้ไขหรือลบไม่ได้`)) return; const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', myDrafts.map((r: any) => r.id)); if (error) alert('ส่งรายการไม่สำเร็จ: ' + error.message); else { setNotice(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรองแล้ว`); reload() } }}>ส่งทั้งหมด ({myDrafts.length})</button></div>}
+        <button type="button" className="btn" onClick={async () => { if (!(await appConfirm(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรอง? เมื่อส่งแล้วจะแก้ไขหรือลบไม่ได้`)) return; const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', myDrafts.map((r: any) => r.id)); if (error) appAlert('ส่งรายการไม่สำเร็จ: ' + error.message); else { setNotice(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรองแล้ว`); reload() } }}>ส่งทั้งหมด ({myDrafts.length})</button></div>}
       <ActivitySummary sb={sb} rows={shown} person={person ? { ...person, org_role: person.org_role || profileOrgRole } : null} positions={positions} month={month} units={units} />
     </div>
     <div className="card activity-entry-card w-full max-w-5xl mx-auto space-y-4">
@@ -1223,7 +1224,7 @@ function Totals({ rows, people, positions }: any) {
 }
 
 const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', 'bg-stone-200'], pending: ['ส่งแล้ว รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
-async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); alert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
+async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { appAlert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); appAlert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
 // แชร์ข้อมูลผู้รับรองระหว่าง LogTable ทุกหน้าที่เปิดพร้อมกัน ลดการอ่าน profiles/units ซ้ำ
 let approverDirectoryCache: { expiresAt: number; promise: Promise<{ profiles: any[]; units: any[] }> } | null = null
@@ -1297,13 +1298,13 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const submitRows = async (ids: number[]) => {
     if (!ids.length) return
     const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', ids)
-    if (error) { alert('ส่งรายการไม่สำเร็จ: ' + error.message); return }
+    if (error) { appAlert('ส่งรายการไม่สำเร็จ: ' + error.message); return }
     reload()
   }
   const confirmReject = async () => {
-    if (!reason.trim()) { alert('กรุณาระบุเหตุผลที่ไม่รับรอง เพื่อแจ้งผู้บันทึก'); return }
+    if (!reason.trim()) { appAlert('กรุณาระบุเหตุผลที่ไม่รับรอง เพื่อแจ้งผู้บันทึก'); return }
     const { error } = await sb.from('logs').update({ status: 'rejected', reject_reason: reason.trim() }).eq('id', rejecting.id)
-    if (error) { alert('บันทึกไม่สำเร็จ: ' + error.message); return }
+    if (error) { appAlert('บันทึกไม่สำเร็จ: ' + error.message); return }
     setRejecting(null); setReason(''); reload()
   }
   const [editing, setEditing] = useState<any>(null)
@@ -1338,21 +1339,21 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const approveSelected = async () => {
     const ids = selectedApprovableIds
     if (!ids.length || bulkApproving) return
-    if (!confirm('ยืนยันรับรองกิจกรรมที่เลือกจำนวน ' + ids.length.toLocaleString('th-TH') + ' รายการ?')) return
+    if (!(await appConfirm('ยืนยันรับรองกิจกรรมที่เลือกจำนวน ' + ids.length.toLocaleString('th-TH') + ' รายการ?')) return
     setBulkApproving(true)
     const result = await sb.from('logs').update({ status: 'approved' }).in('id', ids).eq('status', 'pending')
     setBulkApproving(false)
-    if (result.error) { alert('รับรองรายการที่เลือกไม่สำเร็จ: ' + result.error.message); return }
+    if (result.error) { appAlert('รับรองรายการที่เลือกไม่สำเร็จ: ' + result.error.message); return }
     setSelectedApprovalIds(current => current.filter(id => !ids.includes(Number(id))))
     reload()
-    alert('รับรองรายการเรียบร้อยแล้ว ' + ids.length.toLocaleString('th-TH') + ' รายการ')
+    appAlert('รับรองรายการเรียบร้อยแล้ว ' + ids.length.toLocaleString('th-TH') + ' รายการ')
   }
   const selectedEditActivity = (acts || []).find((a: any) => a.code === form.activity_code)
   const editPointsPerUnit = selectedEditActivity && editing ? Number(selectedEditActivity.minutes || 0) * Number(editing.rate || 0) : 0
   const editPointsTotal = editPointsPerUnit * Number(form.qty || 0)
   const editActivityTerms = editActivityQuery.toLowerCase().split(/\s+/).filter(Boolean)
   const editActivityOptions = (acts || []).filter((a: any) => a.active !== false && editActivityTerms.every((term: string) => [a.code, a.main_activity, a.title].join(' ').toLowerCase().includes(term))).sort((a: any, b: any) => String(a.code).localeCompare(String(b.code), 'th'))
-  useEffect(() => { if (!editTargetRow) return; if (editTargetRow.status === 'pending') beginEdit(editTargetRow); else alert('รายการนี้รับรองแล้ว จึงไม่สามารถแก้ไขได้'); clearEditTarget() }, [editTargetRow, clearEditTarget])
+  useEffect(() => { if (!editTargetRow) return; if (editTargetRow.status === 'pending') beginEdit(editTargetRow); else appAlert('รายการนี้รับรองแล้ว จึงไม่สามารถแก้ไขได้'); clearEditTarget() }, [editTargetRow, clearEditTarget])
   const beginEdit = (r: any) => {
     setEditing(r)
     setForm({ work_date: r.work_date || '', activity_code: r.activity_code || '', qty: String(r.qty ?? 1), role: r.role || '', evidence: r.evidence || '', sub_activity: r.sub_activity || '', shift: r.shift || 'เช้า' })
@@ -1363,12 +1364,12 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   }
   const set = async (id: number, status: string) => {
     const { error } = await sb.from('logs').update({ status }).eq('id', id)
-    if (error) { alert('เปลี่ยนสถานะไม่สำเร็จ: ' + error.message); return false }
+    if (error) { appAlert('เปลี่ยนสถานะไม่สำเร็จ: ' + error.message); return false }
     reload()
-    alert(status === 'approved' ? 'รับรองกิจกรรมเรียบร้อยแล้ว' : status === 'rejected' ? 'บันทึกผลไม่รับรองเรียบร้อยแล้ว' : 'เปลี่ยนสถานะรายการเรียบร้อยแล้ว')
+    appAlert(status === 'approved' ? 'รับรองกิจกรรมเรียบร้อยแล้ว' : status === 'rejected' ? 'บันทึกผลไม่รับรองเรียบร้อยแล้ว' : 'เปลี่ยนสถานะรายการเรียบร้อยแล้ว')
     return true
   }
-  const del = async (id: number) => { if (confirm('ลบรายการนี้?')) { const { error } = await sb.from('logs').delete().eq('id', id); if (error) alert('ลบรายการไม่สำเร็จ: ' + error.message); else reload() } }
+  const del = async (id: number) => { if (await appConfirm('ลบรายการนี้?')) { const { error } = await sb.from('logs').delete().eq('id', id); if (error) appAlert('ลบรายการไม่สำเร็จ: ' + error.message); else reload() } }
   const saveEdit = async () => {
     setEditError('')
     if (!form.work_date || !form.activity_code || !form.qty || !Number.isInteger(Number(form.qty)) || Number(form.qty) <= 0) { setEditError('กรุณาระบุวันที่ กิจกรรม และจำนวนเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป (ไม่รับทศนิยม)'); return }
@@ -1406,7 +1407,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
     if (savedMonth && savedMonth !== month && typeof setMonth === 'function') setMonth(savedMonth)
     setFilterFrom(''); setFilterTo('')
     reload()
-    alert('บันทึกการแก้ไขเรียบร้อยแล้ว รายการและวันที่ล่าสุดได้รับการปรับปรุง'); onActivitySaved?.()
+    appAlert('บันทึกการแก้ไขเรียบร้อยแล้ว รายการและวันที่ล่าสุดได้รับการปรับปรุง'); onActivitySaved?.()
   }
   return <div className="card overflow-x-auto p-0">
     <div className="flex flex-wrap items-end gap-3 border-b border-stone-200 p-3">
@@ -1661,7 +1662,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const cancelForm = () => { setShowAdd(false); setEditingCode(null); setFormLine(line || ''); setForm(emptyForm(line || '')); setMsg('') }
   const toggleCoLine = (l: string, on: boolean) => setForm({ ...form, coLines: on ? [...new Set([...(form.coLines || []), l])] : (form.coLines || []).filter((x: string) => x !== l) })
   const deactivate = async (a: any) => {
-    if (!confirm(`ยืนยันเพิกถอนกิจกรรม ${a.code} — ${a.title} หรือไม่? กิจกรรมจะไม่ปรากฏในรายการบันทึกใหม่ แต่ประวัติที่บันทึกไว้จะยังคงอยู่`)) return
+    if (!(await appConfirm(`ยืนยันเพิกถอนกิจกรรม ${a.code} — ${a.title} หรือไม่? กิจกรรมจะไม่ปรากฏในรายการบันทึกใหม่ แต่ประวัติที่บันทึกไว้จะยังคงอยู่`)) return
     const { error } = await sb.from('activities').update({ active: false }).eq('code', a.code)
     if (error) { setMsg('เพิกถอนกิจกรรมไม่สำเร็จ: ' + error.message); return }
     setMsg(`เพิกถอนกิจกรรม ${a.code} แล้ว`); reloadActs()
@@ -1787,7 +1788,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
   }, [sb, groupName, month])
   const saveGroupLeave = async (person: any) => {
     const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
-    if (!staffId) { alert('ไม่พบรหัสบุคลากรจากทะเบียนกลาง จึงยังบันทึกข้อมูลวันลาไม่ได้'); return }
+    if (!staffId) { appAlert('ไม่พบรหัสบุคลากรจากทะเบียนกลาง จึงยังบันทึกข้อมูลวันลาไม่ได้'); return }
     const key = String(staffId)
     const draft = groupLeaveDrafts[key] || { personal_leave_days: '0', sick_leave_days: '0', annual_leave_days: '0' }
     const values: any = {}
@@ -1828,7 +1829,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     return () => window.removeEventListener('afterprint', afterPrint)
   }, [printReport])
   const openPrintReport = () => {
-    if (!sum.length) { alert('ไม่พบข้อมูลรายงานของกลุ่มงาน'); return }
+    if (!sum.length) { appAlert('ไม่พบข้อมูลรายงานของกลุ่มงาน'); return }
     document.body.classList.remove('print-unit-report', 'print-individual-report', 'unit-report-preview-open')
     document.body.classList.add('unit-report-preview-open')
     setPrintReport(true)
@@ -2073,7 +2074,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const saveLeaveData = async (person: any) => {
     const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
-    if (!staffId) { alert('ไม่พบรหัสบุคลากรจากทะเบียนกลาง จึงยังบันทึกข้อมูลวันลาไม่ได้'); return }
+    if (!staffId) { appAlert('ไม่พบรหัสบุคลากรจากทะเบียนกลาง จึงยังบันทึกข้อมูลวันลาไม่ได้'); return }
     const draft = leaveDrafts[String(staffId)] || {}
     const values: any = {}
     for (const field of ['personal_leave_days', 'sick_leave_days', 'annual_leave_days']) {
@@ -2107,7 +2108,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     return () => { window.removeEventListener('afterprint', afterPrint) }
   }, [printReport])
   const printUnitReport = () => {
-    if (!unit || !sum.length) { alert('ไม่พบข้อมูลรายงานของหน่วยงาน กรุณาเลือกหน่วยงานและตรวจสอบข้อมูลก่อน'); return }
+    if (!unit || !sum.length) { appAlert('ไม่พบข้อมูลรายงานของหน่วยงาน กรุณาเลือกหน่วยงานและตรวจสอบข้อมูลก่อน'); return }
     // เปิดหน้าตัวอย่างโดยล้างคลาสพิมพ์เก่าทุกโหมดก่อน ป้องกัน CSS รายงานรายบุคคลมาบังรายงานหน่วยงาน
     document.body.classList.remove('print-unit-report', 'print-individual-report', 'unit-report-preview-open')
     document.body.classList.add('unit-report-preview-open')
@@ -2125,8 +2126,8 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   }
   const bulk = async () => {
     const ids = rows.filter((r: any) => r.status === 'pending' && !r.errors.length && !r.warnings.length && canDecideRow(ap, me, r)).map((r: any) => r.id)
-    if (!ids.length) return alert('ไม่มีรายการ ✓ ที่รอรับรอง')
-    if (confirm(`รับรอง ${ids.length} รายการที่ผ่านการตรวจอัตโนมัติ (✓) ทั้งหมด?`)) { await sb.from('logs').update({ status: 'approved' }).in('id', ids); reload() }
+    if (!ids.length) return appAlert('ไม่มีรายการ ✓ ที่รอรับรอง')
+    if (await appConfirm(`รับรอง ${ids.length} รายการที่ผ่านการตรวจอัตโนมัติ (✓) ทั้งหมด?`)) { await sb.from('logs').update({ status: 'approved' }).in('id', ids); reload() }
   }
   const csv = () => {
     const h = ['ลำดับ', 'ชื่อ-สกุล', 'ตำแหน่งที่ปฏิบัติงาน', 'แต้มประกัน/เดือน', 'วันทำการ/เดือน', 'แต้มการันตี', 'แต้มการปฏิบัติงาน', 'รวมผลการปฏิบัติงาน', 'แต้มที่ได้มากกว่าแต้มประกัน', 'จำนวนเงิน/แต้ม', 'จำนวนเงินตามผลงานที่ได้รับ', 'จำนวนเงินที่ได้รับ']
@@ -2302,7 +2303,7 @@ function PeoplePage({ sb, people, unit, positions, reload }: any) {
     const { error } = await sb.from('people').insert({ prefix: pf, first_name: fn.trim(), last_name: ln.trim(), name: pf + fn.trim() + ' ' + ln.trim(), position: pos, unit_id: unit, sub_unit: sub || null })
     if (error) setErr(error.message); else { setFn(''); setLn(''); setSub(''); setErr(''); reload() }
   }
-  const off = async (id: string) => { if (confirm('ปิดการใช้งานบุคลากรนี้ (ข้อมูลเดิมยังอยู่)?')) { await sb.from('people').update({ active: false }).eq('id', id); reload() } }
+  const off = async (id: string) => { if (await appConfirm('ปิดการใช้งานบุคลากรนี้ (ข้อมูลเดิมยังอยู่)?')) { await sb.from('people').update({ active: false }).eq('id', id); reload() } }
   return <div className="grid lg:grid-cols-[22rem_1fr] gap-4">
     <div className="card space-y-2 self-start"><h2 className="font-bold">เพิ่มบุคลากร</h2>
       <select className="inp" value={pf} onChange={e => setPf(e.target.value)}>{PREFIXES.map(x => <option key={x}>{x}</option>)}</select>
@@ -2357,14 +2358,14 @@ function SettingsPage({ sb }: any) {
     setCalendarDescription(''); setCalendarVersion(v => v + 1); setCalendarMessage(calendarIsWorkingDay ? 'เพิ่มวันทำงานพิเศษแล้ว' : 'บันทึกวันหยุดแล้ว')
   }
   const deleteCalendarOverride = async (date: string) => {
-    if (!confirm(`ยืนยันลบการกำหนดพิเศษวันที่ ${date} ? ระบบจะกลับไปใช้วันจันทร์-ศุกร์เป็นวันทำการอัตโนมัติ`)) return
+    if (!(await appConfirm(`ยืนยันลบการกำหนดพิเศษวันที่ ${date} ? ระบบจะกลับไปใช้วันจันทร์-ศุกร์เป็นวันทำการอัตโนมัติ`)) return
     const { error } = await sb.from('p4p_calendar_overrides').delete().eq('calendar_date', date)
     setCalendarMessage(error ? 'ลบรายการไม่สำเร็จ: ' + error.message : 'ลบรายการกำหนดพิเศษแล้ว')
     if (!error) setCalendarVersion(v => v + 1)
   }
   const toggleEmergency = async () => {
     const next = !emergencyEnabled
-    if (!confirm(next ? 'ยืนยันเปิดโหมดฉุกเฉิน? ผู้ใช้จะสามารถบันทึกกิจกรรมย้อนหลังได้แม้พ้นวันที่ 5 ของเดือนถัดไป' : 'ยืนยันปิดโหมดฉุกเฉิน? ระบบจะกลับไปใช้กำหนดปิดรับย้อนหลังวันที่ 5 ของเดือนถัดไปทันที')) return
+    if (!(await appConfirm(next ? 'ยืนยันเปิดโหมดฉุกเฉิน? ผู้ใช้จะสามารถบันทึกกิจกรรมย้อนหลังได้แม้พ้นวันที่ 5 ของเดือนถัดไป' : 'ยืนยันปิดโหมดฉุกเฉิน? ระบบจะกลับไปใช้กำหนดปิดรับย้อนหลังวันที่ 5 ของเดือนถัดไปทันที')) return
     setEmergencyBusy(true); setEmergencyMsg('')
     const { error } = await sb.from('p4p_recording_policy').update({ emergency_enabled: next, updated_at: new Date().toISOString() }).eq('id', true)
     setEmergencyBusy(false)
@@ -2378,7 +2379,7 @@ function SettingsPage({ sb }: any) {
       const v = Number(g[k]); const ok = k === 'cap_shift_points' ? v > 0 && v <= 90 : k === 'cap_day_points' ? v > 0 && v <= 180 : v > 0 && v <= 10
       if (!(String(g[k] ?? '').trim() !== '' && ok)) { setGMsg(`ค่า "${l}" ไม่ถูกต้อง`); return }
     }
-    if (!confirm('การเปลี่ยนค่าเหล่านี้มีผลกับการคำนวณแต้มของทุกหน่วยงานและทุกเดือน รวมรายการที่รับรองแล้วด้วย ยืนยันบันทึก?')) return
+    if (!(await appConfirm('การเปลี่ยนค่าเหล่านี้มีผลกับการคำนวณแต้มของทุกหน่วยงานและทุกเดือน รวมรายการที่รับรองแล้วด้วย ยืนยันบันทึก?')) return
     const res = await Promise.all(GLOBAL_SETTINGS.map(([k]) => sb.from('app_settings').update({ value: Number(g[k]) }).eq('key', k)))
     const bad = res.find((r: any) => r.error)
     setGMsg(bad ? 'บันทึกไม่สำเร็จ: ' + bad.error.message : 'บันทึกแล้ว')
@@ -2524,7 +2525,7 @@ function UsersPage({ sb, units }: any) {
     if (editPassword && editPassword.length < 6) {
       setEditMessage({ text: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร', error: true }); return
     }
-    if (!window.confirm(`ยืนยันแก้ไขบัญชีของ ${editUser.full_name || editUser.username} หรือไม่? ${editPassword ? 'ระบบจะเปลี่ยนรหัสผ่านใหม่ด้วย' : 'ระบบจะเปลี่ยนเฉพาะชื่อผู้ใช้'}`)) return
+    if (!(await appConfirm(`ยืนยันแก้ไขบัญชีของ ${editUser.full_name || editUser.username} หรือไม่? ${editPassword ? 'ระบบจะเปลี่ยนรหัสผ่านใหม่ด้วย' : 'ระบบจะเปลี่ยนเฉพาะชื่อผู้ใช้'}`)) return
     setEditBusy(true); setEditMessage(null)
     try {
       const { data, error } = await sb.functions.invoke('p4p-admin-update-user', {
