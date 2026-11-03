@@ -1191,7 +1191,7 @@ let approverDirectoryCache: { expiresAt: number; promise: Promise<{ profiles: an
 function getApproverDirectory(sb: any) {
   if (approverDirectoryCache && approverDirectoryCache.expiresAt > Date.now()) return approverDirectoryCache.promise
   const promise = Promise.all([
-    sb.from('profiles').select('full_name,role,org_role,unit_id,nursing_group,extra_nursing_group_names'),
+    sb.from('profiles').select('full_name,role,org_role,unit_id,staff_directory_id,nursing_group,extra_nursing_group_names'),
     sb.from('units').select('id,parent_group')
   ]).then(([profilesResult, unitsResult]: any[]) => ({
     profiles: profilesResult.data || [],
