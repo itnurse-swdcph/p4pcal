@@ -1182,10 +1182,10 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
         const unit = person?.unit_id != null ? unitsById.get(Number(person.unit_id)) : null
         let candidate: any = null
         if (level === 0) {
-          candidate = approvers.find((p: any) => p.role === 'head' && Number(p.unit_id) === Number(person?.unit_id))
+          candidate = approvers.find((p: any) => (p.role === 'head' || p.org_role === 'หัวหน้างาน') && Number(p.unit_id) === Number(person?.unit_id))
         } else if (level === 1) {
           const group = String(unit?.parent_group || '').trim()
-          candidate = approvers.find((p: any) => p.role === 'group_head' && [p.nursing_group, p.extra_nursing_group_names].some((v: any) => String(v || '').split('|').map(x => x.trim()).includes(group)))
+          candidate = approvers.find((p: any) => (p.role === 'group_head' || p.org_role === 'หัวหน้ากลุ่มงาน') && [p.nursing_group, p.extra_nursing_group_names].some((v: any) => String(v || '').split('|').map(x => x.trim()).includes(group)))
         } else if (level === 2) {
           candidate = approvers.find((p: any) => String(p.full_name || '').replace(/\\s/g, '') === 'นางสาวมัณฑนาเพชรคำ')
         }
