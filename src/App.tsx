@@ -1533,27 +1533,26 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const [msg, setMsg] = useState('')
   const groups = [...new Set((positions || []).map((p: any) => p.grp).filter((g: any) => g && g !== NO_LINE))] as string[]
   const [formLine, setFormLine] = useState<string>(line || '')
-  const emptyForm = (selectedLine: string = formLine) => ({ code: '', title: '', domain: 'บริการ', main_activity: '', uom: '', minutes: '1', max_day: '', max_month: '', eligible: selectedLine ? [selectedLine] : [], need_evidence: false, definition: '', note: '' })
+  const emptyForm = (selectedLine: string = formLine) => ({ code: '', title: '', uom: '', minutes: '1', max_day: '', max_month: '', eligible: selectedLine ? [selectedLine] : [], need_evidence: false, definition: '', note: '' })
   const [form, setForm] = useState<any>(() => emptyForm(line || ''))
-  const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
-  const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
+  const lineCodePrefix: Record<string, string> = { 'พยาบาล': 'NUR', 'Paramedic': 'PMD', 'EMT': 'EMT', 'ผู้ช่วยเหลือคนไข้': 'AID', 'พนักงานประจำตึก': 'WARD', 'พนักงานเปล': 'STRETCHER', 'พนักงานธุรการ': 'ADMIN' }
+  const codeRank = (c: string) => String(c).split('-')[0]
+  const byCode = (a: any, b: any) => codeRank(a.code).localeCompare(codeRank(b.code)) || String(a.code).localeCompare(String(b.code))
   const inLine = (acts || []).filter((a: any) => (a.eligible || []).includes(line))
   const activityPrintSet = [...inLine].sort(byCode)
   const summaryHeaders = ['ลำดับ', 'กิจกรรม', 'หน่วยนับ', 'เวลามาตรฐาน (นาที)', 'คะแนนต่อนาที', 'คุณค่างาน', 'คะแนนปรับแล้ว (Workpoint)']
   const ratePerMinute = Number(positions.find((p: any) => p.grp === line)?.rate || 0)
-  const activityDescription = (a: any) => [String(a.main_activity || '').trim(), String(a.title || '').trim().replace(/\s+(?=\d+\s*[.)]\s*\S)/g, '\n')].filter(Boolean).join('\n')
+  const activityDescription = (a: any) => [String(a.main_activity || '').trim(), String(a.title || '').trim().replace(/\\s+(?=\\d+\\s*[.)]\\s*\\S)/g, '\\n')].filter(Boolean).join('\\n')
   const activityRows = (items: any[]) => items.map((a, index) => [index + 1, activityDescription(a), a.uom || '', Math.round(Number(a.minutes || 0)), ratePerMinute, 1, Math.round(Number(a.minutes || 0) * ratePerMinute * 100) / 100])
-  const mainsOfLine = [...new Set(inLine.map((a: any) => a.main_activity).filter(Boolean))] as string[]
-  const nextActivityCode = (selectedLine: string, selectedDomain: string) => {
-    const prefix = ({ 'บริหาร': 'ADM', 'บริการ': 'SVC', 'วิชาการ': 'ACD' } as Record<string, string>)[selectedDomain] || 'ACT'
-    const matching = (acts || []).filter((a: any) => (a.eligible || []).includes(selectedLine) && String(a.code || '').toUpperCase().startsWith(prefix + '-'))
-    const structured = matching.map((a: any) => String(a.code || '').trim().match(/^([A-Z]+)-(\d+)-(\d+)$/i)).filter(Boolean)
-    if (structured.length) {
-      const latest = structured.map((m: any) => ({ group: Number(m[2]), item: Number(m[3]) })).sort((a: any, b: any) => b.group - a.group || b.item - a.item)[0]
-      return prefix + '-' + String(latest.group).padStart(2, '0') + '-' + String(latest.item + 1).padStart(2, '0')
-    }
-    const simple = matching.map((a: any) => Number(String(a.code || '').match(/(\d+)$/)?.[1] || 0)).reduce((a: number, b: number) => Math.max(a, b), 0)
-    return prefix + '-01-' + String(simple + 1).padStart(2, '0')
+  const nextActivityCode = (selectedLine: string) => {
+    const prefix = lineCodePrefix[selectedLine]
+    if (!prefix) return ''
+    const matching = (acts || []).filter((a: any) => (a.eligible || [])[0] === selectedLine && String(a.code || '').toUpperCase().startsWith(prefix + '-'))
+    const maxNo = matching.reduce((max: number, a: any) => {
+      const m = String(a.code || '').trim().match(/-(\\d+)$/)
+      return Math.max(max, m ? Number(m[1]) : 0)
+    }, 0)
+    return prefix + '-' + String(maxNo + 1).padStart(3, '0')
   }
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const filtered = inLine.filter((a: any) => terms.every(t => [a.code, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
@@ -1615,7 +1614,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     }
     setBusy(true)
     const payload = {
-      code: form.code.trim(), title: form.title.trim(), domain: form.domain, category: null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
+      code: form.code.trim(), title: form.title.trim(), domain: 'บริการ', category: null, main_activity: null, uom: form.uom.trim(),
       minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
       max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
       need_evidence: form.need_evidence, definition: form.definition.trim() || null,
@@ -1629,7 +1628,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const beginEditActivity = (a: any) => {
     setEditingCode(a.code)
     setFormLine((a.eligible || [])[0] || line || '')
-    setForm({ code: a.code, title: a.title || '', domain: a.domain || 'บริการ', main_activity: a.main_activity || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), eligible: Array.isArray(a.eligible) ? a.eligible : [], need_evidence: Boolean(a.need_evidence), definition: a.definition || '', note: a.note || '' })
+    setForm({ code: a.code, title: a.title || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), eligible: Array.isArray(a.eligible) ? a.eligible : [], need_evidence: Boolean(a.need_evidence), definition: a.definition || '', note: a.note || '' })
     setShowAdd(true)
     setMsg('')
   }
@@ -1646,7 +1645,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     }
     setBusy(true)
     const payload = {
-      title: form.title.trim(), domain: form.domain, category: null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
+      title: form.title.trim(), domain: 'บริการ', category: null, main_activity: null, uom: form.uom.trim(),
       minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
       max_month: form.max_month === '' ? null : Number(form.max_month), eligible: form.eligible,
       need_evidence: form.need_evidence, definition: form.definition.trim() || null,
@@ -1672,11 +1671,8 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
       {showAdd && isAdmin && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
         <h3 className="font-bold">{editingCode ? `แก้ไขกิจกรรม ${editingCode}` : 'เพิ่มกิจกรรมเข้าคลัง'}</h3>
         <div className="grid sm:grid-cols-2 gap-3">
-          <label className="field-label">สายงานหลัก<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({...form, eligible: l ? [l] : [], code:l ? nextActivityCode(l,form.domain) : ''}) }}><option value="">-- เลือกสายงานหลัก --</option>{groups.map((g: string) => <option key={g} value={g}>{LINE_LABEL[g] || g}</option>)}</select></label>
-          <label className="field-label">รหัสกิจกรรม (สร้างอัตโนมัติตามสายงานหลัก)<input className="inp mt-1 bg-stone-100" value={form.code} readOnly placeholder="เลือกสายงานหลักก่อน" /><span className="mt-1 block text-xs text-stone-500">เลขลำดับต่อจากกิจกรรมล่าสุดของสายงานหลักและด้านเดียวกัน</span></label>
-          <label className="field-label">ชื่อกิจกรรมหลัก<input className="inp mt-1" list="main-options" value={form.main_activity} onChange={e => setForm({...form, main_activity:e.target.value})} placeholder="เช่น การดูแลผู้ป่วย" /></label>
-          <label className="field-label">ด้านกิจกรรม<select className="inp mt-1" value={form.domain} onChange={e => setForm({...form, domain:e.target.value, code:formLine && !editingCode ? nextActivityCode(formLine,e.target.value) : form.code})}>{['บริหาร','บริการ','วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></label>
-          <datalist id="main-options">{mainsOfLine.map(c => <option key={c} value={c} />)}</datalist>
+          <label className="field-label">สายงานหลัก<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({...form, eligible: l ? [l] : [], code:l ? nextActivityCode(l) : ''}) }}><option value="">-- เลือกสายงานหลัก --</option>{groups.map((g: string) => <option key={g} value={g}>{LINE_LABEL[g] || g}</option>)}</select></label>
+          <label className="field-label">รหัสกิจกรรม (สร้างอัตโนมัติตามสายงานหลัก)<input className="inp mt-1 bg-stone-100" value={form.code} readOnly placeholder="เลือกสายงานหลักก่อน" /><span className="mt-1 block text-xs text-stone-500">เลขลำดับต่อจากรหัสล่าสุดของสายงานหลัก</span></label>
           <label className="field-label sm:col-span-2">ชื่อกิจกรรม<input className="inp mt-1" value={form.title} onChange={e => setForm({...form, title:e.target.value})} placeholder="ระบุชื่อกิจกรรมที่บุคลากรจะเลือกบันทึก" /></label>
           <label className="field-label">หน่วยนับ<input className="inp mt-1" value={form.uom} onChange={e => setForm({...form, uom:e.target.value})} placeholder="เช่น ครั้ง, ราย, ชั่วโมง" /></label>
           <label className="field-label">เวลามาตรฐาน (นาที/หน่วย)<input type="number" min="0.01" step="0.01" className="inp mt-1" value={form.minutes} onChange={e => setForm({...form, minutes:e.target.value})} /></label>
