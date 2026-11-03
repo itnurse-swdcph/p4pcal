@@ -1235,36 +1235,25 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const pendingRows = (allRows || []).filter((r: any) => r.status === 'pending')
   const pendingPeople = [...new Set(pendingRows.map((r: any) => String(r.person_id)))]
   const pendingPeopleKey = pendingPeople.join(',')
-  // v_logs มี person_id และ unit_id อยู่แล้ว จึงไม่ต้องอ่าน people ซ้ำเพื่อหาหน่วยงาน
+  // ใช้ RPC ที่ตรวจสิทธิ์ผู้เรียกและอ่านทะเบียนบุคลากรฝั่งฐานข้อมูล
+  // ไม่อ่าน profiles/staff_directory โดยตรง เพราะ RLS จำกัดแถวที่ผู้ใช้ทั่วไปมองเห็น
   useEffect(() => {
     let alive = true
     if (!pendingPeople.length) { setNextApproverNames({}); return () => { alive = false } }
     const loadApprovers = async () => {
-      const { profiles: approvers, units } = await getApproverDirectory(sb)
-      if (!alive) return
-      const unitsById = new Map(units.map((u: any) => [Number(u.id), u]))
-      const personUnits = new Map(pendingRows.map((r: any) => [String(r.person_id), r.unit_id]))
-      const result: Record<string, string> = {}
-      for (const personId of pendingPeople) {
-        const unitId = personUnits.get(personId)
-        const unit = unitId != null ? unitsById.get(Number(unitId)) : null
-        const level = Number(ap?.personLevel?.[personId] ?? 0)
-        let candidate: any = null
-        if (level === 0) {
-          candidate = approvers.find((p: any) => (p.role === 'head' || p.org_role === 'หัวหน้างาน' || DUAL_HEAD_GROUP_STAFF_IDS.includes(Number(p.staff_directory_id))) && Number(p.unit_id) === Number(unitId))
-        } else if (level === 1) {
-          const group = String(unit?.parent_group || '').trim()
-          candidate = approvers.find((p: any) => (p.role === 'group_head' || p.org_role === 'หัวหน้ากลุ่มงาน') && [p.nursing_group, p.extra_nursing_group_names].some((v: any) => String(v || '').split('|').map(x => x.trim()).includes(group)))
-        } else if (level === 2) {
-          candidate = approvers.find((p: any) => String(p.full_name || '').replace(/\\s/g, '') === 'นางสาวมัณฑนาเพชรคำ')
+      const entries = await Promise.all(pendingPeople.map(async personId => {
+        const { data, error } = await sb.rpc('approver_print_details_of', { p_person: personId })
+        if (error) {
+          console.warn('โหลดชื่อผู้รับรองของบุคลากรไม่สำเร็จ:', personId, error.message)
+          return [personId, ''] as const
         }
-        result[personId] = String(candidate?.full_name || '').trim()
-      }
-      setNextApproverNames(result)
+        return [personId, String(data?.[0]?.approver_name || '').trim()] as const
+      }))
+      if (alive) setNextApproverNames(Object.fromEntries(entries))
     }
-    void loadApprovers().catch((error: any) => console.error('โหลดชื่อผู้รับรองไม่สำเร็จ', error))
+    void loadApprovers().catch(error => console.error('โหลดชื่อผู้รับรองไม่สำเร็จ', error))
     return () => { alive = false }
-  }, [sb, pendingPeopleKey, ap?.personLevel])
+  }, [sb, pendingPeopleKey])
   // แบบร่างเป็นของผู้บันทึกเท่านั้น คนอื่น (รวมหัวหน้า) ไม่เห็นจนกว่าจะส่ง
   const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me), [allRows, me])
   const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
