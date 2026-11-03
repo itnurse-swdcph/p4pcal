@@ -626,25 +626,24 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
     setLoading(true); setLoadError('')
     ;(async () => {
       try {
-        // ใช้ RPC ที่กรองเดือน/หน่วยงาน/บุคลากรก่อนคำนวณ Window Functions
-        // เพื่อไม่ให้ฐานข้อมูลคำนวณกิจกรรมทุกเดือนของทุกหน่วยงานก่อนค่อยกรองผลลัพธ์
-        const baseRows = await fetchPages((x, y) =>
-          sb.rpc('get_v_logs_month', {
-            p_start: a,
-            p_end: b,
-            p_unit_id: unit || null,
-            p_person_ids: personIds || null
-          }).order('work_date', { ascending: true }).order('id', { ascending: true }).range(x, y)
-        )
-        if (!alive) return
-        if (!baseRows.length) { setRows([]); return }
-        const extraMap = new Map<any, any>()
-        for (let i = 0; i < baseRows.length; i += 200) {
-          const { data, error } = await sb.from('logs').select('id, sub_activity, evidence_image_path, entered_by, reject_reason, submitted_at, parent_log_id, supplemental_reason').in('id', baseRows.slice(i, i + 200).map((x: any) => x.id))
-          if (error) throw error
-          ;(data || []).forEach((x: any) => extraMap.set(x.id, x))
+        // จำกัดการคำนวณไว้เฉพาะบุคลากรในหน่วยงานก่อนเรียก RPC
+        // และคืนข้อมูลพร้อมรายละเอียดเสริมในคำขอเดียว เพื่อลดการคำนวณซ้ำจากการแบ่งหน้า 1,000 แถว
+        let effectivePersonIds = personIds
+        if (!effectivePersonIds && unit != null) {
+          const { data: unitPeople, error: peopleError } = await sb.from('people').select('id').eq('unit_id', unit)
+          if (peopleError) throw peopleError
+          effectivePersonIds = (unitPeople || []).map((p: any) => String(p.id))
         }
-        if (alive) setRows(baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) })))
+        const { data: baseRows, error: logsError } = await sb.rpc('get_v_logs_month_json', {
+          p_start: a,
+          p_end: b,
+          p_unit_id: unit || null,
+          p_person_ids: effectivePersonIds || null
+        })
+        if (logsError) throw logsError
+        if (!alive) return
+        const rows = Array.isArray(baseRows) ? baseRows : []
+        setRows(rows)
       } catch (error: any) {
         console.error('โหลดรายการกิจกรรมไม่สำเร็จ:', error)
         if (alive) { setRows([]); setLoadError(error?.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล กรุณาลองใหม่') }
