@@ -637,6 +637,23 @@ function MonthFilter({ month, setMonth, description = 'เลือกเดื�
   </section>
 }
 
+// Cache ทะเบียนรายชื่อแยกตามกลุ่มงาน เพื่อลดการเรียก RPC ซ้ำเมื่อเปลี่ยนหน่วยงาน/เปิดหน้าใหม่
+const directoryGroupStaffCache = new Map<string, { expiresAt: number; promise: Promise<any[]> }>()
+function loadDirectoryGroupStaff(sb: any, groupName: string) {
+  const key = String(groupName || '').trim()
+  const cached = directoryGroupStaffCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) return cached.promise
+  const promise = sb.rpc('directory_group_staff', { p_group_name: key }).then(({ data, error }: any) => {
+    if (error) throw error
+    return Array.isArray(data) ? data : []
+  }).catch((error: any) => {
+    directoryGroupStaffCache.delete(key)
+    throw error
+  })
+  directoryGroupStaffCache.set(key, { expiresAt: Date.now() + 120_000, promise })
+  return promise
+}
+
 function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId, currentUserStaffDirectoryId, groupOptions = [], onActivitySaved }: any) {
   const [recordingPolicy, setRecordingPolicy] = useState<any>({ emergency_enabled: false })
   useEffect(() => { sb.from('p4p_recording_policy').select('emergency_enabled').eq('id', true).maybeSingle().then(({ data }: any) => { if (data) setRecordingPolicy(data) }) }, [sb])
@@ -661,6 +678,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const [locallyAddedPeople, setLocallyAddedPeople] = useState<any[]>([])
   const [selectingStaff, setSelectingStaff] = useState(false)
   const [peopleLoadError, setPeopleLoadError] = useState('')
+  const [peopleLoading, setPeopleLoading] = useState(false)
   const people = useMemo(() => {
     if (!picker) return peopleProp
     if (entryMode === 'self') return ownPerson ? [ownPerson] : []
@@ -671,14 +689,21 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   }, [picker, entryMode, ownPerson, allPeople, locallyAddedPeople, uSel, peopleProp, directoryStaff])
   const groupNames = useMemo(() => [...new Set([...(groupOptions || []), ...(unitOptions || []).map((u: any) => String(u.parent_group || '').trim())].filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')), [groupOptions, unitOptions])
   useEffect(() => {
-    if (!picker || entryMode !== 'other' || !groupSel) { setDirectoryStaff([]); setPeopleLoadError(''); return }
+    if (!picker || entryMode !== 'other' || !groupSel) { setDirectoryStaff([]); setPeopleLoadError(''); setPeopleLoading(false); return }
     let alive = true
-    sb.rpc('directory_group_staff', { p_group_name: groupSel }).then(({ data, error }: any) => {
+    setPeopleLoading(true)
+    setPeopleLoadError('')
+    loadDirectoryGroupStaff(sb, groupSel).then((list) => {
       if (!alive) return
-      if (error) { console.error('โหลดทะเบียนบุคลากรตามกลุ่มงานไม่สำเร็จ', error); setPeopleLoadError('โหลดทะเบียนบุคลากรของกลุ่มงานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์'); setDirectoryStaff([]); return }
-      setPeopleLoadError('')
-      const list = Array.isArray(data) ? data : []
-      setDirectoryStaff(uSel ? list.filter((d: any) => String(d.unit_name || '').trim() === String((unitOptions || []).find((u: any) => u.id === uSel)?.name || '').trim()) : list.filter((d: any) => !String(d.unit_name || '').trim()))
+      const unitName = String((unitOptions || []).find((u: any) => u.id === uSel)?.name || '').trim()
+      setDirectoryStaff(uSel ? list.filter((d: any) => String(d.unit_name || '').trim() === unitName) : list.filter((d: any) => !String(d.unit_name || '').trim()))
+      setPeopleLoading(false)
+    }).catch((error: any) => {
+      if (!alive) return
+      console.error('โหลดทะเบียนบุคลากรตามกลุ่มงานไม่สำเร็จ', error)
+      setPeopleLoadError('โหลดทะเบียนบุคลากรของกลุ่มงานไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+      setDirectoryStaff([])
+      setPeopleLoading(false)
     })
     return () => { alive = false }
   }, [picker, entryMode, groupSel, uSel, sb, unitOptions])
@@ -889,8 +914,9 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
           reloadPeople?.()
         }}><option value="">— เลือกบุคลากรในหน่วยงานนี้ —</option>{pickerPeople.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position}){p.fromDirectory ? ' · จากทะเบียนบุคลากร' : ''}</option>)}</select>
         {selectingStaff && <p className="text-xs text-teal-700">กำลังเตรียมระเบียนบุคลากร…</p>}
+        {peopleLoading && <p className="text-xs text-teal-700">กำลังโหลดรายชื่อบุคลากร…</p>}
         {peopleLoadError && <p className="text-xs text-red-700">{peopleLoadError}</p>}
-        {!pickerPeople.length && <p className="text-xs text-red-700">ไม่พบรายชื่อบุคลากรในกลุ่มงาน/หน่วยงานที่เลือกในทะเบียนบุคลากร</p>}
+        {!peopleLoading && !peopleLoadError && !pickerPeople.length && <p className="text-xs text-stone-500">ไม่พบรายชื่อบุคลากรในกลุ่มงาน/หน่วยงานที่เลือกในทะเบียนบุคลากร</p>}
         </>}
       </>}
       {!picker && people.length > 1 && <select className="inp" value={pid} onChange={e => setPid(e.target.value)}>{people.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}</select>}
