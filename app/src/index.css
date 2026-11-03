@@ -1572,3 +1572,7 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
 .memo-paper .memo-decision-options > span { display:inline-flex; align-items:center; gap:2mm; white-space:nowrap; }
 .memo-paper .memo-decision-options i { display:inline-block; width:4mm; height:4mm; border:1px solid #111; box-sizing:border-box; }
 .memo-paper .memo-final-approval .memo-approver-sign { width:48% !important; margin:.2mm auto 0 !important; white-space:nowrap; }
+
+/* Editable memo body supports user-authored line breaks in preview and print. */
+.memo-body-editor textarea { width:100%; min-height:8rem; resize:vertical; border:1px solid #ccd7df; border-radius:7px; padding:.5rem .6rem; font:inherit; font-size:.82rem; line-height:1.5; color:#172c3b; background:#fff; }
+.memo-paper .memo-body { white-space:pre-wrap !important; }
