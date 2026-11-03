@@ -1518,7 +1518,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const [msg, setMsg] = useState('')
   const groups = [...new Set((positions || []).map((p: any) => p.grp).filter((g: any) => g && g !== NO_LINE))] as string[]
   const [formLine, setFormLine] = useState<string>(line || '')
-  const emptyForm = (_selectedLine: string = formLine) => ({ code: '', title: '', domain: 'บริการ', main_activity: '', uom: '', minutes: '1', max_day: '', max_month: '', coLines: [] as string[], need_evidence: false, definition: '', note: '' })
+  const emptyForm = (_selectedLine: string = formLine) => ({ code: '', title: '', uom: '', minutes: '1', coLines: [] as string[], need_evidence: false, definition: '', note: '' })
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
   const inLine = (acts || []).filter((a: any) => (a.eligible || []).includes(line))
@@ -1534,7 +1534,6 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const ratePerMinute = lineRateOf(line)
   const activityDescription = (a: any) => [String(a.main_activity || '').trim(), String(a.title || '').trim().replace(/\s+(?=\d+\s*[.)]\s*\S)/g, '\n')].filter(Boolean).join('\n')
   const activityRows = (items: any[]) => items.map((a, index) => [index + 1, activityDescription(a), a.uom || '', Math.round(Number(a.minutes || 0)), ratePerMinute, 1, Math.round(Number(a.minutes || 0) * ratePerMinute * 100) / 100])
-  const mainsOfLine = [...new Set(inLine.map((a: any) => a.main_activity).filter(Boolean))] as string[]
   const codePrefixOf = (l: string) => {
     if (LINE_CODE_PREFIX[l]) return LINE_CODE_PREFIX[l]
     const own = (acts || []).find((x: any) => (x.eligible || [])[0] === l && /^[A-Za-z]+-/.test(String(x.code || '')))
@@ -1597,10 +1596,9 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     const timer = window.setTimeout(() => window.print(), 100)
     return () => { window.clearTimeout(timer); window.removeEventListener('afterprint', afterPrint) }
   }, [printingActivities])
+  // แก้ไขเฉพาะช่องที่อยู่ในฟอร์ม: กิจกรรมหลัก / ด้าน / ขีดจำกัดต่อวัน-เดือน ของกิจกรรมเดิมจะไม่ถูกแตะ
   const buildPayload = () => ({
-    title: form.title.trim(), domain: form.domain, category: null, main_activity: form.main_activity.trim() || null, uom: form.uom.trim(),
-    minutes: Number(form.minutes), max_day: form.max_day === '' ? null : Number(form.max_day),
-    max_month: form.max_month === '' ? null : Number(form.max_month),
+    title: form.title.trim(), uom: form.uom.trim(), minutes: Number(form.minutes),
     // สายงานหลักอยู่ลำดับแรก ตามด้วยสายงานที่มีสิทธิ์ทำร่วม
     eligible: [formLine, ...(form.coLines || []).filter((l: string) => l && l !== formLine)],
     need_evidence: form.need_evidence, definition: form.definition.trim() || null,
@@ -1623,7 +1621,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     const { data: existing, error: codeError } = await sb.from('activities').select('code').ilike('code', prefix + '-%')
     if (codeError) { setBusy(false); setMsg('ตรวจรหัสกิจกรรมไม่สำเร็จ: ' + codeError.message); return }
     const code = nextCodeFor(formLine, (existing || []).map((r: any) => r.code))
-    const { error } = await sb.from('activities').insert({ ...buildPayload(), code, active: true })
+    const { error } = await sb.from('activities').insert({ ...buildPayload(), code, domain: 'บริการ', category: null, main_activity: null, max_day: null, max_month: null, active: true })
     setBusy(false)
     if (error) { setMsg(error.code === '23505' ? 'รหัสกิจกรรมซ้ำกับที่เพิ่งมีการเพิ่ม กรุณากดบันทึกอีกครั้ง' : 'เพิ่มกิจกรรมไม่สำเร็จ: ' + error.message); return }
     setForm(emptyForm()); setShowAdd(false); setMsg(`เพิ่มกิจกรรม ${code} สำเร็จ`); reloadActs()
@@ -1632,7 +1630,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     const elig: string[] = Array.isArray(a.eligible) ? a.eligible : []
     setEditingCode(a.code)
     setFormLine(elig[0] || line || '')
-    setForm({ code: a.code, title: a.title || '', domain: a.domain || 'บริการ', main_activity: a.main_activity || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), max_day: a.max_day == null ? '' : String(a.max_day), max_month: a.max_month == null ? '' : String(a.max_month), coLines: elig.slice(1), need_evidence: Boolean(a.need_evidence), definition: a.definition || '', note: a.note || '' })
+    setForm({ code: a.code, title: a.title || '', uom: a.uom || '', minutes: String(a.minutes ?? 1), coLines: elig.slice(1), need_evidence: Boolean(a.need_evidence), definition: a.definition || '', note: a.note || '' })
     setShowAdd(true)
     setMsg('')
   }
@@ -1679,14 +1677,6 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
           {!formLine ? <p className="text-sm text-stone-500">เลือกสายงานหลักด้านบนก่อน</p> : <div className="grid sm:grid-cols-2 gap-1">{groups.filter((g: string) => g !== formLine).map((g: string) => <label key={g} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={(form.coLines || []).includes(g)} onChange={e => toggleCoLine(g, e.target.checked)} />{g}</label>)}</div>}
           <p className="mt-2 text-xs text-stone-500">สายงานหลัก: <b>{formLine || '—'}</b>{(form.coLines || []).length > 0 && <> · ทำร่วมได้: <b>{(form.coLines || []).join(', ')}</b></>} · ผลตามที่เลือกทันที: ตำแหน่งในสายงานเหล่านี้จะเห็นและบันทึกกิจกรรมนี้ได้ และนับคะแนนตามอัตราของสายงานตนเอง</p>
         </fieldset>
-        <details className="rounded-lg border border-stone-300 bg-white p-3"><summary className="cursor-pointer text-sm font-semibold">ตั้งค่าเพิ่มเติม (ไม่บังคับ)</summary>
-          <div className="mt-3 grid sm:grid-cols-2 gap-3">
-            <label className="field-label">กิจกรรมหลัก<input className="inp mt-1" list="main-options" value={form.main_activity} onChange={e => setForm({ ...form, main_activity: e.target.value })} placeholder="เช่น การเคลื่อนย้ายผู้ป่วย" /></label>
-            <datalist id="main-options">{mainsOfLine.map(c => <option key={c} value={c} />)}</datalist>
-            <label className="field-label">ด้านในใบสรุปคะแนน<select className="inp mt-1" value={form.domain} onChange={e => setForm({ ...form, domain: e.target.value })}>{['บริหาร', 'บริการ', 'วิชาการ'].map(x => <option key={x}>{x}</option>)}</select></label>
-            <label className="field-label">จำกัดจำนวนต่อวัน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_day} onChange={e => setForm({ ...form, max_day: e.target.value })} /></label>
-            <label className="field-label">จำกัดจำนวนต่อเดือน (ถ้ามี)<input type="number" min="0" step="0.5" className="inp mt-1" value={form.max_month} onChange={e => setForm({ ...form, max_month: e.target.value })} /></label>
-          </div></details>
         {msg && <p role="alert" className="text-sm text-red-700">{msg}</p>}
         <div className="flex flex-wrap gap-2"><button className="btn" disabled={busy} onClick={editingCode ? saveActivityEdit : add}>{busy ? 'กำลังบันทึก…' : editingCode ? 'บันทึกการแก้ไข' : 'บันทึกกิจกรรมใหม่'}</button><button className="btn sec" disabled={busy} onClick={cancelForm}>ยกเลิก</button></div>
       </div>}
