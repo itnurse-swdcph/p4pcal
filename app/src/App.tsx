@@ -1151,10 +1151,15 @@ function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, act
   const insurance = guaranteeForPosition(position, positions, orgRole)
   const roleGuarantee = roleGuaranteeForPosition(position, positions, orgRole)
   const october2026 = String(month || '').slice(0, 7) === '2026-10'
-  const rawPerformance = Number(activityPoints || 0) + roleGuarantee
+  const rawActivityPoints = Math.max(0, Number(activityPoints || 0))
+  // เดือน ต.ค. 2569 จำกัดแต้มกิจกรรมแยกจากแต้มการันตีตามบทบาท
+  // เพื่อให้การ์ดแต้มปฏิบัติงาน/แต้มยืนยันแสดงไม่เกินเพดานเดียวกับยอดผลงานรวม
+  const activityCap = october2026 ? Math.max(0, insurance + 10 - roleGuarantee) : Number.POSITIVE_INFINITY
+  const cappedActivityPoints = Math.min(rawActivityPoints, activityCap)
+  const rawPerformance = rawActivityPoints + roleGuarantee
   const performance = october2026 ? Math.min(rawPerformance, insurance + 10) : rawPerformance
   const excess = Math.min(Math.max(0, performance - insurance), october2026 ? 10 : insurance * 0.5)
-  return { insurance, roleGuarantee, performance, excess }
+  return { insurance, roleGuarantee, activityPoints: cappedActivityPoints, performance, excess }
 }
 
 function ActivitySummary({ sb, rows, person, positions, month }: any) {
@@ -1178,6 +1183,8 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const earned = (rows || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const confirmed = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const scoring = scoreBreakdown(person.position, positions, person.org_role, earned, month)
+  const displayedEarned = scoring.activityPoints
+  const displayedConfirmed = scoreBreakdown(person.position, positions, person.org_role, confirmed, month).activityPoints
   const performanceTotal = scoring.performance
   const difference = performanceTotal - guarantee
   const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(person.position || '').replace(/\s+/g, '').trim())
@@ -1190,8 +1197,8 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
     { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
     { label: 'แต้มการันตี', value: nf(roleGuarantee), color: 'text-slate-900' },
     { label: 'แต้มผลงานรวม', value: nf(performanceTotal), color: 'text-slate-900' },
-    { label: 'แต้มปฏิบัติงานที่ได้', value: nf(earned), color: 'text-slate-900' },
-    { label: 'แต้มที่ยืนยัน', value: nf(confirmed), color: 'text-emerald-700' },
+    { label: 'แต้มปฏิบัติงานที่ได้', value: nf(displayedEarned), color: 'text-slate-900' },
+    { label: 'แต้มที่ยืนยัน', value: nf(displayedConfirmed), color: 'text-emerald-700' },
     { label: 'แต้มส่วนต่าง', value: (difference > 0 ? '+' : '') + nf(difference), color: difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-slate-700' },
     { label: 'จำนวนเงินตามผลงาน', value: performancePay !== null ? nf(performancePay) + ' บาท' : 'ไม่พบเกณฑ์ค่าตอบแทน', color: performancePay !== null ? 'text-emerald-700' : 'text-slate-700' },
     { label: 'เงินเพิ่มจากแต้มส่วนเกิน', value: !closed ? 'รอปิดงวด' : payoutAvailable ? nf(extraPay) + ' บาท' : 'รอตรวจสอบข้อมูล', color: closed && payoutAvailable ? 'text-emerald-700' : 'text-slate-700' }
@@ -1212,7 +1219,7 @@ function Totals({ rows, people, positions }: any) {
   const t = rows.reduce((s: number, r: any) => s + Number(r.counted_points), 0)
   const score = scoreBreakdown(people[0].position, positions, people[0].org_role, t, month)
   return <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
-    {[['แต้มกิจกรรมเดือนนี้', t], ['แต้มประกัน', g], ['แต้มการันตี', rg], ['แต้มผลงานรวม', score.performance], ['แต้มส่วนเกิน (สูงสุด 600)', score.excess]].map(([l, v]: any) => <div key={l} className="card"><div className="text-xs text-stone-600">{l}</div><div className="text-2xl font-bold">{nf(v)}</div></div>)}
+    {[['แต้มกิจกรรมเดือนนี้', score.activityPoints], ['แต้มประกัน', g], ['แต้มการันตี', rg], ['แต้มผลงานรวม', score.performance], ['แต้มส่วนเกิน (สูงสุด 600)', score.excess]].map(([l, v]: any) => <div key={l} className="card"><div className="text-xs text-stone-600">{l}</div><div className="text-2xl font-bold">{nf(v)}</div></div>)}
   </div>
 }
 
@@ -1807,10 +1814,11 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
     const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints, month)
     const roleGuarantee = scoring.roleGuarantee
+    const displayedWorkPoints = scoring.activityPoints
     const performancePoints = scoring.performance
     const excess = scoring.excess
     const rate = p.unit_id != null && rates[String(p.unit_id)] != null ? rates[String(p.unit_id)] : groupRate
-    return { p, order: index + 1, g, roleGuarantee, workPoints, performancePoints, excess, rate, payout: excess * rate, rs }
+    return { p, order: index + 1, g, roleGuarantee, workPoints: displayedWorkPoints, performancePoints, excess, rate, payout: excess * rate, rs }
   }), [heads, rowsAll, positions, rates, groupRate])
   useEffect(() => {
     if (!printReport) return
@@ -2048,6 +2056,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
     const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints, month)
     const roleGuarantee = scoring.roleGuarantee
+    const displayedWorkPoints = scoring.activityPoints
     const performancePoints = scoring.performance
     const excess = scoring.excess
     const daysRaw = countApprovedWorkShifts(approved)
@@ -2056,7 +2065,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
     const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
     const payout = basePay + excess * unitRate
-    return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, performancePoints, roleGuarantee, excess, days, rate: unitRate, basePay, payout, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
+    return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints: displayedWorkPoints, performancePoints, roleGuarantee, excess, days, rate: unitRate, basePay, payout, g, appr: displayedWorkPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
   }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays])
