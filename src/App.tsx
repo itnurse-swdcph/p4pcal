@@ -2480,30 +2480,47 @@ function PayGroupsCard({ sb }: any) {
 }
 function UsersPage({ sb, units }: any) {
   const [rows, setRows] = useState<any[]>([]); const [pu, setPu] = useState<any[]>([]); const [n, setN] = useState(0)
-  const [emailDrafts, setEmailDrafts] = useState<Record<string, string>>({})
-  const [emailBusy, setEmailBusy] = useState<string | null>(null)
-  const [emailMessage, setEmailMessage] = useState<{ id: string; text: string; error?: boolean } | null>(null)
+  const [editUser, setEditUser] = useState<any>(null)
+  const [editUsername, setEditUsername] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
+  const [editMessage, setEditMessage] = useState<{ text: string; error?: boolean } | null>(null)
   useEffect(() => {
     sb.from('profiles').select('*').order('full_name').then((r: any) => setRows(r.data || []))
     sb.from('profile_units').select('*').then((r: any) => setPu(r.data || []))
   }, [n])
   const refresh = () => setN(x => x + 1)
-  const updateAuthEmail = async (row: any) => {
-    const email = String(emailDrafts[row.user_id] || '').trim().toLowerCase()
-    if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
-      setEmailMessage({ id: row.user_id, text: 'กรุณากรอกอีเมลให้ถูกต้อง', error: true }); return
+  const openEdit = (row: any) => {
+    setEditUser(row); setEditUsername(row.username || ''); setEditPassword(''); setEditMessage(null)
+  }
+  const saveCredentials = async () => {
+    const username = editUsername.trim().toLowerCase()
+    if (!editUser) return
+    if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(username)) {
+      setEditMessage({ text: 'ชื่อผู้ใช้ต้องยาว 3–30 ตัว และใช้ a-z, 0-9, จุด, ขีดกลาง หรือขีดล่าง', error: true }); return
     }
-    if (!window.confirm(`ยืนยันเปลี่ยนอีเมลเข้าสู่ระบบของ ${row.full_name || row.username} เป็น ${email} โดยคง UID และข้อมูลเดิมไว้หรือไม่?`)) return
-    setEmailBusy(row.user_id); setEmailMessage(null)
+    if (editPassword && editPassword.length < 6) {
+      setEditMessage({ text: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร', error: true }); return
+    }
+    if (!window.confirm(`ยืนยันแก้ไขบัญชีของ ${editUser.full_name || editUser.username} หรือไม่? ${editPassword ? 'ระบบจะเปลี่ยนรหัสผ่านใหม่ด้วย' : 'ระบบจะเปลี่ยนเฉพาะชื่อผู้ใช้'}`)) return
+    setEditBusy(true); setEditMessage(null)
     try {
-      const { data, error } = await sb.functions.invoke('p4p-admin-update-email', { body: { username: row.username, email } })
-      if (error) throw error
-      if (data?.error || !data?.success) throw new Error(data?.error || 'เปลี่ยนอีเมลไม่สำเร็จ')
-      setEmailMessage({ id: row.user_id, text: 'เปลี่ยนอีเมลสำเร็จ โดยคงบัญชีและกิจกรรมเดิมไว้' })
-      setEmailDrafts(v => ({ ...v, [row.user_id]: '' }))
+      const { data, error } = await sb.functions.invoke('p4p-admin-update-user', {
+        body: { user_id: editUser.user_id, username, password: editPassword || undefined }
+      })
+      if (error) {
+        let detail = ''
+        try { detail = (await error.context?.json?.())?.error || '' } catch { /* ignore */ }
+        throw new Error(detail || error.message || 'บันทึกไม่สำเร็จ')
+      }
+      if (data?.error || !data?.success) throw new Error(data?.error || 'บันทึกไม่สำเร็จ')
+      setEditMessage({ text: 'บันทึกข้อมูลบัญชีสำเร็จ' })
+      setEditPassword('')
+      refresh()
+      setTimeout(() => setEditUser(null), 900)
     } catch (e: any) {
-      setEmailMessage({ id: row.user_id, text: e?.message || 'เปลี่ยนอีเมลไม่สำเร็จ', error: true })
-    } finally { setEmailBusy(null) }
+      setEditMessage({ text: e?.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่', error: true })
+    } finally { setEditBusy(false) }
   }
   const upd = async (id: string, patch: any) => { await sb.from('profiles').update(patch).eq('user_id', id); refresh() }
   const addUnit = async (uid: string, unitId: number) => { if (unitId) { await sb.from('profile_units').upsert({ user_id: uid, unit_id: unitId, approved: true }, { onConflict: 'user_id,unit_id' }); refresh() } }
@@ -2511,9 +2528,9 @@ function UsersPage({ sb, units }: any) {
   const remove = async (uid: string, unitId: number) => { await sb.from('profile_units').delete().eq('user_id', uid).eq('unit_id', unitId); refresh() }
   const uname = (id: number) => units.find((u: any) => u.id === id)?.name || id
   const groupOf = (r: any) => units.find((u: any) => u.id === r.unit_id)?.parent_group
-  return <div className="card p-0 overflow-x-auto"><table className="w-full"><thead><tr><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>หน่วยงานหลัก</th><th>สิทธิ์</th><th>หน่วยงานที่ดูแลเพิ่ม (หัวหน้างาน)</th></tr></thead>
+  return <div className="card p-0 overflow-x-auto"><table className="w-full"><thead><tr><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>หน่วยงานหลัก</th><th>สิทธิ์</th><th>หน่วยงานที่ดูแลเพิ่ม (หัวหน้างาน)</th><th>บัญชีผู้ใช้</th></tr></thead>
     <tbody>{rows.map(r => { const mine = pu.filter(x => x.user_id === r.user_id); return <tr key={r.user_id}>
-      <td><b>{r.full_name || '(ไม่ระบุ)'}</b>{r.username && <div className="text-xs text-stone-500">{r.username}</div>}<div className="mt-2 min-w-[15rem] space-y-1"><input className="inp" type="email" placeholder="อีเมลใหม่สำหรับเข้าสู่ระบบ" value={emailDrafts[r.user_id] || ''} onChange={e => setEmailDrafts(v => ({ ...v, [r.user_id]: e.target.value }))} /><button type="button" className="btn sec !py-1" disabled={emailBusy === r.user_id || !emailDrafts[r.user_id]?.trim()} onClick={() => updateAuthEmail(r)}>{emailBusy === r.user_id ? 'กำลังเปลี่ยน…' : 'เปลี่ยนอีเมลเข้าสู่ระบบ'}</button>{emailMessage?.id === r.user_id && <p className={'text-xs ' + (emailMessage.error ? 'text-red-700' : 'text-emerald-700')}>{emailMessage.text}</p>}</div></td><td className="text-xs">{r.position}</td>
+      <td><b>{r.full_name || '(ไม่ระบุ)'}</b>{r.username && <div className="text-xs text-stone-500">{r.username}</div>}</td><td className="text-xs">{r.position}</td>
       <td><select className="inp" value={r.unit_id ?? ''} onChange={e => upd(r.user_id, { unit_id: +e.target.value || null })}><option value="">-</option>{units.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></td>
       <td><select className="inp" value={r.role} onChange={e => upd(r.user_id, { role: e.target.value })}>{Object.keys(ROLE_TH).map(k => <option key={k} value={k}>{ROLE_TH[k]}</option>)}</select></td>
       <td className="min-w-[16rem]">
@@ -2523,5 +2540,19 @@ function UsersPage({ sb, units }: any) {
           {!x.approved && <button className="ml-1 underline text-teal-800" onClick={() => approve(x.user_id, x.unit_id)}>อนุมัติ</button>}
           <button className="ml-1 text-red-700" aria-label="ลบ" onClick={() => remove(x.user_id, x.unit_id)}>×</button></span>)}</div>
         <select className="inp" value="" onChange={e => addUnit(r.user_id, +e.target.value)}><option value="">+ เพิ่มหน่วยงาน</option>{units.filter((u: any) => u.id !== r.unit_id && !mine.some(x => x.unit_id === u.id)).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
-      </td></tr> })}</tbody></table></div>
+      </td>
+      <td><button type="button" className="btn sec whitespace-nowrap" onClick={() => openEdit(r)}>แก้ไขบัญชี</button></td>
+    </tr> })}</tbody></table>
+    {editUser && <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-3" onMouseDown={e => { if (e.target === e.currentTarget && !editBusy) setEditUser(null) }}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4 text-slate-800">
+        <div className="flex items-center justify-between"><h3 className="text-lg font-semibold">แก้ไขบัญชีผู้ใช้</h3><button type="button" className="text-2xl leading-none" disabled={editBusy} onClick={() => setEditUser(null)}>×</button></div>
+        <div className="text-sm text-slate-600">{editUser.full_name || 'ไม่ระบุชื่อ'} · UID เดิมจะไม่เปลี่ยน</div>
+        <label className="block space-y-1"><span className="text-sm font-medium">ชื่อผู้ใช้ใหม่</span><input className="inp w-full" value={editUsername} autoComplete="off" onChange={e => setEditUsername(e.target.value)} placeholder="ชื่อผู้ใช้สำหรับเข้าสู่ระบบ" /></label>
+        <label className="block space-y-1"><span className="text-sm font-medium">รหัสผ่านใหม่</span><input className="inp w-full" type="password" value={editPassword} autoComplete="new-password" onChange={e => setEditPassword(e.target.value)} placeholder="เว้นว่างหากไม่ต้องการเปลี่ยนรหัสผ่าน" /></label>
+        <p className="text-xs text-slate-500">ไม่ต้องกรอกรหัสผ่านเดิม หากเปลี่ยนรหัสผ่านจะใช้รหัสผ่านใหม่ทันที (อย่างน้อย 6 ตัวอักษร)</p>
+        {editMessage && <p className={'text-sm ' + (editMessage.error ? 'text-red-700' : 'text-emerald-700')}>{editMessage.text}</p>}
+        <div className="flex justify-end gap-2"><button type="button" className="btn sec" disabled={editBusy} onClick={() => setEditUser(null)}>ยกเลิก</button><button type="button" className="btn" disabled={editBusy} onClick={saveCredentials}>{editBusy ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button></div>
+      </div>
+    </div>}
+  </div>
 }
