@@ -78,6 +78,21 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
           if (linked.data && !candidates.some((p: any) => p.user_id === linked.data.user_id)) candidates = [...candidates, linked.data]
           if (linked.error) setError(linked.error.message || 'ไม่สามารถตรวจสอบบัญชีบุคลากรได้')
         }
+        // Include previously appointed but inactive committee accounts in the same dropdown,
+        // so removing a member only hides them from the active roster and they can be restored.
+        const inactiveIds = (rosterResult.data || []).filter((m: any) => !m.active).map((m: any) => m.user_id)
+        if (inactiveIds.length) {
+          const inactiveResult = await sb.from('profiles')
+            .select('user_id,full_name,username,role,org_role,position,unit_id,staff_directory_id')
+            .in('user_id', inactiveIds)
+          if (!alive) return
+          if (inactiveResult.error) setError(inactiveResult.error.message || 'ไม่สามารถโหลดรายชื่อกรรมการที่ถอดออกได้')
+          else {
+            for (const p of inactiveResult.data || []) {
+              if (!candidates.some((item: any) => item.user_id === p.user_id)) candidates = [...candidates, p]
+            }
+          }
+        }
         if (!profileResult.error) setAvailableProfiles(candidates)
       }
       setLoading(false)
@@ -295,7 +310,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
         </div>
         <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead><tr className="border-b text-left"><th className="p-2">กรรมการ</th><th className="p-2">สถานะ</th><th className="p-2">ตำแหน่ง</th><th className="p-2">จัดการ</th></tr></thead>
-          <tbody>{manthanaStaff && manthanaPreappointment?.active && !manthanaPreappointment.linked_user_id && <tr className="border-b bg-amber-50"><td className="p-2">{[manthanaStaff.prefix,manthanaStaff.first_name,manthanaStaff.last_name].filter(Boolean).join(' ')}</td><td className="p-2">แต่งตั้งแล้ว · รอสมัครบัญชี</td><td className="p-2">กรรมการ</td><td className="p-2">ระบบจะเชื่อมบัญชีอัตโนมัติ</td></tr>}{members.map(m => <tr key={m.user_id} className="border-b last:border-0">
+          <tbody>{manthanaStaff && manthanaPreappointment?.active && !manthanaPreappointment.linked_user_id && <tr className="border-b bg-amber-50"><td className="p-2">{[manthanaStaff.prefix,manthanaStaff.first_name,manthanaStaff.last_name].filter(Boolean).join(' ')}</td><td className="p-2">แต่งตั้งแล้ว · รอสมัครบัญชี</td><td className="p-2">กรรมการ</td><td className="p-2">ระบบจะเชื่อมบัญชีอัตโนมัติ</td></tr>}{activeMembers.map(m => <tr key={m.user_id} className="border-b last:border-0">
             <td className="p-2">{profileName(m.user_id)}</td>
             <td className="p-2">{m.active ? 'ปฏิบัติหน้าที่' : 'ไม่ปฏิบัติหน้าที่'}</td>
             <td className="p-2">{m.active && m.is_chair ? <span className="font-semibold text-teal-800">ประธานคณะกรรมการ</span> : 'กรรมการ'}</td>
@@ -305,7 +320,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
               {!m.active && <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => setMember(m.user_id, true, false)}>คืนสถานะ</button>}
             </div></td>
           </tr>)}
-          {!members.length && <tr><td colSpan={4} className="p-4 text-center text-stone-500">ยังไม่มีรายชื่อกรรมการในทะเบียนนี้</td></tr>}
+          {!activeMembers.length && <tr><td colSpan={4} className="p-4 text-center text-stone-500">ยังไม่มีรายชื่อกรรมการที่ปฏิบัติหน้าที่</td></tr>}
           </tbody></table></div>
       </div>}
     </>}
