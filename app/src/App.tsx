@@ -1159,6 +1159,43 @@ async function openEvidence(sb: any, path: string) { const tab = window.open('ab
 
 function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
   const me = useContext(MeCtx); const ap = useContext(ApproverCtx)
+  const [nextApproverNames, setNextApproverNames] = useState<Record<string, string>>({})
+  // แสดงชื่อผู้รับรองขั้นถัดไปจากสิทธิ์จริงใน profiles และหน่วยงาน/กลุ่มงานของเจ้าของรายการ
+  useEffect(() => {
+    let alive = true
+    const pendingPeople = [...new Set((allRows || []).filter((r: any) => r.status === 'pending').map((r: any) => String(r.person_id)))]
+    if (!pendingPeople.length) { setNextApproverNames({}); return () => { alive = false } }
+    const loadApprovers = async () => {
+      const [peopleResult, profilesResult, unitsResult] = await Promise.all([
+        sb.from('people').select('id,unit_id').in('id', pendingPeople),
+        sb.from('profiles').select('full_name,role,org_role,unit_id,nursing_group,extra_nursing_group_names'),
+        sb.from('units').select('id,parent_group')
+      ])
+      if (!alive) return
+      const peopleById = new Map((peopleResult.data || []).map((p: any) => [String(p.id), p]))
+      const unitsById = new Map((unitsResult.data || []).map((u: any) => [Number(u.id), u]))
+      const approvers = profilesResult.data || []
+      const result: Record<string, string> = {}
+      for (const personId of pendingPeople) {
+        const level = Number(ap?.personLevel?.[personId] ?? 0)
+        const person = peopleById.get(personId)
+        const unit = person?.unit_id != null ? unitsById.get(Number(person.unit_id)) : null
+        let candidate: any = null
+        if (level === 0) {
+          candidate = approvers.find((p: any) => p.role === 'head' && Number(p.unit_id) === Number(person?.unit_id))
+        } else if (level === 1) {
+          const group = String(unit?.parent_group || '').trim()
+          candidate = approvers.find((p: any) => p.role === 'group_head' && [p.nursing_group, p.extra_nursing_group_names].some((v: any) => String(v || '').split('|').map(x => x.trim()).includes(group)))
+        } else if (level === 2) {
+          candidate = approvers.find((p: any) => String(p.full_name || '').replace(/\\s/g, '') === 'นางสาวมัณฑนาเพชรคำ')
+        }
+        result[personId] = String(candidate?.full_name || '').trim()
+      }
+      setNextApproverNames(result)
+    }
+    void loadApprovers()
+    return () => { alive = false }
+  }, [sb, allRows, ap?.personLevel])
   // แบบร่างเป็นของผู้บันทึกเท่านั้น คนอื่น (รวมหัวหน้า) ไม่เห็นจนกว่าจะส่ง
   const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me), [allRows, me])
   const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
@@ -1320,7 +1357,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
         <td className="log-col-activity whitespace-normal break-words"><div><b>{r.activity_code}</b> — {r.title}</div>{r.parent_log_id && <div className="mt-1 inline-flex rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">คำขอเพิ่มจำนวน · อ้างอิงรายการ #{r.parent_log_id}</div>}{r.supplemental_reason && <div className="mt-1 rounded-md bg-amber-50 p-2 text-xs text-amber-900">เหตุผลที่ขอเพิ่ม: {r.supplemental_reason}</div>}{r.sub_activity?.trim() && <div className="text-sm mt-1 whitespace-pre-wrap break-words">กิจกรรมย่อย: {r.sub_activity}</div>}{r.evidence_image_path && <div className="mt-1"><button type="button" className="inline-flex items-center gap-1 rounded-md border border-teal-300 bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-100" onClick={() => openEvidence(sb, r.evidence_image_path)} aria-label={`ดูรูปหลักฐานของกิจกรรม ${r.activity_code}`}>ดูหลักฐานแนบ</button></div>}</td>
         <td className="log-col-qty">{r.qty} {r.uom}</td><td className="log-col-points whitespace-nowrap">{nf(r.counted_points)}{Number(r.cap_cut) > 0 && Number(r.points_before_cap) > 0 ? <span className="text-xs text-amber-700"> (ตัดเพดาน −{nf(r.cap_cut)})</span> : Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
         <td className="log-col-check text-xs">{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
-        <td className="log-col-status"><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-0.5 text-xs text-stone-500">รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}</div>}</td><td className="log-col-reason whitespace-pre-wrap break-words text-xs">{r.status === 'rejected' ? <div className="rounded-md border border-red-200 bg-red-50 p-2 text-red-800">{String(r.reject_reason || '').trim() || 'ไม่พบเหตุผลที่บันทึกไว้ กรุณาติดต่อหัวหน้าผู้พิจารณา'}</div> : <span className="text-stone-400">—</span>}</td>
+        <td className="log-col-status"><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-1 text-xs text-stone-600">ผู้รับรอง: <b className="text-stone-800">{nextApproverNames[String(r.person_id)] || 'ไม่พบชื่อผู้รับรองในระบบ'}</b></div>}</td><td className="log-col-reason whitespace-pre-wrap break-words text-xs">{r.status === 'rejected' ? <div className="rounded-md border border-red-200 bg-red-50 p-2 text-red-800">{String(r.reject_reason || '').trim() || 'ไม่พบเหตุผลที่บันทึกไว้ กรุณาติดต่อหัวหน้าผู้พิจารณา'}</div> : <span className="text-stone-400">—</span>}</td>
         <td className="log-col-actions whitespace-nowrap space-x-1">
           {!readOnly && me && r.entered_by === me && (r.status === 'draft' || r.status === 'rejected') && <>
             <button className="btn !py-0.5" onClick={() => submitRows([r.id])}>{r.status === 'rejected' ? 'ส่งใหม่' : 'ส่ง'}</button>
