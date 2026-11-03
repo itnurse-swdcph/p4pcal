@@ -1519,6 +1519,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const groups = [...new Set((positions || []).map((p: any) => p.grp).filter((g: any) => g && g !== NO_LINE))] as string[]
   const [formLine, setFormLine] = useState<string>(line || '')
   const emptyForm = (_selectedLine: string = formLine) => ({ code: '', title: '', uom: '', minutes: '1', coLines: [] as string[], need_evidence: false, definition: '', note: '' })
+  const [form, setForm] = useState<any>(() => emptyForm(line || ''))
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
   const inLine = (acts || []).filter((a: any) => (a.eligible || []).includes(line))
@@ -1547,6 +1548,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   }
   const localCodes = (acts || []).map((x: any) => x.code)
   const formRate = lineRateOf(formLine)
+  const shownCode = editingCode ? form.code : (formLine ? nextCodeFor(formLine, localCodes) : '')
   const formWorkpoint = Math.round(Number(form.minutes || 0) * formRate * 1 * 100) / 100
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const filtered = inLine.filter((a: any) => terms.every(t => [a.code, a.main_activity, a.title, a.definition, a.note].join(' ').toLowerCase().includes(t))).sort(byCode)
@@ -1657,12 +1659,12 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
     <div className="card space-y-3">
       <div className="flex flex-wrap items-center gap-3"><div className="mr-auto"><h2 className="text-lg font-bold">คลังกิจกรรม P4P</h2><p className="text-sm text-stone-600">{seeAll ? 'ค้นหาและศึกษารายละเอียด เกณฑ์การนับแต้ม และหลักฐานประกอบ แยกตามสายงาน (เห็นทุกสายงาน)' : 'แสดงเฉพาะกิจกรรมของตำแหน่งของคุณ ค้นหาและศึกษาเกณฑ์การนับแต้มและหลักฐานประกอบ'}</p></div>
       {isAdmin && <button className="btn" onClick={() => { if (showAdd) cancelForm(); else { setFormLine(line || ''); setForm(emptyForm(line || '')); setShowAdd(true); setMsg('') } }}>{showAdd ? 'ปิดแบบฟอร์ม' : '+ เพิ่มกิจกรรม'}</button>}</div>
-      {msg && <p role="status" className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">{msg}</p>}
+      {msg && !showAdd && <p role="status" className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">{msg}</p>}
       {showAdd && isAdmin && <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
         <h3 className="font-bold">{editingCode ? `แก้ไขกิจกรรม ${editingCode}` : 'เพิ่มกิจกรรมเข้าคลัง'}</h3>
         <div className="grid sm:grid-cols-2 gap-3">
-          <label className="field-label">1. เลือกสายงาน<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({ ...form, coLines: (form.coLines || []).filter((x: string) => x !== l), code: l ? nextCodeFor(l, localCodes) : '' }) }}><option value="">-- เลือกสายงานก่อน --</option>{groups.map((g: string) => <option key={g} value={g}>{g}</option>)}</select></label>
-          <label className="field-label">2. รหัสกิจกรรม (นับต่ออัตโนมัติตามสายงาน)<input className="inp mt-1 bg-stone-100" value={form.code} readOnly placeholder="เลือกสายงานก่อน" /><span className="mt-1 block text-xs text-stone-500">ระบบนับต่อจากรหัสล่าสุดของสายงานที่เลือก และตรวจซ้ำอีกครั้งตอนบันทึก</span></label>
+          <label className="field-label">1. เลือกสายงาน<select className="inp mt-1" value={formLine} disabled={Boolean(editingCode)} onChange={e => { const l = e.target.value; setFormLine(l); setForm({ ...form, coLines: (form.coLines || []).filter((x: string) => x !== l) }) }}><option value="">-- เลือกสายงานก่อน --</option>{groups.map((g: string) => <option key={g} value={g}>{g}</option>)}</select></label>
+          <label className="field-label">2. รหัสกิจกรรม (นับต่ออัตโนมัติตามสายงาน)<input className="inp mt-1 bg-stone-100" value={shownCode} readOnly placeholder="เลือกสายงานก่อน" /><span className="mt-1 block text-xs text-stone-500">ระบบนับต่อจากรหัสล่าสุดของสายงานที่เลือก และตรวจซ้ำอีกครั้งตอนบันทึก</span></label>
           <label className="field-label sm:col-span-2">3. ชื่อกิจกรรม<input className="inp mt-1" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="ชื่อกิจกรรม (ใช้ค้นหาตอนบันทึก)" /></label>
           <label className="field-label">4. หน่วยนับ<input className="inp mt-1" value={form.uom} onChange={e => setForm({ ...form, uom: e.target.value })} placeholder="เช่น ครั้ง, ราย, ชั่วโมง" /></label>
           <label className="field-label">5. เวลามาตรฐาน (นาที)<input type="number" min="0.01" step="0.01" className="inp mt-1" value={form.minutes} onChange={e => setForm({ ...form, minutes: e.target.value })} /></label>
