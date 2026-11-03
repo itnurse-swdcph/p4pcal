@@ -1147,11 +1147,14 @@ function roleGuaranteeForPosition(position: any, positions: any[] = [], orgRole?
   if (role.includes('หัวหน้างาน') || name.includes('หัวหน้าหอผู้ป่วย') || name.includes('หัวหน้างาน')) return 120
   return 0
 }
-function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, activityPoints = 0) {
+function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, activityPoints = 0, month?: string) {
   const insurance = guaranteeForPosition(position, positions, orgRole)
   const roleGuarantee = roleGuaranteeForPosition(position, positions, orgRole)
-  const performance = Number(activityPoints || 0) + roleGuarantee
-  return { insurance, roleGuarantee, performance, excess: Math.min(Math.max(0, performance - insurance), insurance * 0.5) }
+  const october2026 = String(month || '').slice(0, 7) === '2026-10'
+  const rawPerformance = Number(activityPoints || 0) + roleGuarantee
+  const performance = october2026 ? Math.min(rawPerformance, insurance + 10) : rawPerformance
+  const excess = Math.min(Math.max(0, performance - insurance), october2026 ? 10 : insurance * 0.5)
+  return { insurance, roleGuarantee, performance, excess }
 }
 
 function ActivitySummary({ sb, rows, person, positions, month }: any) {
@@ -1174,7 +1177,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   // นับ pending + approved และตัดออกเฉพาะรายการที่ถูก rejected แล้ว
   const earned = (rows || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const confirmed = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
-  const scoring = scoreBreakdown(person.position, positions, person.org_role, earned)
+  const scoring = scoreBreakdown(person.position, positions, person.org_role, earned, month)
   const performanceTotal = scoring.performance
   const difference = performanceTotal - guarantee
   const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(person.position || '').replace(/\s+/g, '').trim())
@@ -1207,7 +1210,7 @@ function Totals({ rows, people, positions }: any) {
   const g = guaranteeForPosition(people[0].position, positions, people[0].org_role)
   const rg = roleGuaranteeForPosition(people[0].position, positions, people[0].org_role)
   const t = rows.reduce((s: number, r: any) => s + Number(r.counted_points), 0)
-  const score = scoreBreakdown(people[0].position, positions, people[0].org_role, t)
+  const score = scoreBreakdown(people[0].position, positions, people[0].org_role, t, month)
   return <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
     {[['แต้มกิจกรรมเดือนนี้', t], ['แต้มประกัน', g], ['แต้มการันตี', rg], ['แต้มผลงานรวม', score.performance], ['แต้มส่วนเกิน (สูงสุด 600)', score.excess]].map(([l, v]: any) => <div key={l} className="card"><div className="text-xs text-stone-600">{l}</div><div className="text-2xl font-bold">{nf(v)}</div></div>)}
   </div>
@@ -1802,7 +1805,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     const approved = rs.filter((r: any) => r.status === 'approved')
     const g = guaranteeForPosition(p.position, positions, p.org_role)
     const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
-    const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints)
+    const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints, month)
     const roleGuarantee = scoring.roleGuarantee
     const performancePoints = scoring.performance
     const excess = scoring.excess
@@ -2043,7 +2046,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const d = (x: string) => rs.filter((r: any) => r.domain === x).reduce((s: number, r: any) => s + Number(r.counted_points), 0)
     const tot = d('บริหาร') + d('บริการ') + d('วิชาการ')
     const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
-    const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints)
+    const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints, month)
     const roleGuarantee = scoring.roleGuarantee
     const performancePoints = scoring.performance
     const excess = scoring.excess
