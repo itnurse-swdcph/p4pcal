@@ -1364,8 +1364,10 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   }
   const set = async (id: number, status: string) => {
     const { error } = await sb.from('logs').update({ status }).eq('id', id)
-    if (error) { alert('เปลี่ยนสถานะไม่สำเร็จ: ' + error.message); return }
+    if (error) { alert('เปลี่ยนสถานะไม่สำเร็จ: ' + error.message); return false }
     reload()
+    alert(status === 'approved' ? 'รับรองกิจกรรมเรียบร้อยแล้ว' : status === 'rejected' ? 'บันทึกผลไม่รับรองเรียบร้อยแล้ว' : 'เปลี่ยนสถานะรายการเรียบร้อยแล้ว')
+    return true
   }
   const del = async (id: number) => { if (confirm('ลบรายการนี้?')) { const { error } = await sb.from('logs').delete().eq('id', id); if (error) alert('ลบรายการไม่สำเร็จ: ' + error.message); else reload() } }
   const saveEdit = async () => {
