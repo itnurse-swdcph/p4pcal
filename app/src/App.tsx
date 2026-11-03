@@ -172,7 +172,12 @@ function Login({ sb }: any) {
     try {
       if (mode === 'in') {
         const { error } = await sb.auth.signInWithPassword({ email: cleanUsername + '@p4p.invalid', password: pw })
-        if (error) setMsg('เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน')
+        if (error) {
+          const status = Number(error.status || error.context?.status || 0)
+          setMsg(status === 504 || /timeout|gateway|fetch failed|network/i.test(String(error.message || ''))
+            ? 'ระบบยืนยันตัวตนของเซิร์ฟเวอร์ตอบกลับช้า (504) กรุณารอสักครู่แล้วกดเข้าสู่ระบบอีกครั้ง ข้อมูลบัญชีไม่ได้ถูกเปลี่ยนแปลง'
+            : 'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน')
+        }
       } else {
         const { data, error } = await sb.functions.invoke('p4p-register', {
           body: { username: cleanUsername, password: pw, staff_id: selectedStaff.source_row }
