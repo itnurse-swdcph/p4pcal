@@ -914,7 +914,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
       {person && <div className="flex flex-wrap justify-end gap-2"><button type="button" className="btn sec" onClick={() => setPrinting(true)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปประจำเดือน (A4)</button><button type="button" className="btn" onClick={() => document.getElementById('saved-activity-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>ตรวจสอบรายการบันทึก</button></div>}
       {printing && printPerson && <PrintSheet sb={sb} person={printPerson} rows={printRows} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
       {myDrafts.length > 0 && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-stone-300 bg-white p-3 text-sm"><span>แบบร่างที่ยังไม่ส่ง <b>{myDrafts.length}</b> รายการ (ยังไม่นับคะแนน)</span>
-        <button type="button" className="btn" onClick={async () => { if (!(await appConfirm(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรอง? เมื่อส่งแล้วจะแก้ไขหรือลบไม่ได้`)) return; const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', myDrafts.map((r: any) => r.id)); if (error) appAlert('ส่งรายการไม่สำเร็จ: ' + error.message); else { setNotice(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรองแล้ว`); reload() } }}>ส่งทั้งหมด ({myDrafts.length})</button></div>}
+        <button type="button" className="btn" onClick={async () => { if (!(await appConfirm(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรอง? เมื่อส่งแล้วจะแก้ไขหรือลบไม่ได้`))) return; const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', myDrafts.map((r: any) => r.id)); if (error) appAlert('ส่งรายการไม่สำเร็จ: ' + error.message); else { setNotice(`ส่ง ${myDrafts.length} รายการให้หัวหน้ารับรองแล้ว`); reload() } }}>ส่งทั้งหมด ({myDrafts.length})</button></div>}
       <ActivitySummary sb={sb} rows={shown} person={person ? { ...person, org_role: person.org_role || profileOrgRole } : null} positions={positions} month={month} units={units} />
     </div>
     <div className="card activity-entry-card w-full max-w-5xl mx-auto space-y-4">
@@ -1339,7 +1339,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const approveSelected = async () => {
     const ids = selectedApprovableIds
     if (!ids.length || bulkApproving) return
-    if (!(await appConfirm('ยืนยันรับรองกิจกรรมที่เลือกจำนวน ' + ids.length.toLocaleString('th-TH') + ' รายการ?')) return
+    if (!(await appConfirm('ยืนยันรับรองกิจกรรมที่เลือกจำนวน ' + ids.length.toLocaleString('th-TH') + ' รายการ?'))) return
     setBulkApproving(true)
     const result = await sb.from('logs').update({ status: 'approved' }).in('id', ids).eq('status', 'pending')
     setBulkApproving(false)
@@ -1662,7 +1662,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
   const cancelForm = () => { setShowAdd(false); setEditingCode(null); setFormLine(line || ''); setForm(emptyForm(line || '')); setMsg('') }
   const toggleCoLine = (l: string, on: boolean) => setForm({ ...form, coLines: on ? [...new Set([...(form.coLines || []), l])] : (form.coLines || []).filter((x: string) => x !== l) })
   const deactivate = async (a: any) => {
-    if (!(await appConfirm(`ยืนยันเพิกถอนกิจกรรม ${a.code} — ${a.title} หรือไม่? กิจกรรมจะไม่ปรากฏในรายการบันทึกใหม่ แต่ประวัติที่บันทึกไว้จะยังคงอยู่`)) return
+    if (!(await appConfirm(`ยืนยันเพิกถอนกิจกรรม ${a.code} — ${a.title} หรือไม่? กิจกรรมจะไม่ปรากฏในรายการบันทึกใหม่ แต่ประวัติที่บันทึกไว้จะยังคงอยู่`))) return
     const { error } = await sb.from('activities').update({ active: false }).eq('code', a.code)
     if (error) { setMsg('เพิกถอนกิจกรรมไม่สำเร็จ: ' + error.message); return }
     setMsg(`เพิกถอนกิจกรรม ${a.code} แล้ว`); reloadActs()
@@ -2358,14 +2358,14 @@ function SettingsPage({ sb }: any) {
     setCalendarDescription(''); setCalendarVersion(v => v + 1); setCalendarMessage(calendarIsWorkingDay ? 'เพิ่มวันทำงานพิเศษแล้ว' : 'บันทึกวันหยุดแล้ว')
   }
   const deleteCalendarOverride = async (date: string) => {
-    if (!(await appConfirm(`ยืนยันลบการกำหนดพิเศษวันที่ ${date} ? ระบบจะกลับไปใช้วันจันทร์-ศุกร์เป็นวันทำการอัตโนมัติ`)) return
+    if (!(await appConfirm(`ยืนยันลบการกำหนดพิเศษวันที่ ${date} ? ระบบจะกลับไปใช้วันจันทร์-ศุกร์เป็นวันทำการอัตโนมัติ`))) return
     const { error } = await sb.from('p4p_calendar_overrides').delete().eq('calendar_date', date)
     setCalendarMessage(error ? 'ลบรายการไม่สำเร็จ: ' + error.message : 'ลบรายการกำหนดพิเศษแล้ว')
     if (!error) setCalendarVersion(v => v + 1)
   }
   const toggleEmergency = async () => {
     const next = !emergencyEnabled
-    if (!(await appConfirm(next ? 'ยืนยันเปิดโหมดฉุกเฉิน? ผู้ใช้จะสามารถบันทึกกิจกรรมย้อนหลังได้แม้พ้นวันที่ 5 ของเดือนถัดไป' : 'ยืนยันปิดโหมดฉุกเฉิน? ระบบจะกลับไปใช้กำหนดปิดรับย้อนหลังวันที่ 5 ของเดือนถัดไปทันที')) return
+    if (!(await appConfirm(next ? 'ยืนยันเปิดโหมดฉุกเฉิน? ผู้ใช้จะสามารถบันทึกกิจกรรมย้อนหลังได้แม้พ้นวันที่ 5 ของเดือนถัดไป' : 'ยืนยันปิดโหมดฉุกเฉิน? ระบบจะกลับไปใช้กำหนดปิดรับย้อนหลังวันที่ 5 ของเดือนถัดไปทันที'))) return
     setEmergencyBusy(true); setEmergencyMsg('')
     const { error } = await sb.from('p4p_recording_policy').update({ emergency_enabled: next, updated_at: new Date().toISOString() }).eq('id', true)
     setEmergencyBusy(false)
@@ -2379,7 +2379,7 @@ function SettingsPage({ sb }: any) {
       const v = Number(g[k]); const ok = k === 'cap_shift_points' ? v > 0 && v <= 90 : k === 'cap_day_points' ? v > 0 && v <= 180 : v > 0 && v <= 10
       if (!(String(g[k] ?? '').trim() !== '' && ok)) { setGMsg(`ค่า "${l}" ไม่ถูกต้อง`); return }
     }
-    if (!(await appConfirm('การเปลี่ยนค่าเหล่านี้มีผลกับการคำนวณแต้มของทุกหน่วยงานและทุกเดือน รวมรายการที่รับรองแล้วด้วย ยืนยันบันทึก?')) return
+    if (!(await appConfirm('การเปลี่ยนค่าเหล่านี้มีผลกับการคำนวณแต้มของทุกหน่วยงานและทุกเดือน รวมรายการที่รับรองแล้วด้วย ยืนยันบันทึก?'))) return
     const res = await Promise.all(GLOBAL_SETTINGS.map(([k]) => sb.from('app_settings').update({ value: Number(g[k]) }).eq('key', k)))
     const bad = res.find((r: any) => r.error)
     setGMsg(bad ? 'บันทึกไม่สำเร็จ: ' + bad.error.message : 'บันทึกแล้ว')
@@ -2525,7 +2525,7 @@ function UsersPage({ sb, units }: any) {
     if (editPassword && editPassword.length < 6) {
       setEditMessage({ text: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร', error: true }); return
     }
-    if (!(await appConfirm(`ยืนยันแก้ไขบัญชีของ ${editUser.full_name || editUser.username} หรือไม่? ${editPassword ? 'ระบบจะเปลี่ยนรหัสผ่านใหม่ด้วย' : 'ระบบจะเปลี่ยนเฉพาะชื่อผู้ใช้'}`)) return
+    if (!(await appConfirm(`ยืนยันแก้ไขบัญชีของ ${editUser.full_name || editUser.username} หรือไม่? ${editPassword ? 'ระบบจะเปลี่ยนรหัสผ่านใหม่ด้วย' : 'ระบบจะเปลี่ยนเฉพาะชื่อผู้ใช้'}`))) return
     setEditBusy(true); setEditMessage(null)
     try {
       const { data, error } = await sb.functions.invoke('p4p-admin-update-user', {
