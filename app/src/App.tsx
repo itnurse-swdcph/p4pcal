@@ -624,12 +624,16 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
     setLoading(true); setLoadError('')
     ;(async () => {
       try {
-        const baseRows = await fetchPages((x, y) => {
-          let q = sb.from('v_logs').select('*').gte('work_date', a).lte('work_date', b).order('work_date', { ascending: true }).order('id', { ascending: true })
-          if (unit) q = q.eq('unit_id', unit)
-          if (personIds) q = q.in('person_id', personIds)
-          return q.range(x, y)
-        })
+        // ใช้ RPC ที่กรองเดือน/หน่วยงาน/บุคลากรก่อนคำนวณ Window Functions
+        // เพื่อไม่ให้ฐานข้อมูลคำนวณกิจกรรมทุกเดือนของทุกหน่วยงานก่อนค่อยกรองผลลัพธ์
+        const baseRows = await fetchPages((x, y) =>
+          sb.rpc('get_v_logs_month', {
+            p_start: a,
+            p_end: b,
+            p_unit_id: unit || null,
+            p_person_ids: personIds || null
+          }).order('work_date', { ascending: true }).order('id', { ascending: true }).range(x, y)
+        )
         if (!alive) return
         if (!baseRows.length) { setRows([]); return }
         const extraMap = new Map<any, any>()
