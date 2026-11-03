@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CalendarDays, CheckCircle2, ClipboardCheck, LockKeyhole, RefreshCw, ShieldCheck, Users } from 'lucide-react'
+import { appConfirm } from './AppDialog'
 
 const money = (value: any) => Number(value || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const number = (value: any) => Number(value || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })
@@ -130,8 +131,8 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
     } finally { setBusy(false) }
   }
 
-  const startReview = () => {
-    if (review?.status === 'approved' && !window.confirm('การเริ่มรับรองใหม่จะล้างมติเดิมทั้งหมด ต้องการดำเนินการต่อหรือไม่?')) return
+  const startReview = async () => {
+    if (review?.status === 'approved' && !(await appConfirm('การเริ่มรับรองใหม่จะล้างมติเดิมทั้งหมด ต้องการดำเนินการต่อหรือไม่?','เริ่มรับรองใหม่'))) return
     runAction('เริ่มกระบวนการรับรองผลแล้ว', () => sb.rpc('p4p_start_review', { p_month: monthDate }))
   }
   const castVote = (decision: 'approved' | 'rejected') => {
@@ -142,8 +143,8 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
     runAction(decision === 'approved' ? 'บันทึกมติอนุมัติแล้ว' : 'บันทึกมติไม่อนุมัติแล้ว', () =>
       sb.rpc('p4p_review_vote', { p_month: monthDate, p_decision: decision, p_comment: comment }))
   }
-  const closeMonth = () => {
-    if (!window.confirm('ยืนยันปิดงวด P4P เดือนนี้ในฐานะประธานคณะกรรมการใช่หรือไม่? เมื่อปิดแล้วผลเงินเพิ่มจะถูกเปิดเผยแก่บุคลากร')) return
+  const closeMonth = async () => {
+    if (!(await appConfirm('ยืนยันปิดงวด P4P เดือนนี้ในฐานะประธานคณะกรรมการใช่หรือไม่? เมื่อปิดแล้วผลเงินเพิ่มจะถูกเปิดเผยแก่บุคลากร','ยืนยันปิดงวด P4P'))) return
     runAction('ปิดงวดสำเร็จ และเผยแพร่ผลตาม snapshot แล้ว', () => sb.rpc('p4p_close', { p_month: monthDate }))
   }
   const setMember = (userId: string, active: boolean, chair = false) =>
