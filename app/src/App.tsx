@@ -779,8 +779,11 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const isMedicalCenterOnly = (a: any) => String(a?.title || '').startsWith('[เฉพาะศูนย์เครื่องมือแพทย์]')
   const specialCrossLineUnits = ['งานการพยาบาลผู้ป่วยห้องผ่าตัด', 'งานการพยาบาลวิสัญญี']
   const isSpecialCrossLineNurse = pos?.grp === 'พยาบาล' && specialCrossLineUnits.includes(selectedUnitName)
+  // งานจ่ายกลาง: อนุญาตเฉพาะ 3 ตำแหน่งนี้ให้ใช้กิจกรรมของ 2 สายงานที่กำหนด
+  const centralSupplyPositions = ['พนักงานช่วยเหลือคนไข้', 'พนักงานประจำตึก', 'พนักงานบริการ']
+  const isCentralSupplyCrossLine = selectedUnitName === 'งานจ่ายกลาง' && centralSupplyPositions.includes(String(person?.position || '').trim())
   const crossLineGroups = ['พยาบาล', 'ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก']
-  const eligibleActs = acts.filter((a: any) => ((!pos || a.eligible.includes(pos.grp)) || (isSpecialCrossLineNurse && crossLineGroups.some(g => a.eligible.includes(g)))) && (!isMedicalCenterOnly(a) || isMedicalCenterStaff))
+  const eligibleActs = acts.filter((a: any) => ((!pos || a.eligible.includes(pos.grp)) || (isSpecialCrossLineNurse && crossLineGroups.some(g => a.eligible.includes(g))) || (isCentralSupplyCrossLine && ['ผู้ช่วยเหลือคนไข้', 'พนักงานประจำตึก'].some(g => a.eligible.includes(g)))) && (!isMedicalCenterOnly(a) || isMedicalCenterStaff))
   // แสดงกิจกรรมที่มีสิทธิ์เลือกทั้งหมดทันทีเมื่อเปิดช่อง และกรองตามคำค้นหาทันทีเมื่อเริ่มพิมพ์
   const list = eligibleActs.filter((a: any) => terms.every(t => [a.code, a.main_activity, a.title].join(' ').toLowerCase().includes(t))).sort(byCode)
   const act = acts.find((a: any) => a.code === code)
