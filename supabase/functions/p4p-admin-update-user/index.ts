@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return json(500, { error: "ระบบยังตั้งค่าไม่สมบูรณ์ กรุณาติดต่อผู้ดูแลระบบ" });
 
-  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
   if (!token) return json(401, { error: "กรุณาเข้าสู่ระบบด้วยบัญชีผู้ดูแลระบบ" });
 
   let body: any;
