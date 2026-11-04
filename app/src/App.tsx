@@ -1226,57 +1226,33 @@ function Totals({ rows, people, positions }: any) {
 const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', 'bg-stone-200'], pending: ['ส่งแล้ว รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { appAlert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); appAlert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-// แชร์ข้อมูลผู้รับรองระหว่าง LogTable ทุกหน้าที่เปิดพร้อมกัน ลดการอ่าน profiles/units ซ้ำ
-let approverDirectoryCache: { expiresAt: number; promise: Promise<{ profiles: any[]; units: any[] }> } | null = null
-function getApproverDirectory(sb: any) {
-  if (approverDirectoryCache && approverDirectoryCache.expiresAt > Date.now()) return approverDirectoryCache.promise
-  const promise = Promise.all([
-    sb.from('profiles').select('full_name,role,org_role,unit_id,staff_directory_id,nursing_group,extra_nursing_group_names'),
-    sb.from('units').select('id,parent_group')
-  ]).then(([profilesResult, unitsResult]: any[]) => ({
-    profiles: profilesResult.data || [],
-    units: unitsResult.data || []
-  }))
-  approverDirectoryCache = { expiresAt: Date.now() + 60_000, promise }
-  return promise
-}
-
 function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
   const me = useContext(MeCtx); const ap = useContext(ApproverCtx)
   const [nextApproverNames, setNextApproverNames] = useState<Record<string, string>>({})
   const pendingRows = (allRows || []).filter((r: any) => r.status === 'pending')
   const pendingPeople = [...new Set(pendingRows.map((r: any) => String(r.person_id)))]
   const pendingPeopleKey = pendingPeople.join(',')
-  // v_logs มี person_id และ unit_id อยู่แล้ว จึงไม่ต้องอ่าน people ซ้ำเพื่อหาหน่วยงาน
+  // ใช้กฎมอบหมายผู้รับรองจากฐานข้อมูลชุดเดียวกับที่ใช้ตรวจสิทธิ์อนุมัติ
+  // ไม่ค้นจาก profiles โดยตรง เพราะ RLS อาจซ่อนโปรไฟล์ของหัวหน้ากลุ่มงานจากผู้ใช้บางบทบาท
   useEffect(() => {
     let alive = true
     if (!pendingPeople.length) { setNextApproverNames({}); return () => { alive = false } }
     const loadApprovers = async () => {
-      const { profiles: approvers, units } = await getApproverDirectory(sb)
+      const entries = await Promise.all(pendingPeople.map(async personId => {
+        const { data, error } = await sb.rpc('assigned_approver_for_person', { p_person: personId })
+        if (error) throw error
+        const approver = Array.isArray(data) ? data[0] : data
+        return [personId, String(approver?.approver_name || '').trim()] as const
+      }))
       if (!alive) return
-      const unitsById = new Map(units.map((u: any) => [Number(u.id), u]))
-      const personUnits = new Map(pendingRows.map((r: any) => [String(r.person_id), r.unit_id]))
-      const result: Record<string, string> = {}
-      for (const personId of pendingPeople) {
-        const unitId = personUnits.get(personId)
-        const unit = unitId != null ? unitsById.get(Number(unitId)) : null
-        const level = Number(ap?.personLevel?.[personId] ?? 0)
-        let candidate: any = null
-        if (level === 0) {
-          candidate = approvers.find((p: any) => (p.role === 'head' || p.org_role === 'หัวหน้างาน' || DUAL_HEAD_GROUP_STAFF_IDS.includes(Number(p.staff_directory_id))) && Number(p.unit_id) === Number(unitId))
-        } else if (level === 1) {
-          const group = String(unit?.parent_group || '').trim()
-          candidate = approvers.find((p: any) => (p.role === 'group_head' || p.org_role === 'หัวหน้ากลุ่มงาน') && [p.nursing_group, p.extra_nursing_group_names].some((v: any) => String(v || '').split('|').map(x => x.trim()).includes(group)))
-        } else if (level === 2) {
-          candidate = approvers.find((p: any) => String(p.full_name || '').replace(/\\s/g, '') === 'นางสาวมัณฑนาเพชรคำ')
-        }
-        result[personId] = String(candidate?.full_name || '').trim()
-      }
-      setNextApproverNames(result)
+      setNextApproverNames(Object.fromEntries(entries))
     }
-    void loadApprovers().catch((error: any) => console.error('โหลดชื่อผู้รับรองไม่สำเร็จ', error))
+    void loadApprovers().catch((error: any) => {
+      console.error('โหลดชื่อผู้รับรองไม่สำเร็จ', error)
+      if (alive) setNextApproverNames({})
+    })
     return () => { alive = false }
-  }, [sb, pendingPeopleKey, ap?.personLevel])
+  }, [sb, pendingPeopleKey])
   // แบบร่างเป็นของผู้บันทึกเท่านั้น คนอื่น (รวมหัวหน้า) ไม่เห็นจนกว่าจะส่ง
   const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me), [allRows, me])
   const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
