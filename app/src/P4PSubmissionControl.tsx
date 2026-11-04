@@ -36,17 +36,22 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
     let alive = true
     const load = async () => {
       setLoading(true); setError(''); setMessage('')
-      const staffQuery = sb.from('staff_directory')
-        .select('source_row,prefix,first_name,last_name,position,org_role,unit_name,nursing_group,active')
+      let rosterQuery = sb.from('staff_directory')
+        .select('source_row,prefix,first_name,last_name,position,org_role,unit_name,nursing_group,extra_nursing_group_names,active')
         .eq('active', true).neq('source_row', 2)
-      const rosterQuery = scopeType === 'unit'
-        ? staffQuery.eq('unit_name', (await sb.from('units').select('name').eq('id', unitId).maybeSingle()).data?.name || '__none__')
-        : staffQuery.is('unit_name', null).eq('nursing_group', groupName)
-      const [roster, logResult, peopleResult, leaveResult, groupLeaveResult, subResult, ownStaff] = await Promise.all([
+      if (scopeType === 'unit') {
+        const { data: unitData, error: unitError } = await sb.from('units').select('name').eq('id', unitId).maybeSingle()
+        if (unitError || !unitData?.name) throw unitError || new Error('ไม่พบข้อมูลหน่วยงาน')
+        rosterQuery = rosterQuery.eq('unit_name', unitData.name)
+      } else {
+        rosterQuery = rosterQuery.is('unit_name', null)
+      }
+      const [rosterResult, logResult, peopleResult, leaveResult, groupLeaveResult, subResult, ownStaff] = await Promise.all([
         rosterQuery,
         scopeType === 'unit'
           ? sb.from('v_logs').select('id,person_id,work_date,status,counted_points').eq('unit_id', unitId).gte('work_date', monthDate).lt('work_date', rangeEnd)
           : sb.from('v_logs').select('id,person_id,work_date,status,counted_points').gte('work_date', monthDate).lt('work_date', rangeEnd).is('unit_id', null),
+        sb.from('people').select('id,staff_directory_id,unit_id').eq('active', true),
         scopeType === 'unit'
           ? sb.from('p4p_monthly_leave').select('staff_directory_id,other_notes').eq('unit_id', unitId).eq('month', monthDate)
           : Promise.resolve({ data: [], error: null }),
@@ -61,11 +66,17 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
           : Promise.resolve({ data: null, error: null })
       ])
       if (!alive) return
-      if (roster.error || logResult.error || peopleResult.error || leaveResult.error || groupLeaveResult.error || subResult.error) {
+      if (rosterResult.error || logResult.error || peopleResult.error || leaveResult.error || groupLeaveResult.error || subResult.error) {
         setError('โหลดข้อมูลเตรียมส่งผลงานไม่ครบ กรุณากดรีเฟรชหรือติดต่อผู้ดูแลระบบ')
       }
-      setStaff(roster.data || [])
-      setLogs(logResult.data || [])\n      setPeopleRows(peopleResult.data || [])
+      const rosterRows = (rosterResult.data || []).filter((p: any) => scopeType === 'unit' ||
+        String(p.nursing_group || '').trim() === groupName ||
+        String(p.extra_nursing_group_names || '').split(/[,;|]/).some((g: string) => g.trim() === groupName))
+      setStaff(rosterRows)
+      setPeopleRows(peopleResult.data || [])
+      const staffIds = new Set(rosterRows.map((p: any) => String(p.source_row)))
+      const personIds = new Set((peopleResult.data || []).filter((p: any) => staffIds.has(String(p.staff_directory_id))).map((p: any) => String(p.id)))
+      setLogs((logResult.data || []).filter((r: any) => personIds.has(String(r.person_id))))
       const noteRows = [...(leaveResult.data || []), ...(groupLeaveResult.data || [])]
       setNotes(Object.fromEntries(noteRows.map((x: any) => [String(x.staff_directory_id), String(x.other_notes || '')])))
       setSubmission(subResult.data || null)
@@ -78,14 +89,13 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
 
   const pending = logs.filter((r: any) => r.status === 'pending').length
   const approved = logs.filter((r: any) => r.status === 'approved')
-  const approvedPeople = new Set(approved.map((r: any) => String(r.person_id)))
-  const personByStaff = new Map<string, string>([])
-  // people IDs are resolved by the log view; staff-directory membership and notes are checked again atomically in the database.
   const missingNotes = staff.filter((p: any) => {
-    const hasApproved = logs.some((r: any) => r.status === 'approved' && staffPersonMatch(r.person_id, p.source_row, approvedPeople))
+    const person = peopleRows.find((x: any) => Number(x.staff_directory_id) === Number(p.source_row))
+    const hasApproved = !!person && approved.some((r: any) => String(r.person_id) === String(person.id))
     return !hasApproved && !String(notes[String(p.source_row)] || '').trim()
   })
   const points = approved.reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
+  const workDays = new Set(approved.map((r: any) => String(r.work_date).slice(0, 10))).size
   const canSubmitRole = profile?.role === 'head' || profile?.role === 'group_head' ||
     (profile?.role === 'admin' && String(profile?.username || '') === '11450')
   const canSubmitScope = scopeType === 'unit'
@@ -120,10 +130,11 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       {submission && <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">{statusLabel[submission.status] || submission.status}</span>}
     </div>
     {loading ? <p className="text-sm text-stone-500">กำลังตรวจสอบความพร้อม…</p> : <>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">บุคลากร</div><div className="text-xl font-bold">{num(staff.length,0)} คน</div></div>
         <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">กิจกรรมรอรับรอง</div><div className={'text-xl font-bold ' + (pending ? 'text-amber-700' : 'text-emerald-700')}>{num(pending,0)} รายการ</div></div>
         <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">กิจกรรมรับรองแล้ว</div><div className="text-xl font-bold">{num(approved.length,0)} รายการ</div></div>
+        <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">วันทำงานรับรอง</div><div className="text-xl font-bold">{num(workDays,0)} วัน</div></div>
         <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">แต้มรับรองแล้ว</div><div className="text-xl font-bold">{num(points)} แต้ม</div></div>
       </div>
       {missingNotes.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -155,10 +166,4 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       </div>
     </div>}
   </section>
-}
-
-// Determine whether an activity log belongs to a registered person in the selected staff-directory row.
-function staffPersonMatch(personId: string, staffDirectoryId: number, approvedPeople: Set<string>) {
-  // The database RPC is authoritative; this lightweight preview uses an exact join when people is available.
-  return approvedPeople.has(String(personId)) && Number(staffDirectoryId) > 0
 }
