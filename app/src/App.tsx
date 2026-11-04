@@ -534,8 +534,8 @@ function Main({ sb, session }: any) {
   const allGroupNames = [...new Set([...units.map((u: any) => String(u.parent_group || '').trim()), ...directoryGroupNames].filter(Boolean))]
     .sort((a: string, b: string) => a.localeCompare(b, 'th'))
   const unitOptions = isHeadRole ? directoryUnits.filter(u => myUnits.includes(u.id) || (role === 'head' && u.id === profile.unit_id)) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
-  // บัญชีแอดมินกลางที่ได้รับอนุญาต: 11450 และ kannikaw (นางกรรณิการ์ วามานนท์)
-  const isCentralAdminAccount = role === 'admin' && ['11450', 'kannikaw'].includes(String(profile?.username || '').trim().toLowerCase())
+  // แอดมินกลาง P4P ใช้บัญชี 11450 เท่านั้น; บัญชี admin อื่นใช้สิทธิ์ตามบทบาทและขอบเขตหน่วยงาน
+  const isCentralAdminAccount = role === 'admin' && String(profile?.username || '').trim() === '11450'
   const isExecutiveNurseLeader = !isCentralAdminAccount && (Number(profile?.staff_directory_id) === 2 || ['หัวหน้าพยาบาล','รักษาการหัวหน้าพยาบาล','หัวหน้าพยาบาล(รักษาการ)'].includes(String(profile?.position || '').normalize('NFC').replace(/[\s　]/g, '')))
   const scope = people.filter(p => (isCentralAdminAccount || Number(p.staff_directory_id ?? p.directory_source_row) !== 2) && (isCentralAdminAccount && cur === 'log' ? true : (role === 'admin' && cur === 'log' ? p.user_id === session.user.id : (isRev || isHeadRole ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id))))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users }
