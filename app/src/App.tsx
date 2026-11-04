@@ -606,7 +606,7 @@ function Main({ sb, session }: any) {
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
     {cur === 'settings' && <SettingsPage sb={sb} />}
     {cur === 'activities' && <ActivityLibrary myLine={positions.find((x: any) => x.name === profile.position)?.grp} seeAll={role !== 'staff'} sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
-    {cur === 'audit' && <P4PCommitteePage sb={sb} month={month} setMonth={setMonth} isAdmin={role === 'admin'} currentUserId={session.user.id} />}
+    {cur === 'audit' && <P4PCommitteePage sb={sb} month={month} setMonth={setMonth} isAdmin={role === 'admin'} isCentralAdminAccount={isCentralAdminAccount} currentUserId={session.user.id} />}
       </main>
       <footer className="app-footer">{FOOTER_TEXT}</footer>
     </div>
