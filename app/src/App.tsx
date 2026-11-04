@@ -695,6 +695,7 @@ function loadDirectoryGroupStaff(sb: any, groupName: string) {
 
 function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId, currentUserStaffDirectoryId, groupOptions = [], onActivitySaved, isCentralAdminAccount = false }: any) {
   const [recordingPolicy, setRecordingPolicy] = useState<any>({ emergency_enabled: false })
+  const [showReturnedOnly, setShowReturnedOnly] = useState(false)
   useEffect(() => { sb.from('p4p_recording_policy').select('emergency_enabled').eq('id', true).maybeSingle().then(({ data }: any) => { if (data) setRecordingPolicy(data) }) }, [sb])
   const selectedMonthDate = new Date(`${month}-01T00:00:00`)
   const selectedMonthLabel = Number.isNaN(selectedMonthDate.getTime()) ? month : selectedMonthDate.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
@@ -829,7 +830,8 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   ) : []
   // ในโหมดของตนเอง person_id ที่ผูกกับบัญชีเป็นขอบเขตข้อมูลสำหรับแสดงฉบับร่าง
   const myDrafts = shown.filter((r: any) => r.status === 'draft' && (r.entered_by === me || (picker && entryMode === 'self' && String(r.person_id) === String(ownPerson?.id))))
-  const myRejected = shown.filter((r: any) => r.status === 'rejected' && r.entered_by === me)
+  const myRejected = shown.filter((r: any) => r.status === 'draft' && String(r.reject_reason || '').trim() && (r.entered_by === me || (ownPerson?.id && String(r.person_id) === String(ownPerson.id))))
+  const returnedRows = shown.filter((r: any) => r.status === 'draft' && String(r.reject_reason || '').trim() && (r.entered_by === me || (ownPerson?.id && String(r.person_id) === String(ownPerson.id))))
   // เพดานคะแนนต่อเวรและต่อวัน (คำนวณตัดส่วนเกินที่ฐานข้อมูล ตรงนี้แสดงโควตาที่ใช้ไปแล้ว)
   const capS = Math.min(90, Number(caps.cap_shift_points) || 90), capD = Number(caps.cap_day_points) || 180
   const dayRows = rows.filter((r: any) => r.person_id === pid && r.work_date === date && r.status !== 'rejected')
@@ -1011,8 +1013,8 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     </div>
     <div className="space-y-3">
       {notice && <p role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
-      {myRejected.length > 0 && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900"><b>มี {myRejected.length} รายการที่หัวหน้าไม่รับรอง</b> ดูเหตุผลในตาราง แล้วกด "แก้ไข" หรือ "ส่งใหม่"</p>}
-      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!effectivePid && people.length > 1} showAllDrafts={isCentralAdminAccount} ownerPersonId={ownPerson?.id || null} draftsReadOnly={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
+      {myRejected.length > 0 && <button type="button" role="alert" aria-expanded={showReturnedOnly} aria-controls="saved-activity-table" onClick={() => setShowReturnedOnly(v => !v)} className="w-full rounded-lg border-2 border-red-400 bg-red-50 p-3 text-left text-sm text-red-900 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500"><span className="flex items-center justify-between gap-3"><span><b>มีรายการกิจกรรมไม่รับรอง/ส่งกลับให้แก้ไขจำนวน {myRejected.length} รายการ</b><span className="mt-1 block">กรุณาตรวจสอบ กดที่แถบนี้เพื่อ{showReturnedOnly ? 'แสดงรายการทั้งหมด' : 'ดูรายการที่ต้องแก้ไข'}</span></span><span className="shrink-0 rounded-full bg-red-700 px-3 py-1 font-bold text-white">{showReturnedOnly ? 'ดูทั้งหมด' : 'ดูรายการ'}</span></span></button>}
+      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={showReturnedOnly ? returnedRows : shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!effectivePid && people.length > 1} showAllDrafts={isCentralAdminAccount} ownerPersonId={ownPerson?.id || null} draftsReadOnly={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
     </div>
   </div>
 }
