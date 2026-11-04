@@ -629,7 +629,8 @@ function useLogs(sb: any, month: string, personIds: string[] | null, unit?: numb
     setLoading(true); setLoadError('')
     ;(async () => {
       try {
-        let request = n === 0 ? logsQueryCache.get(cacheKey)?.promise : undefined
+        const cached = logsQueryCache.get(cacheKey)
+        let request = n === 0 && cached && cached.expiresAt > Date.now() ? cached.promise : undefined
         if (!request) {
           request = (async () => {
             const baseRows = await fetchPages((x, y) =>
