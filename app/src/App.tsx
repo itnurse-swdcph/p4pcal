@@ -533,7 +533,8 @@ function Main({ sb, session }: any) {
   const allGroupNames = [...new Set([...units.map((u: any) => String(u.parent_group || '').trim()), ...directoryGroupNames].filter(Boolean))]
     .sort((a: string, b: string) => a.localeCompare(b, 'th'))
   const unitOptions = isHeadRole ? directoryUnits.filter(u => myUnits.includes(u.id) || (role === 'head' && u.id === profile.unit_id)) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
-  const scope = people.filter(p => (isRev || isHeadRole ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id))
+  const isExecutiveNurseLeader = Number(profile?.staff_directory_id) === 2 || ['หัวหน้าพยาบาล','รักษาการหัวหน้าพยาบาล','หัวหน้าพยาบาล(รักษาการ)'].includes(String(profile?.position || '').normalize('NFC').replace(/[\\s　]/g, ''))
+  const scope = people.filter(p => Number(p.staff_directory_id ?? p.directory_source_row) !== 2 && (isRev || isHeadRole ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { void checkForUpdate(); if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
@@ -570,7 +571,7 @@ function Main({ sb, session }: any) {
 
     {tabs.length === 0 && <p>บัญชีนี้ยังไม่มีสิทธิ์ใช้งาน</p>}
     {cur === 'personal' && <PersonalProfilePage sb={sb} profile={profile} role={role} units={directoryUnits} groupOptions={allGroupNames} positions={positions} session={session} reload={loadPeople} />}
-    {cur === 'log' && (role === 'staff' && scope.length === 0
+    {cur === 'log' && (isExecutiveNurseLeader ? <div className="card border border-teal-200 bg-teal-50 text-teal-950 space-y-2"><h2 className="font-bold">ยกเว้นการบันทึกกิจกรรม P4P</h2><p>ตำแหน่งหัวหน้าพยาบาล/รักษาการหัวหน้าพยาบาลไม่ต้องบันทึกกิจกรรม และไม่อยู่ในรายการคำนวณหรือเอกสารเบิก P4P ของระบบนี้</p><p className="text-sm">สิทธิ์อนุมัติกิจกรรมตามหน้าที่ผู้บริหารยังคงใช้งานได้ตามปกติ</p></div> : role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
       : <LogPage key={logPageActivation} units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} onActivitySaved={checkForUpdate} profileOrgRole={profile.org_role} currentUserId={session.user.id} currentUserStaffDirectoryId={profile.staff_directory_id} groupOptions={allGroupNames} />)}
     {(cur === 'certify' || cur === 'review') && (role === 'admin' || isHeadRole) && <div className="space-y-3">
@@ -1992,8 +1993,9 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     return () => { alive = false }
   }, [sb, unit, month, units])
   const roster = useMemo(() => {
-    const result = (people || []).filter((p: any) => Number(p.unit_id) === Number(unit)).map((p: any) => ({ ...p }))
+    const result = (people || []).filter((p: any) => Number(p.unit_id) === Number(unit) && Number(p.staff_directory_id ?? p.directory_source_row) !== 2).map((p: any) => ({ ...p }))
     for (const d of directoryPeople) {
+      if (Number(d.source_row) === 2) continue
       const fullName = String(d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`).trim()
       const found = result.find((p: any) => (d.person_id && p.id === d.person_id) || (p.staff_directory_id && Number(p.staff_directory_id) === Number(d.source_row)) || String(p.name || '').trim() === fullName)
       if (found) { found.org_role = found.org_role || d.org_role; found.staff_directory_id = found.staff_directory_id || d.source_row; found.fromDirectory = d.registered !== true; if (!found.position) found.position = d.position }
