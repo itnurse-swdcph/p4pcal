@@ -1851,7 +1851,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
       <PaymentMemo sb={sb} profile={profile} groupName={groupName} month={month} amount={sum.reduce((total: number, person: any) => total + Number(person.payout || 0), 0)} />
     </div>
     {leaveReportOpen && <div className="space-y-3">
-      <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · แสดงเฉพาะหัวหน้ากลุ่มงาน</p></div>
+      <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · วันทำการพื้นฐานตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · วันทำการ/เดือนนับจากเวรที่รับรองแล้วและไม่เกินวันทำการพื้นฐานหลังหักวันลา · แสดงเฉพาะหัวหน้ากลุ่มงาน</p></div>
       <div className="overflow-x-auto rounded-xl border border-stone-200"><table className="w-full min-w-[900px] text-sm"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>วันทำการ/เดือน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>วันสุทธิ</th><th>สิทธิ์รับเงิน</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
         {sum.map((x: any) => {
           const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
@@ -2181,8 +2181,8 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
         {reportOnly && <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)}>{leaveReportOpen ? 'กลับสรุปรายงานหน่วยงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>}
       </div>
       {leaveReportOpen && reportOnly && <div className="space-y-3">
-        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · นับทุกเวรที่รับรองแล้วแยกเวรในวันเดียวกัน และจำกัดไม่เกินวันทำการหลังหักวันลารวม</p></div>
-        <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1050px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนเวรที่ปฏิบัติ</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>วันสุทธิ</th><th>สิทธิ์รับเงิน</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
+        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันทำการพื้นฐานตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · วันทำการ/เดือนนับจากเวรที่รับรองแล้ว แยกเวรในวันเดียวกัน และไม่เกินวันทำการพื้นฐานหลังหักวันลา</p></div>
+        <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1050px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>วันทำการ/เดือน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>วันสุทธิ</th><th>สิทธิ์รับเงิน</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
           {sum.map((x: any) => {
             const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
             const key = String(staffId || '')
