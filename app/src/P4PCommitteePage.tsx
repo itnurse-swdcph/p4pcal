@@ -14,7 +14,7 @@ const STATUS_LABEL: Record<string, string> = {
   stale: 'ข้อมูลเปลี่ยน ต้องรับรองใหม่', closed: 'ปิดงวดและประกาศผลแล้ว', reopened: 'เปิดงวดใหม่'
 }
 
-export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, currentUserId }: any) {
+export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentralAdminAccount = false, currentUserId }: any) {
   const monthDate = `${month}-01`
   const [tab, setTab] = useState<Tab>('overview')
   const [unitKey, setUnitKey] = useState<number | null>(null)
@@ -68,6 +68,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
   const loading = loadedFor !== monthDate
   const activeMembers = useMemo(() => members.filter(x => x.active), [members])
   const isMember = activeMembers.some(x => x.user_id === currentUserId)
+  const canReturnSubmission = isMember || isCentralAdminAccount
   const rstatus: string = review?.status || 'none'
   const viewCalc = rstatus === 'reviewing' || rstatus === 'approved' ? (review?.snapshot || calc) : calc
   const groups: any[] = viewCalc?.groups || []
@@ -189,7 +190,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
 
     {loading ? <div className="card text-sm text-stone-500">กำลังโหลดข้อมูล…</div> : <>
       {tab === 'overview' && (unit
-        ? <UnitDetail unit={unit} groups={groups} siblings={submittedUnits} submission={selectedSubmission} onReturnPerson={returnSubmissionPerson} canAudit={canAudit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
+        ? <UnitDetail unit={unit} groups={groups} siblings={submittedUnits} submission={selectedSubmission} onReturnPerson={canReturnSubmission ? returnSubmissionPerson : undefined} canAudit={canAudit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
           onViewPerson={line => setPanel({ person: line })} onRandomAudit={() => setPanel({ person: null, randomUnitId: unit.key })} />
         : <UnitOverview units={submittedUnits} onOpen={openUnit} />)}
       {tab === 'close' && <ClosePanel review={review} votes={votes} roster={roster} currentUserId={currentUserId} isMember={isMember} activeCount={activeMembers.length}
