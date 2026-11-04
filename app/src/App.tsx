@@ -1831,16 +1831,18 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     </div>
     {leaveReportOpen && <div className="space-y-3">
       <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · แสดงเฉพาะหัวหน้ากลุ่มงาน</p></div>
-      <div className="overflow-x-auto rounded-xl border border-stone-200"><table className="w-full min-w-[900px] text-sm"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนวันเวร</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>วันสุทธิ</th><th>สิทธิ์รับเงิน</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
+      <div className="overflow-x-auto rounded-xl border border-stone-200"><table className="w-full min-w-[900px] text-sm"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนเวรที่ปฏิบัติ</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>วันสุทธิ</th><th>สิทธิ์รับเงิน</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
         {sum.map((x: any) => {
           const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
           const key = String(staffId || '')
           const saved = groupLeaveData[key] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
           const draft = groupLeaveDrafts[key] || { personal_leave_days: String(saved.personal_leave_days), sick_leave_days: String(saved.sick_leave_days), annual_leave_days: String(saved.annual_leave_days) }
           const workDaysRaw = countApprovedWorkShifts(x.rs || [])
-          const workDays = calendarWorkingDays == null ? workDaysRaw : Math.min(workDaysRaw, calendarWorkingDays)
+          const workDays = workDaysRaw
           const leaveDays = Number(draft.personal_leave_days || 0) + Number(draft.sick_leave_days || 0) + Number(draft.annual_leave_days || 0)
-          const netWorkDays = workDays - leaveDays
+          const netWorkDays = calendarWorkingDays == null
+            ? Math.max(0, workDaysRaw - leaveDays)
+            : Math.min(workDaysRaw, Math.max(0, calendarWorkingDays - leaveDays))
           const paymentEligible = netWorkDays >= 15
           const setLeave = (field: string, value: string) => setGroupLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
           return <tr key={x.p.id || key}>
@@ -2051,7 +2053,12 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const performancePoints = scoring.performance
     const excess = scoring.excess
     const daysRaw = countApprovedWorkShifts(approved)
-    const days = calendarWorkingDays == null ? daysRaw : Math.min(daysRaw, calendarWorkingDays)
+    const leave = leaveDrafts[String(p.staff_directory_id ?? p.directory_source_row)] || {}
+    const leaveDays = Number(leave.personal_leave_days || 0) + Number(leave.sick_leave_days || 0) + Number(leave.annual_leave_days || 0)
+    const netWorkingDays = calendarWorkingDays == null
+      ? Math.max(0, daysRaw - leaveDays)
+      : Math.min(daysRaw, Math.max(0, calendarWorkingDays - leaveDays))
+    const days = netWorkingDays
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
     const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
@@ -2059,7 +2066,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints: displayedWorkPoints, performancePoints, roleGuarantee, excess, days, rate: unitRate, basePay, payout, g, appr: displayedWorkPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
-  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays, month])
+  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays, month, leaveDrafts])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const saveLeaveData = async (person: any) => {
     const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
@@ -2161,15 +2168,17 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       </div>
       {leaveReportOpen && reportOnly && <div className="space-y-3">
         <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · นับเฉพาะเวรของกิจกรรมที่รับรองแล้ว และแสดงไม่เกินวันทำการตามปฏิทิน</p></div>
-        <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1050px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนวันเวร</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>วันสุทธิ</th><th>สิทธิ์รับเงิน</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
+        <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1050px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนเวรที่ปฏิบัติ</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>วันสุทธิ</th><th>สิทธิ์รับเงิน</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
           {sum.map((x: any) => {
             const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
             const key = String(staffId || '')
             const draft = leaveDrafts[key] || { personal_leave_days: '0', sick_leave_days: '0', annual_leave_days: '0' }
             const workDaysRaw = countApprovedWorkShifts(rows.filter((r: any) => String(r.person_id) === String(x.p.id)))
-            const workDays = calendarWorkingDays == null ? workDaysRaw : Math.min(workDaysRaw, calendarWorkingDays)
+            const workDays = workDaysRaw
             const leaveDays = Number(draft.personal_leave_days || 0) + Number(draft.sick_leave_days || 0) + Number(draft.annual_leave_days || 0)
-            const netWorkDays = workDays - leaveDays
+            const netWorkDays = calendarWorkingDays == null
+              ? Math.max(0, workDaysRaw - leaveDays)
+              : Math.min(workDaysRaw, Math.max(0, calendarWorkingDays - leaveDays))
             const paymentEligible = netWorkDays >= 15
             const setLeave = (field: string, value: string) => setLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
             return <tr key={x.p.id}>
