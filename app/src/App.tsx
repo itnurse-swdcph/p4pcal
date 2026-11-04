@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import PersonnelPage from './PersonnelPage'
 import PaymentMemo from './PaymentMemo'
 import P4PCommitteePage from './P4PCommitteePage'
+import P4PSubmissionControl from './P4PSubmissionControl'
 import NotificationBell from './NotificationBell'
 import AppDialogHost, { appAlert, appConfirm } from './AppDialog'
 import { createPortal } from 'react-dom'
@@ -1846,6 +1847,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
   const closePrintReport = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
   return <div className="card space-y-3">
     <div><h2 className="text-lg font-bold">สรุปรายงานหน่วยงาน · {groupName}</h2><p className="text-sm text-stone-600">แสดงเฉพาะรายชื่อหัวหน้ากลุ่มงาน โดยไม่รวมบุคลากรของหน่วยงานย่อย · ประจำเดือน {monthText}</p></div>
+    <P4PSubmissionControl sb={sb} profile={profile} unitId={null} groupName={groupName} month={month} scopeType="group" />
     <div className="flex flex-wrap gap-2">
       <button type="button" className="btn" onClick={openPrintReport} disabled={loading || logsState.loading || !!logsState.error || !sum.length}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์รายงานกลุ่มงาน</button>
       <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)} disabled={loading || !sum.length}>{leaveReportOpen ? 'กลับสรุปรายงานกลุ่มงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>
@@ -2176,6 +2178,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     (!certificationSearch.trim() || String(r.person_name || roster.find((p: any) => String(p.id) === String(r.person_id))?.name || '').toLocaleLowerCase('th').includes(certificationSearch.trim().toLocaleLowerCase('th')))
   ), [rows, ap, me, roster, certificationSearch])
   return <div className="space-y-4">
+    {reportOnly && <P4PSubmissionControl sb={sb} profile={profile} unitId={Number(unit)} groupName={groupName} month={month} scopeType="unit" />}
     {logsState.loading && <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800" role="status">กำลังโหลดรายการกิจกรรมของเดือน {monthText}…</div>}
     {logsState.error && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800" role="alert"><div className="font-semibold">โหลดรายการกิจกรรมไม่สำเร็จ</div><div className="mt-1 break-words">{logsState.error}</div><button type="button" className="btn sec mt-2" onClick={reload}>ลองโหลดอีกครั้ง</button></div>}
     {!certificationOnly && <>
