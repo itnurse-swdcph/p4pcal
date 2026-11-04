@@ -777,7 +777,9 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   useEffect(() => { if (!picker && !pid && people[0]) setPid(people[0].id) }, [people])
   useEffect(() => { if (picker && entryMode === 'self') setPid(ownPerson?.id || ''); else if (picker && entryMode === 'other') setPid('') }, [picker, entryMode, ownPerson?.id])
   useEffect(() => { setQ('') }, [pid])
-  const person = pickerPeople.find((p: any) => p.id === pid); const pos = positions.find((x: any) => x.name === person?.position)
+  // โหมดบันทึกของตนเองต้องยึด person_id ที่ผูกกับบัญชีโดยตรง ไม่พึ่งค่า pid จากตัวเลือกบุคลากร
+  const effectivePid = picker && entryMode === 'self' ? (ownPerson?.id || '') : pid
+  const person = pickerPeople.find((p: any) => String(p.id) === String(effectivePid)); const pos = positions.find((x: any) => x.name === person?.position)
   const codeRank = (c: string) => ({ ADM: 0, SVC: 1, ACD: 2 } as any)[String(c).slice(0, 3)] ?? 3
   const byCode = (a: any, b: any) => codeRank(a.code) - codeRank(b.code) || String(a.code).localeCompare(String(b.code))
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean)   // พิมพ์หลายคำได้ ต้องพบครบทุกคำ ในรหัส/กิจกรรมหลัก/กิจกรรมย่อย
@@ -795,7 +797,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const list = eligibleActs.filter((a: any) => terms.every(t => [a.code, a.main_activity, a.title].join(' ').toLowerCase().includes(t))).sort(byCode)
   const act = acts.find((a: any) => a.code === code)
   const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate : 0
-  const shown = pid ? rows.filter((r: any) => r.person_id === pid) : rows
+  const shown = effectivePid ? rows.filter((r: any) => String(r.person_id) === String(effectivePid)) : rows
   // ใช้ข้อมูลบุคลากรและชุดรายการแบบเดียวกับหน้าสรุปรายบุคคลก่อนเปิดใบพิมพ์
   const printPerson = person ? (() => {
     const canonical = personRecords.find((p: any) => p.id === person.id || (person.person_id && p.id === person.person_id))
@@ -812,7 +814,8 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const printRows = printPerson ? rows.filter((r: any) =>
     r.person_id === printPerson.id || (printPerson.person_id && r.person_id === printPerson.person_id)
   ) : []
-  const myDrafts = shown.filter((r: any) => r.status === 'draft' && r.entered_by === me)
+  // ในโหมดของตนเอง person_id ที่ผูกกับบัญชีเป็นขอบเขตข้อมูลสำหรับแสดงฉบับร่าง
+  const myDrafts = shown.filter((r: any) => r.status === 'draft' && (r.entered_by === me || (picker && entryMode === 'self' && String(r.person_id) === String(ownPerson?.id))))
   const myRejected = shown.filter((r: any) => r.status === 'rejected' && r.entered_by === me)
   // เพดานคะแนนต่อเวรและต่อวัน (คำนวณตัดส่วนเกินที่ฐานข้อมูล ตรงนี้แสดงโควตาที่ใช้ไปแล้ว)
   const capS = Math.min(90, Number(caps.cap_shift_points) || 90), capD = Number(caps.cap_day_points) || 180
@@ -996,7 +999,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     <div className="space-y-3">
       {notice && <p role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
       {myRejected.length > 0 && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900"><b>มี {myRejected.length} รายการที่หัวหน้าไม่รับรอง</b> ดูเหตุผลในตาราง แล้วกด "แก้ไข" หรือ "ส่งใหม่"</p>}
-      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!pid && people.length > 1} showAllDrafts={isCentralAdminAccount} draftsReadOnly={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
+      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!effectivePid && people.length > 1} showAllDrafts={isCentralAdminAccount || (picker && entryMode === 'self' && !!ownPerson && String(effectivePid) === String(ownPerson.id))} draftsReadOnly={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
     </div>
   </div>
 }
