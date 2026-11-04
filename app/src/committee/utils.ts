@@ -67,6 +67,12 @@ export type UnitStat = {
 export const buildUnitStats = (lines: any[], unitsMeta: any[], statusRows: any[]): UnitStat[] => {
   const meta = new Map<number, any>(unitsMeta.map(u => [Number(u.id), u]))
   const map = new Map<number, UnitStat>()
+  const groupKeys = new Map<string, number>()
+  const personGroupKey = new Map<string, number>()
+  const groupKey = (group: string) => {
+    if (!groupKeys.has(group)) groupKeys.set(group, -(groupKeys.size + 1))
+    return groupKeys.get(group)!
+  }
   const get = (key: number): UnitStat => {
     let s = map.get(key)
     if (!s) {
@@ -81,7 +87,14 @@ export const buildUnitStats = (lines: any[], unitsMeta: any[], statusRows: any[]
     return s
   }
   for (const line of lines) {
-    const s = get(Number(line.unit_id ?? UNKNOWN_UNIT))
+    const synthetic = !!line.isGroupHeadWithoutUnit && !!String(line.nursing_group || '').trim()
+    const effectiveKey = synthetic ? groupKey(String(line.nursing_group).trim()) : Number(line.unit_id ?? UNKNOWN_UNIT)
+    const s = get(effectiveKey)
+    if (synthetic) {
+      s.name = 'หัวหน้ากลุ่มงาน (ไม่มีหน่วยงานย่อย)'
+      s.group = String(line.nursing_group).trim()
+    }
+    personGroupKey.set(String(line.id), effectiveKey)
     s.lines.push(line)
     if (line.eligible) {
       s.eligible += 1
@@ -96,7 +109,9 @@ export const buildUnitStats = (lines: any[], unitsMeta: any[], statusRows: any[]
     if (Number(line.pending || 0) > 0) s.peoplePending += 1
   }
   for (const r of statusRows) {
-    const s = get(Number(r.unit_id ?? UNKNOWN_UNIT))
+    const effectiveKey = r.unit_id == null && personGroupKey.has(String(r.person_id))
+      ? personGroupKey.get(String(r.person_id))! : Number(r.unit_id ?? UNKNOWN_UNIT)
+    const s = get(effectiveKey)
     s.pending += Number(r.pending || 0)
     s.approved += Number(r.approved || 0)
     s.rejected += Number(r.rejected || 0)
