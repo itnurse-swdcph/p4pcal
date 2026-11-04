@@ -99,8 +99,8 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
   const canSubmitRole = profile?.role === 'head' || profile?.role === 'group_head' ||
     (profile?.role === 'admin' && String(profile?.username || '') === '11450')
   const canSubmitScope = scopeType === 'unit'
-    ? !(isGroupHeadWithoutUnit && profile?.role === 'group_head')
-    : (profile?.role === 'group_head' && isGroupHeadWithoutUnit) ||
+    ? !isGroupHeadWithoutUnit
+    : ((profile?.role === 'group_head' || profile?.role === 'head') && isGroupHeadWithoutUnit) ||
       (profile?.role === 'admin' && String(profile?.username || '') === '11450')
   const alreadySubmitted = submission && submission.status !== 'returned'
   const ready = !loading && !error && pending === 0 && missingNotes.length === 0 && staff.length > 0
