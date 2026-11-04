@@ -703,8 +703,18 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const selectedMonthClosed = month < previousMonthKey || (month === previousMonthKey && currentDate.getDate() >= 6)
   const picker = !!canApprove
   const me = useContext(MeCtx)
-  const personRecords = [...(allPeople || []), ...(peopleProp || [])].filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i)
-  const ownPerson = personRecords.find((p: any) => p.user_id === currentUserId) || (currentUserStaffDirectoryId != null ? personRecords.find((p: any) => Number(p.staff_directory_id) === Number(currentUserStaffDirectoryId)) : null)
+  const personRecords = useMemo(() => [...(allPeople || []), ...(peopleProp || [])].filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i), [allPeople, peopleProp])
+  // ดึงระเบียนเจ้าของบัญชีโดยตรงเป็น fallback กรณีข้อมูล people ในหน้าหัวหน้างาน/แอดมินยังโหลดไม่ครบ
+  const [linkedOwnPerson, setLinkedOwnPerson] = useState<any>(null)
+  const hasOwnPerson = personRecords.some((p: any) => p.user_id === currentUserId || (currentUserStaffDirectoryId != null && Number(p.staff_directory_id) === Number(currentUserStaffDirectoryId)))
+  useEffect(() => {
+    if (hasOwnPerson || !currentUserId) { setLinkedOwnPerson(null); return }
+    let alive = true
+    sb.from('people').select('*').eq('user_id', currentUserId).eq('active', true).maybeSingle()
+      .then(({ data, error }: any) => { if (alive && !error) setLinkedOwnPerson(data || null) })
+    return () => { alive = false }
+  }, [sb, currentUserId, currentUserStaffDirectoryId, hasOwnPerson])
+  const ownPerson = personRecords.find((p: any) => p.user_id === currentUserId) || (currentUserStaffDirectoryId != null ? personRecords.find((p: any) => Number(p.staff_directory_id) === Number(currentUserStaffDirectoryId)) : null) || linkedOwnPerson
   const [entryMode, setEntryMode] = useState<'self' | 'other'>(isCentralAdminAccount ? 'other' : 'self')
   const approver = useContext(ApproverCtx)
   const [printing, setPrinting] = useState(false) // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
@@ -999,7 +1009,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     <div className="space-y-3">
       {notice && <p role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
       {myRejected.length > 0 && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900"><b>มี {myRejected.length} รายการที่หัวหน้าไม่รับรอง</b> ดูเหตุผลในตาราง แล้วกด "แก้ไข" หรือ "ส่งใหม่"</p>}
-      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!effectivePid && people.length > 1} showAllDrafts={isCentralAdminAccount || (picker && entryMode === 'self' && !!ownPerson && String(effectivePid) === String(ownPerson.id))} draftsReadOnly={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
+      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!effectivePid && people.length > 1} showAllDrafts={isCentralAdminAccount} ownerPersonId={ownPerson?.id || null} draftsReadOnly={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
     </div>
   </div>
 }
@@ -1234,7 +1244,7 @@ function Totals({ rows, people, positions }: any) {
 const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', 'bg-stone-200'], pending: ['ส่งแล้ว รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { appAlert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); appAlert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, showAllDrafts = false, draftsReadOnly = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
+function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, showAllDrafts = false, ownerPersonId = null, draftsReadOnly = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
   const me = useContext(MeCtx); const ap = useContext(ApproverCtx)
   const [nextApproverNames, setNextApproverNames] = useState<Record<string, string>>({})
   const pendingRows = (allRows || []).filter((r: any) => r.status === 'pending')
@@ -1262,7 +1272,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
     return () => { alive = false }
   }, [sb, pendingPeopleKey])
   // แบบร่างเป็นของผู้บันทึกเท่านั้น ยกเว้นบัญชีแอดมินกลางที่ได้รับสิทธิ์ดูแบบอ่านอย่างเดียว
-  const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me || showAllDrafts), [allRows, me, showAllDrafts])
+  const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me || showAllDrafts || (!!ownerPersonId && String(r.person_id) === String(ownerPersonId))), [allRows, me, showAllDrafts, ownerPersonId])
   const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
   const [detailRow, setDetailRow] = useState<any>(null)
   const detailActivity = detailRow ? (acts || []).find((a: any) => String(a.code) === String(detailRow.activity_code)) : null
