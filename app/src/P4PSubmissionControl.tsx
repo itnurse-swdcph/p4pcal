@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Clock3, Send, RotateCcw } from 'lucide-react'
+import { CheckCircle2, Send } from 'lucide-react'
 import { appConfirm } from './AppDialog'
 import { monthLabel, num } from './committee/utils'
 
@@ -15,6 +15,7 @@ type Props = {
 export default function P4PSubmissionControl({ sb, profile, unitId, groupName, month, scopeType = 'unit' }: Props) {
   const [staff, setStaff] = useState<any[]>([])
   const [logs, setLogs] = useState<any[]>([])
+  const [peopleRows, setPeopleRows] = useState<any[]>([])
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [submission, setSubmission] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -41,7 +42,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       const rosterQuery = scopeType === 'unit'
         ? staffQuery.eq('unit_name', (await sb.from('units').select('name').eq('id', unitId).maybeSingle()).data?.name || '__none__')
         : staffQuery.is('unit_name', null).eq('nursing_group', groupName)
-      const [roster, logResult, leaveResult, groupLeaveResult, subResult, ownStaff] = await Promise.all([
+      const [roster, logResult, peopleResult, leaveResult, groupLeaveResult, subResult, ownStaff] = await Promise.all([
         rosterQuery,
         scopeType === 'unit'
           ? sb.from('v_logs').select('id,person_id,work_date,status,counted_points').eq('unit_id', unitId).gte('work_date', monthDate).lt('work_date', rangeEnd)
@@ -60,11 +61,11 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
           : Promise.resolve({ data: null, error: null })
       ])
       if (!alive) return
-      if (roster.error || logResult.error || leaveResult.error || groupLeaveResult.error || subResult.error) {
+      if (roster.error || logResult.error || peopleResult.error || leaveResult.error || groupLeaveResult.error || subResult.error) {
         setError('โหลดข้อมูลเตรียมส่งผลงานไม่ครบ กรุณากดรีเฟรชหรือติดต่อผู้ดูแลระบบ')
       }
       setStaff(roster.data || [])
-      setLogs(logResult.data || [])
+      setLogs(logResult.data || [])\n      setPeopleRows(peopleResult.data || [])
       const noteRows = [...(leaveResult.data || []), ...(groupLeaveResult.data || [])]
       setNotes(Object.fromEntries(noteRows.map((x: any) => [String(x.staff_directory_id), String(x.other_notes || '')])))
       setSubmission(subResult.data || null)
@@ -100,7 +101,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
     if (!(await appConfirm('ยืนยันส่งผลงานประจำเดือน' + monthLabel(month) + ' ใช่หรือไม่? หลังยืนยัน บุคลากรในขอบเขตนี้จะไม่สามารถเพิ่มหรือแก้ไขกิจกรรมได้ เว้นแต่คณะกรรมการส่งกลับรายบุคคล', 'ยืนยันส่งผลงาน'))) return
     setBusy(true); setError(''); setMessage('')
     try {
-      const { data, error: e } = await sb.rpc('p4p_submit_month', {
+      const { data, error: e } = await sb.rpc('p4p_submit_month_v2', {
         p_month: monthDate, p_unit_id: scopeType === 'unit' ? unitId : null, p_group_name: groupName
       })
       if (e) throw e
