@@ -71,7 +71,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       }
       const rosterRows = (rosterResult.data || []).filter((p: any) => scopeType === 'unit' ||
         (String(p.org_role || '').includes('หัวหน้ากลุ่มงาน') && (String(p.nursing_group || '').trim() === groupName ||
-        String(p.extra_nursing_group_names || '').split(/[,;|]/).some((g: string) => g.trim() === groupName)))
+        String(p.extra_nursing_group_names || '').split(/[,;|]/).some((g: string) => g.trim() === groupName))))
       setStaff(rosterRows)
       setPeopleRows(peopleResult.data || [])
       const staffIds = new Set(rosterRows.map((p: any) => String(p.source_row)))
