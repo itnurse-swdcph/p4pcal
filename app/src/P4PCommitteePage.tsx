@@ -29,6 +29,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
   const [statusRows, setStatusRows] = useState<any[]>([])
   const [statusOk, setStatusOk] = useState(true)
   const [unitsMeta, setUnitsMeta] = useState<any[]>([])
+  const [staffMeta, setStaffMeta] = useState<any[]>([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
@@ -38,22 +39,24 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
     let alive = true
     const load = async () => {
       setError('')
-      const [c, r, m, v, ro, st, un] = await Promise.all([
+      const [c, r, m, v, ro, st, un, sd] = await Promise.all([
         sb.rpc('p4p_committee_calc', { p_month: monthDate }),
         sb.from('p4p_monthly_reviews').select('*').eq('month', monthDate).maybeSingle(),
         sb.from('p4p_committee_members').select('user_id,active,is_chair,appointed_at').order('appointed_at'),
         sb.from('p4p_monthly_review_votes').select('month,user_id,decision,comment,voted_at').eq('month', monthDate).order('voted_at'),
         sb.rpc('p4p_committee_roster'),
         sb.rpc('p4p_committee_activity_status', { p_month: monthDate }),
-        sb.from('units').select('id,name,parent_group')
+        sb.from('units').select('id,name,parent_group'),
+        sb.from('staff_directory').select('source_row,org_role,nursing_group,unit_name').eq('active', true)
       ])
       if (!alive) return
       const errs = [c.error && (c.error.message || 'ไม่สามารถโหลดผลคำนวณ P4P ได้'), r.error && 'ไม่สามารถโหลดสถานะการรับรองได้', m.error && 'ไม่สามารถโหลดรายชื่อกรรมการได้',
         v.error && 'ไม่สามารถโหลดผลลงมติได้', ro.error && 'ไม่สามารถโหลดทะเบียนกรรมการได้', st.error && 'ไม่สามารถตรวจสอบสถานะกิจกรรมรายหน่วยงานได้ จึงยังไม่ถือว่าหน่วยงานใดพร้อมตรวจ',
-        un.error && 'ไม่สามารถโหลดรายชื่อหน่วยงานได้'].filter(Boolean)
+        un.error && 'ไม่สามารถโหลดรายชื่อหน่วยงานได้', sd.error && 'ไม่สามารถโหลดข้อมูลกลุ่มงานของบุคลากรได้'].filter(Boolean)
       if (errs.length) setError(errs.join(' · '))
       setCalc(c.error ? null : c.data); setReview(r.error ? null : r.data); setMembers(m.data || []); setVotes(v.data || [])
-      setRoster(ro.data || []); setStatusRows(st.data || []); setStatusOk(!st.error); setUnitsMeta(un.data || [])
+      setRoster(ro.data || []); setStatusRows(st.data || []); setStatusOk(!st.error)
+      setUnitsMeta(un.data || []); setStaffMeta(sd.data || [])
       setLoadedFor(monthDate)
     }
     load()
@@ -72,7 +75,12 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
     const byPay = new Map(groups.map((g: any) => [Number(g.pay_group), g]))
     return (viewCalc?.lines || []).map((l: any) => ({ ...l, below: isBelowGuarantee(l, byPay.get(Number(l.pay_group))), pending: Number(statusByPerson.get(String(l.id))?.pending || 0) }))
   }, [viewCalc, groups, statusByPerson])
-  const units = useMemo(() => buildUnitStats(lines, unitsMeta, statusRows).map(u => ({ ...u, ready: statusOk && u.ready })), [lines, unitsMeta, statusRows, statusOk])
+  const linesWithOrg = useMemo(() => lines.map((line: any) => {
+    const staff = staffMeta.find((s: any) => Number(s.source_row) === Number(line.staff_directory_id))
+    const isGroupHead = String(staff?.org_role || '').includes('หัวหน้ากลุ่มงาน')
+    return { ...line, nursing_group: staff?.nursing_group || '', isGroupHeadWithoutUnit: isGroupHead && !staff?.unit_name }
+  }), [lines, staffMeta])
+  const units = useMemo(() => buildUnitStats(linesWithOrg, unitsMeta, statusRows).map(u => ({ ...u, ready: statusOk && u.ready })), [linesWithOrg, unitsMeta, statusRows, statusOk])
   const unit = unitKey == null ? null : units.find(u => u.key === unitKey) || null
   const readyCount = units.filter(u => u.ready).length
   const pendingTotal = units.reduce((s, u) => s + u.pending, 0)
