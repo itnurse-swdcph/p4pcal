@@ -535,7 +535,9 @@ function Main({ sb, session }: any) {
     .sort((a: string, b: string) => a.localeCompare(b, 'th'))
   const unitOptions = isHeadRole ? directoryUnits.filter(u => myUnits.includes(u.id) || (role === 'head' && u.id === profile.unit_id)) : isRev ? directoryUnits : directoryUnits.filter(u => u.id === profile.unit_id)
   const isExecutiveNurseLeader = Number(profile?.staff_directory_id) === 2 || ['หัวหน้าพยาบาล','รักษาการหัวหน้าพยาบาล','หัวหน้าพยาบาล(รักษาการ)'].includes(String(profile?.position || '').normalize('NFC').replace(/[\s　]/g, ''))
-  const scope = people.filter(p => Number(p.staff_directory_id ?? p.directory_source_row) !== 2 && (role === 'admin' && cur === 'log' ? p.user_id === session.user.id : (isRev || isHeadRole ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id)))
+  // บัญชีแอดมินกลางระบุด้วย username=admin เท่านั้น ไม่ขยายสิทธิ์ให้บัญชีบุคลากรที่มี role=admin
+  const isCentralAdminAccount = role === 'admin' && String(profile?.username || '').trim().toLowerCase() === 'admin'
+  const scope = people.filter(p => Number(p.staff_directory_id ?? p.directory_source_row) !== 2 && (isCentralAdminAccount && cur === 'log' ? true : (role === 'admin' && cur === 'log' ? p.user_id === session.user.id : (isRev || isHeadRole ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id))))
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { void checkForUpdate(); if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
@@ -575,7 +577,7 @@ function Main({ sb, session }: any) {
     {cur === 'personal' && <PersonalProfilePage sb={sb} profile={profile} role={role} units={directoryUnits} groupOptions={allGroupNames} positions={positions} session={session} reload={loadPeople} />}
     {cur === 'log' && (isExecutiveNurseLeader ? <div className="card border border-teal-200 bg-teal-50 text-teal-950 space-y-2"><h2 className="font-bold">ยกเว้นการบันทึกกิจกรรม P4P</h2><p>ตำแหน่งหัวหน้าพยาบาล/รักษาการหัวหน้าพยาบาลไม่ต้องบันทึกกิจกรรม และไม่อยู่ในรายการคำนวณหรือเอกสารเบิก P4P ของระบบนี้</p><p className="text-sm">สิทธิ์อนุมัติกิจกรรมตามหน้าที่ผู้บริหารยังคงใช้งานได้ตามปกติ</p></div> : role === 'staff' && scope.length === 0
       ? <div className="card">ยังไม่พบชื่อของคุณในรายชื่อบุคลากร — แจ้งหัวหน้างานให้เพิ่มชื่อ "{profile.full_name}" แล้วสมัครใหม่ หรือให้ผู้ดูแลผูกบัญชีให้</div>
-      : <LogPage key={logPageActivation} units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} onActivitySaved={checkForUpdate} profileOrgRole={profile.org_role} currentUserId={session.user.id} currentUserStaffDirectoryId={profile.staff_directory_id} groupOptions={allGroupNames} />)}
+      : <LogPage key={logPageActivation} units={units} sb={sb} people={scope} allPeople={people} unitOptions={unitOptions} defaultUnit={unit ?? profile.unit_id} acts={acts} positions={positions} month={month} setMonth={setMonth} canApprove={role !== 'staff'} reloadPeople={loadPeople} onActivitySaved={checkForUpdate} profileOrgRole={profile.org_role} currentUserId={session.user.id} currentUserStaffDirectoryId={profile.staff_directory_id} groupOptions={allGroupNames} isCentralAdminAccount={isCentralAdminAccount} />)}
     {(cur === 'certify' || cur === 'review') && (role === 'admin' || isHeadRole) && <div className="space-y-3">
       <div className="card space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -688,7 +690,7 @@ function loadDirectoryGroupStaff(sb: any, groupName: string) {
   return promise
 }
 
-function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId, currentUserStaffDirectoryId, groupOptions = [], onActivitySaved }: any) {
+function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaultUnit, acts, positions, month, setMonth, canApprove, reloadPeople, profileOrgRole, currentUserId, currentUserStaffDirectoryId, groupOptions = [], onActivitySaved, isCentralAdminAccount = false }: any) {
   const [recordingPolicy, setRecordingPolicy] = useState<any>({ emergency_enabled: false })
   useEffect(() => { sb.from('p4p_recording_policy').select('emergency_enabled').eq('id', true).maybeSingle().then(({ data }: any) => { if (data) setRecordingPolicy(data) }) }, [sb])
   const selectedMonthDate = new Date(`${month}-01T00:00:00`)
@@ -703,7 +705,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const me = useContext(MeCtx)
   const personRecords = [...(allPeople || []), ...(peopleProp || [])].filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === p.id) === i)
   const ownPerson = personRecords.find((p: any) => p.user_id === currentUserId) || (currentUserStaffDirectoryId != null ? personRecords.find((p: any) => Number(p.staff_directory_id) === Number(currentUserStaffDirectoryId)) : null)
-  const [entryMode, setEntryMode] = useState<'self' | 'other'>('self')
+  const [entryMode, setEntryMode] = useState<'self' | 'other'>(isCentralAdminAccount ? 'other' : 'self')
   const approver = useContext(ApproverCtx)
   const [printing, setPrinting] = useState(false) // หัวหน้า/แอดมิน: เลือกหน่วยงานและบุคลากรที่จะบันทึกให้
   const [uSel, setUSel] = useState<number | null>(defaultUnit ?? unitOptions?.[0]?.id ?? null)
@@ -994,7 +996,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     <div className="space-y-3">
       {notice && <p role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
       {myRejected.length > 0 && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900"><b>มี {myRejected.length} รายการที่หัวหน้าไม่รับรอง</b> ดูเหตุผลในตาราง แล้วกด "แก้ไข" หรือ "ส่งใหม่"</p>}
-      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!pid && people.length > 1} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
+      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!pid && people.length > 1} showAllDrafts={isCentralAdminAccount} draftsReadOnly={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
     </div>
   </div>
 }
@@ -1229,7 +1231,7 @@ function Totals({ rows, people, positions }: any) {
 const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', 'bg-stone-200'], pending: ['ส่งแล้ว รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { appAlert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); appAlert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
+function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, showAllDrafts = false, draftsReadOnly = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
   const me = useContext(MeCtx); const ap = useContext(ApproverCtx)
   const [nextApproverNames, setNextApproverNames] = useState<Record<string, string>>({})
   const pendingRows = (allRows || []).filter((r: any) => r.status === 'pending')
@@ -1256,8 +1258,8 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
     })
     return () => { alive = false }
   }, [sb, pendingPeopleKey])
-  // แบบร่างเป็นของผู้บันทึกเท่านั้น คนอื่น (รวมหัวหน้า) ไม่เห็นจนกว่าจะส่ง
-  const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me), [allRows, me])
+  // แบบร่างเป็นของผู้บันทึกเท่านั้น ยกเว้นบัญชีแอดมินกลางที่ได้รับสิทธิ์ดูแบบอ่านอย่างเดียว
+  const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me || showAllDrafts), [allRows, me, showAllDrafts])
   const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
   const [detailRow, setDetailRow] = useState<any>(null)
   const detailActivity = detailRow ? (acts || []).find((a: any) => String(a.code) === String(detailRow.activity_code)) : null
@@ -1421,7 +1423,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
         <td className="log-col-check text-xs">{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
         <td className="log-col-status"><span className={`px-1.5 py-0.5 text-xs ${ST[r.status][1]}`}>{ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-1 text-xs text-stone-600">ผู้รับรอง: <b className="text-stone-800">{nextApproverNames[String(r.person_id)] || 'ไม่พบชื่อผู้รับรองในระบบ'}</b></div>}</td><td className="log-col-reason whitespace-pre-wrap break-words text-xs">{r.status === 'rejected' ? <div className="rounded-md border border-red-200 bg-red-50 p-2 text-red-800">{String(r.reject_reason || '').trim() || 'ไม่พบเหตุผลที่บันทึกไว้ กรุณาติดต่อหัวหน้าผู้พิจารณา'}</div> : <span className="text-stone-400">—</span>}</td>
         <td className="log-col-actions whitespace-nowrap space-x-1">
-          {!readOnly && me && r.entered_by === me && (r.status === 'draft' || r.status === 'rejected') && <>
+          {!readOnly && me && r.entered_by === me && ((r.status === 'draft' && !draftsReadOnly) || r.status === 'rejected') && <>
             <button className="btn !py-0.5" onClick={() => submitRows([r.id])}>{r.status === 'rejected' ? 'ส่งใหม่' : 'ส่ง'}</button>
             <button className="btn sec !py-0.5" onClick={() => beginEdit(r)}>แก้ไข</button>
             <button className="text-xs underline text-red-700" onClick={() => del(r.id)}>ลบ</button></>}
