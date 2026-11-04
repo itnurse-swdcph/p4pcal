@@ -79,10 +79,11 @@ const mRange = (m: string) => { const d = new Date(m + '-01'); const e = new Dat
 const countWorkDays = (rows: any[]) => new Set((rows || []).map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
 const countApprovedWorkDays = (rows: any[]) => countWorkDays((rows || []).filter((r: any) => r.status === 'approved'))
 // วันปฏิบัติงานนับเฉพาะวันที่มีรายการรับรองแล้ว ไม่หักวันลา และไม่เกินวันทำการตามปฏิทิน
-const calculateNetWorkDays = (rows: any[], calendarWorkingDays: number | null, _leaveDays = 0) => {
+const calculateNetWorkDays = (rows: any[], calendarWorkingDays: number | null, leaveDays = 0) => {
   const days = countApprovedWorkDays(rows)
   const baseline = calendarWorkingDays == null ? days : Math.max(0, Number(calendarWorkingDays) || 0)
-  return Math.min(days, baseline)
+  const netDays = Math.min(days, baseline) - Math.max(0, Number(leaveDays) || 0)
+  return Math.max(0, netDays)
 }
 const calculateCalendarWorkingDays = (month: string, overrides: any[] = []) => {
   const [year, monthNumber] = String(month || '').split('-').map(Number)
@@ -1187,6 +1188,8 @@ function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, act
 function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const [payoutResult, setPayoutResult] = useState<any>(null)
   const [payGroups, setPayGroups] = useState<any[]>([])
+  const [leaveData, setLeaveData] = useState<any>({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 })
+  const calendarWorkingDays = useCalendarWorkingDays(sb, month)
   useEffect(() => {
     let alive = true
     sb.rpc('p4p_my_payout', { p_month: month + '-01' }).then(({ data, error }: any) => {
@@ -1195,8 +1198,19 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
     sb.from('pay_groups').select('id,full_amount').order('id').then(({ data, error }: any) => {
       if (alive) setPayGroups(!error && Array.isArray(data) ? data : [])
     })
+    const staffId = person?.staff_directory_id ?? person?.directory_source_row
+    if (staffId) {
+      sb.from('p4p_monthly_leave').select('personal_leave_days,sick_leave_days,annual_leave_days')
+        .eq('staff_directory_id', staffId).eq('month', month + '-01').maybeSingle()
+        .then(({ data, error }: any) => {
+          if (!alive) return
+          setLeaveData(!error && data ? data : { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 })
+        })
+    } else {
+      setLeaveData({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 })
+    }
     return () => { alive = false }
-  }, [sb, month, person?.id])
+  }, [sb, month, person?.id, person?.staff_directory_id, person?.directory_source_row])
   if (!person) return null
   const guarantee = guaranteeForPosition(person.position, positions, person.org_role)
   const roleGuarantee = roleGuaranteeForPosition(person.position, positions, person.org_role)
@@ -1211,10 +1225,13 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const difference = performanceTotal - guarantee
   const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(person.position || '').replace(/\s+/g, '').trim())
   const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-  const performancePay = allocation > 0 ? allocation * (performanceTotal >= guarantee ? 0.97 : 0.77) : null
+  const leaveDays = Number(leaveData.personal_leave_days || 0) + Number(leaveData.sick_leave_days || 0) + Number(leaveData.annual_leave_days || 0)
+  const eligibleWorkDays = calculateNetWorkDays((rows || []).filter((r: any) => r.status === 'approved'), calendarWorkingDays, leaveDays)
+  const paymentEligible = eligibleWorkDays > 0
+  const performancePay = !paymentEligible ? 0 : allocation > 0 ? allocation * (performanceTotal >= guarantee ? 0.97 : 0.77) : null
   const closed = payoutResult?.closed === true
   const payoutAvailable = payoutResult?.payout_available === true
-  const extraPay = payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
+  const extraPay = paymentEligible && payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
   const cards = [
     { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
     { label: 'แต้มการันตี', value: nf(roleGuarantee), color: 'text-slate-900' },
@@ -1223,12 +1240,12 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
     { label: 'แต้มที่ยืนยัน', value: nf(displayedConfirmed), color: 'text-emerald-700' },
     { label: 'แต้มส่วนต่าง', value: (difference > 0 ? '+' : '') + nf(difference), color: difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-slate-700' },
     { label: 'จำนวนเงินตามผลงาน', value: performancePay !== null ? nf(performancePay) + ' บาท' : 'ไม่พบเกณฑ์ค่าตอบแทน', color: performancePay !== null ? 'text-emerald-700' : 'text-slate-700' },
-    { label: 'เงินเพิ่มจากแต้มส่วนเกิน', value: !closed ? 'รอปิดงวด' : payoutAvailable ? nf(extraPay) + ' บาท' : 'รอตรวจสอบข้อมูล', color: closed && payoutAvailable ? 'text-emerald-700' : 'text-slate-700' }
+    { label: 'เงินเพิ่มจากแต้มส่วนเกิน', value: !paymentEligible ? '0 บาท' : !closed ? 'รอปิดงวด' : payoutAvailable ? nf(extraPay) + ' บาท' : 'รอตรวจสอบข้อมูล', color: paymentEligible && closed && payoutAvailable ? 'text-emerald-700' : 'text-slate-700' }
   ]
   return <div className="space-y-1" aria-label="สรุปแต้มและเงินเพิ่มประจำเดือน">
     <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
       {cards.map((item) => <div key={item.label} className="card !p-3 sm:!p-4 min-w-0"><div className="text-xs sm:text-sm text-stone-600">{item.label}</div><div className={'mt-1 text-xl sm:text-2xl font-bold tabular-nums ' + item.color}>{item.value}</div>
-        {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!closed ? 'เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังคณะกรรมการ P4P อนุมัติครบและปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · อัตรา {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
+        {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!paymentEligible ? 'ไม่มีสิทธิ์รับเงินตามวันทำการสุทธิหลังหักวันลา · ยอดเงิน 0 บาท' : !closed ? 'เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังคณะกรรมการ P4P อนุมัติครบและปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · อัตรา {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
       </div>)}
     </div>
     <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: จำนวนเงินตามผลงานเป็นยอดประมาณการจากคะแนนที่บันทึกไว้ (รวมรายการรอรับรอง) โดยใช้เกณฑ์ 97% หรือ 77%; เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังปิดงวด</p>
@@ -1846,12 +1863,17 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').normalize('NFC').replace(/[\\s　]+/g, '').trim() === String(p.position || '').normalize('NFC').replace(/[\\s　]+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
     const rate = p.unit_id != null && rates[String(p.unit_id)] != null ? Number(rates[String(p.unit_id)]) : groupRate
-    const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
-    const payout = basePay + excess * rate
-    const days = calculateNetWorkDays(approved, calendarWorkingDays)
+    const staffId = Number(p.staff_directory_id ?? p.directory_source_row)
+    const leaveKey = String(staffId || '')
+    const leave = groupLeaveDrafts[leaveKey] || groupLeaveData[leaveKey] || {}
+    const leaveDays = Number(leave.personal_leave_days || 0) + Number(leave.sick_leave_days || 0) + Number(leave.annual_leave_days || 0)
+    const days = calculateNetWorkDays(approved, calendarWorkingDays, leaveDays)
+    const paymentEligible = days > 0
+    const basePay = paymentEligible ? allocation * (performancePoints >= g ? 0.97 : 0.77) : 0
+    const payout = paymentEligible ? basePay + excess * rate : 0
     const pendingWorkDays = countWorkDays(rs.filter((r: any) => r.status === 'pending'))
     return { p, order: index + 1, g, roleGuarantee, workPoints: displayedWorkPoints, submittedPoints, pendingWorkDays, days, performancePoints, excess, rate, allocation, basePay, payout, rs }
-  }), [heads, rowsAll, positions, rates, groupRate, payGroups, month, calendarWorkingDays])
+  }), [heads, rowsAll, positions, rates, groupRate, payGroups, month, calendarWorkingDays, groupLeaveData, groupLeaveDrafts])
   useEffect(() => {
     if (!printReport) return
     const afterPrint = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
@@ -2094,11 +2116,15 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const displayedWorkPoints = scoring.activityPoints
     const performancePoints = scoring.performance
     const excess = scoring.excess
-    const days = calculateNetWorkDays(approved, calendarWorkingDays)
+    const staffId = Number(p.staff_directory_id ?? p.directory_source_row)
+    const leave = leaveDrafts[String(staffId || '')] || {}
+    const leaveDays = Number(leave.personal_leave_days || 0) + Number(leave.sick_leave_days || 0) + Number(leave.annual_leave_days || 0)
+    const days = calculateNetWorkDays(approved, calendarWorkingDays, leaveDays)
+    const paymentEligible = days > 0
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-    const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
-    const payout = basePay + excess * unitRate
+    const basePay = paymentEligible ? allocation * (performancePoints >= g ? 0.97 : 0.77) : 0
+    const payout = paymentEligible ? basePay + excess * unitRate : 0
     return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, submittedPoints, pendingWorkDays, workPoints: displayedWorkPoints, performancePoints, roleGuarantee, excess, days, rate: unitRate, basePay, payout, g, appr: displayedWorkPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
