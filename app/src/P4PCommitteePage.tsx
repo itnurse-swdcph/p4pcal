@@ -28,6 +28,12 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [version, setVersion] = useState(0)
+  const [unitFilter, setUnitFilter] = useState('ทั้งหมด')
+  const [auditRows, setAuditRows] = useState<any[]>([])
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [auditReason, setAuditReason] = useState<Record<number, string>>({})
+  const [auditBusyId, setAuditBusyId] = useState<number | null>(null)
+  const [auditMessage, setAuditMessage] = useState('')
   const monthDate = `${month}-01`
 
   const refresh = () => setVersion(v => v + 1)
@@ -114,6 +120,27 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
   const viewCalc = review?.status === 'reviewing' || review?.status === 'approved' ? (review.snapshot || calc) : calc
   const groups = viewCalc?.groups || []
   const lines = viewCalc?.lines || []
+  const units = useMemo(() => [...new Set(lines.map((x: any) => x.unit_name).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')), [lines])
+  const unitSummaries = useMemo(() => {
+    const grouped = new Map<string, any>()
+    for (const line of lines) {
+      const key = line.unit_name || 'ไม่ระบุหน่วยงาน'
+      const item = grouped.get(key) || { name: key, total: 0, eligible: 0, ineligible: 0, below: 0, scoreTotal: 0, extraTotal: 0, highest: null, lowest: null }
+      item.total += 1
+      if (line.eligible) item.eligible += 1
+      else item.ineligible += 1
+      const score = Number(line.counted || 0)
+      if (Number(line.guarantee || 0) > 0 && score < Number(line.guarantee)) item.below += 1
+      item.scoreTotal += score
+      item.extraTotal += Number(line.extra || 0)
+      if (!item.highest || score > Number(item.highest.counted || 0)) item.highest = line
+      if (!item.lowest || score < Number(item.lowest.counted || 0)) item.lowest = line
+      grouped.set(key, item)
+    }
+    return [...grouped.values()].map(x => ({ ...x, ready: x.ineligible === 0 && pendingCountLive === 0 }))
+      .sort((a,b) => a.name.localeCompare(b.name, 'th'))
+  }, [lines, pendingCountLive])
+  const filteredLines = useMemo(() => unitFilter === 'ทั้งหมด' ? lines : lines.filter((x: any) => (x.unit_name || 'ไม่ระบุหน่วยงาน') === unitFilter), [lines, unitFilter])
   const totals = useMemo(() => groups.reduce((acc: any, g: any) => {
     const eligible = Number(g.n_eligible || 0)
     const ineligible = Number(g.n_ineligible || 0)
@@ -159,13 +186,39 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
     runAction(decision === 'approved' ? 'บันทึกมติอนุมัติแล้ว' : 'บันทึกมติไม่อนุมัติแล้ว', () =>
       sb.rpc('p4p_review_vote', { p_month: monthDate, p_decision: decision, p_comment: comment }))
   }
-  const closeMonth = async () => {
-    if (!(await appConfirm('ยืนยันปิดงวด P4P เดือนนี้ในฐานะประธานคณะกรรมการใช่หรือไม่? เมื่อปิดแล้วผลเงินเพิ่มจะถูกเปิดเผยแก่บุคลากร','ยืนยันปิดงวด P4P'))) return
-    runAction('ปิดงวดสำเร็จ และเผยแพร่ผลตาม snapshot แล้ว', () => sb.rpc('p4p_close', { p_month: monthDate }))
+  const sampleAudit = async () => {
+    setAuditLoading(true); setAuditMessage(''); setError('')
+    try {
+      const { data, error: loadError } = await sb.from('v_logs')
+        .select('id,person_id,work_date,activity_code,title,qty,shift,evidence,person_name,unit_id,position,points,counted_points,status')
+        .eq('month', monthDate).eq('status', 'approved').limit(300)
+      if (loadError) throw loadError
+      const shuffled = [...(data || [])].sort(() => Math.random() - 0.5)
+      setAuditRows(shuffled.slice(0, 5))
+      setAuditReason({})
+      if (!shuffled.length) setAuditMessage('ไม่พบกิจกรรมที่อนุมัติแล้วในเดือนนี้')
+    } catch (e: any) { setError(e?.message || 'ไม่สามารถสุ่มกิจกรรมเพื่อตรวจสอบได้') }
+    finally { setAuditLoading(false) }
   }
-  const setMember = (userId: string, active: boolean, chair = false) =>
+  const auditActivity = async (logId: number, action: 'return_for_correction' | 'reject') => {
+    const reason = (auditReason[logId] || '').trim()
+    if (reason.length < 5) { setError('กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร'); return }
+    setAuditBusyId(logId); setError(''); setAuditMessage('')
+    try {
+      const { data, error: auditError } = await sb.rpc('p4p_committee_audit_activity', {
+        p_log_id: logId, p_action: action, p_reason: reason
+      })
+      if (auditError) throw auditError
+      if (data?.ok === false) throw new Error(data?.reason || 'ไม่สามารถบันทึกผลตรวจสอบได้')
+      setAuditRows(rows => rows.filter(x => x.id !== logId))
+      setAuditMessage(action === 'return_for_correction' ? 'ส่งกิจกรรมกลับแก้ไขและแจ้งเตือนเจ้าของกิจกรรมแล้ว' : 'ไม่รับรองกิจกรรมและแจ้งเตือนเจ้าของกิจกรรมแล้ว')
+      refresh()
+    } catch (e: any) { setError(e?.message || 'บันทึกผลตรวจสอบไม่สำเร็จ') }
+    finally { setAuditBusyId(null) }
+  }
+  const setMember = (userId: string, active: boolean) =>
     runAction('บันทึกทะเบียนกรรมการแล้ว', () => sb.rpc('p4p_set_committee_member', {
-      p_user_id: userId, p_active: active, p_is_chair: chair
+      p_user_id: userId, p_active: active, p_is_chair: false
     }))
   const profileName = (id: string) => {
     const p = committeeProfiles.find(x => x.user_id === id)
@@ -243,7 +296,11 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
       </div>
 
       <div className="card space-y-3">
-        <div className="flex items-center gap-2 font-semibold"><Users size={18}/> รายชื่อบุคลากรและเงินเพิ่มประมาณการ (สำหรับคณะกรรมการ)</div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 font-semibold"><Users size={18}/> รายชื่อบุคลากรและเงินเพิ่มประมาณการ (สำหรับคณะกรรมการ)</div>
+          <label className="text-sm flex items-center gap-2">หน่วยงาน
+            <select className="inp min-w-[12rem]" value={unitFilter} onChange={e => setUnitFilter(e.target.value)}><option>ทั้งหมด</option>{units.map((u: string) => <option key={u} value={u}>{u}</option>)}</select>
+          </label></div>
+        <div className="text-xs text-stone-500">แสดง {number(filteredLines.length)} จาก {number(lines.length)} คน</div>
         <div className="max-h-[28rem] overflow-auto">
           <table className="w-full min-w-[800px] text-sm">
             <thead className="sticky top-0 bg-white"><tr className="border-b text-left">
@@ -251,7 +308,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
               <th className="p-2 text-right">กลุ่ม</th><th className="p-2 text-right">วันทำงาน</th><th className="p-2">สิทธิ์</th>
               <th className="p-2 text-right">คะแนนนับได้</th><th className="p-2 text-right">เงินเพิ่มประมาณการ</th>
             </tr></thead>
-            <tbody>{lines.map((line: any, index: number) => <tr key={line.id || index} className="border-b last:border-0">
+            <tbody>{filteredLines.map((line: any, index: number) => <tr key={line.id || index} className="border-b last:border-0">
               <td className="p-2">{line.name || '—'}</td><td className="p-2">{line.position || '—'}</td><td className="p-2">{line.unit_name || '—'}</td>
               <td className="p-2 text-right">{line.pay_group || '—'}</td>
               <td className="p-2 text-right tabular-nums" title={line.eligibility_reason || ''}>{number(line.work_days)} วัน</td>
@@ -259,9 +316,36 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
               <td className="p-2 text-right tabular-nums">{number(line.counted)}</td>
               <td className="p-2 text-right tabular-nums font-semibold">{money(line.extra)} บาท</td>
             </tr>)}
-            {!lines.length && <tr><td colSpan={8} className="p-5 text-center text-stone-500">ไม่พบข้อมูลรายบุคคล</td></tr>}
+            {!filteredLines.length && <tr><td colSpan={8} className="p-5 text-center text-stone-500">ไม่พบข้อมูลรายบุคคล</td></tr>}
           </tbody></table>
         </div>
+      </div>
+
+      <div className="card space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">ความพร้อมรายหน่วยงาน</div><span className="text-xs text-stone-500">พร้อม 100% เมื่อบุคลากรมีสิทธิ์ครบและไม่มีรายการรอรับรอง</span></div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-xl border p-3"><div className="text-xs text-stone-500">หน่วยงานที่พร้อม 100%</div><div className="text-2xl font-bold text-emerald-700">{number(unitSummaries.filter(x => x.ready).length)} / {number(unitSummaries.length)}</div></div>
+          <div className="rounded-xl border p-3"><div className="text-xs text-stone-500">บุคลากรมีสิทธิ์</div><div className="text-2xl font-bold">{number(lines.filter((x: any) => x.eligible).length)}</div></div>
+          <div className="rounded-xl border p-3"><div className="text-xs text-stone-500">บุคลากรไม่มีสิทธิ์</div><div className="text-2xl font-bold text-red-700">{number(lines.filter((x: any) => !x.eligible).length)}</div></div>
+        </div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead><tr className="border-b text-left"><th className="p-2">หน่วยงาน</th><th className="p-2 text-right">บุคลากร</th><th className="p-2 text-right">มีสิทธิ์</th><th className="p-2 text-right">ไม่มีสิทธิ์</th><th className="p-2 text-right">ต่ำกว่าแต้มประกัน</th><th className="p-2 text-right">คะแนนสูงสุด / ต่ำสุด</th><th className="p-2 text-right">ยอดเงินประมาณการ</th><th className="p-2">ความพร้อม</th></tr></thead>
+          <tbody>{unitSummaries.map((u: any) => <tr key={u.name} className="border-b"><td className="p-2 font-medium">{u.name}</td><td className="p-2 text-right">{number(u.total)}</td><td className="p-2 text-right text-emerald-700">{number(u.eligible)}</td><td className="p-2 text-right text-red-700">{number(u.ineligible)}</td><td className="p-2 text-right">{number(u.below)}</td><td className="p-2 text-right">{number(u.highest?.counted)} / {number(u.lowest?.counted)}</td><td className="p-2 text-right">{money(u.extraTotal)} บาท</td><td className="p-2"><span className={u.ready ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>{u.ready ? 'พร้อม 100%' : 'ต้องตรวจสอบ'}</span></td></tr>)}
+          {!unitSummaries.length && <tr><td colSpan={8} className="p-4 text-center text-stone-500">ไม่มีข้อมูลหน่วยงาน</td></tr>}</tbody></table></div>
+      </div>
+
+      <div className="card space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">สุ่มตรวจสอบกิจกรรมรายบุคคล</div>
+          <button type="button" className="btn sec" disabled={!isMember || auditLoading || busy} onClick={sampleAudit}>{auditLoading ? 'กำลังสุ่ม…' : 'สุ่มตรวจ 5 กิจกรรม'}</button>
+        </div>
+        <p className="text-xs text-stone-500">สุ่มจากกิจกรรมที่อนุมัติแล้วในเดือนที่เลือก กรรมการสามารถส่งกลับแก้ไขหรือไม่รับรอง พร้อมบันทึกเหตุผลและแจ้งเตือนเจ้าของกิจกรรม</p>
+        {auditMessage && <p role="status" className="text-sm text-teal-800">{auditMessage}</p>}
+        {!isMember && <p className="text-sm text-amber-700">เฉพาะกรรมการที่ปฏิบัติหน้าที่สามารถสุ่มตรวจและดำเนินการได้</p>}
+        {auditRows.map((a: any) => <div key={a.id} className="rounded-xl border p-3 space-y-2">
+          <div className="flex flex-wrap justify-between gap-2"><div><b>{a.person_name || 'ไม่ทราบชื่อ'}</b><div className="text-xs text-stone-500">{a.position || ''} · {a.work_date} · {a.shift || ''}</div></div><div className="text-right text-sm"><b>{a.title || a.activity_code}</b><div className="text-xs text-stone-500">คะแนน {number(a.counted_points ?? a.points)}</div></div></div>
+          {a.evidence && <p className="text-sm whitespace-pre-wrap">หลักฐาน: {a.evidence}</p>}
+          <textarea className="inp w-full min-h-16" value={auditReason[a.id] || ''} onChange={e => setAuditReason(v => ({ ...v, [a.id]: e.target.value }))} placeholder="ระบุเหตุผลที่ส่งกลับแก้ไข/ไม่รับรอง (อย่างน้อย 5 ตัวอักษร)" />
+          <div className="flex flex-wrap gap-2"><button type="button" className="btn sec" disabled={auditBusyId === a.id || !isMember} onClick={() => auditActivity(a.id,'return_for_correction')}>ส่งกลับแก้ไข</button><button type="button" className="btn danger" disabled={auditBusyId === a.id || !isMember} onClick={() => auditActivity(a.id,'reject')}>ไม่รับรองกิจกรรม</button></div>
+        </div>)}
       </div>
 
       <div className="card space-y-3">
@@ -273,11 +357,11 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
         {pendingCountKnown && pendingCount > 0 && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle size={16} className="inline mr-1"/>ต้องรับรองรายการกิจกรรมทั้งหมดก่อน เริ่มลงมติและปิดงวดไม่ได้</div>}
         {pendingCountKnown && pendingCount === 0 && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={16} className="inline mr-1"/>ไม่มีรายการรอรับรองค้างอยู่</div>}
 
-        {isAdmin && review?.status !== 'closed' && <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn" disabled={busy || !pendingCountKnown || pendingCount > 0 || activeMembers.length === 0 || activeMembers.filter(x => x.is_chair).length !== 1 || review?.status === 'reviewing'} onClick={startReview}>
-            {review?.status === 'approved' ? 'เริ่มรับรองใหม่ (ล้างมติเดิม)' : 'เริ่มกระบวนการรับรอง'}
+        {isMember && review?.status !== 'closed' && <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="btn" disabled={busy || !pendingCountKnown || pendingCount > 0 || activeMembers.length === 0 || review?.status === 'reviewing'} onClick={startReview}>
+            {review?.status === 'approved' || review?.status === 'rejected' || review?.status === 'stale' ? 'เริ่มรับรองใหม่' : 'เริ่มกระบวนการรับรอง'}
           </button>
-          <span className="text-xs text-stone-500">Admin เริ่มกระบวนการได้ แต่ไม่มีสิทธิ์ยืนยันปิดงวด</span>
+          <span className="text-xs text-stone-500">กรรมการคนใดก็ได้สามารถเริ่มกระบวนการได้ ไม่ต้องมีประธาน</span>
         </div>}
 
         {review?.status === 'reviewing' && isMember && !myVote && <div className="space-y-2 rounded-lg border border-teal-200 bg-teal-50 p-3">
@@ -290,10 +374,9 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
         </div>}
         {myVote && <p className="text-sm text-teal-800">คุณลงมติแล้ว: {myVote.decision === 'approved' ? 'อนุมัติ' : 'ไม่เห็นชอบ'} · {myVote.voted_at ? new Date(myVote.voted_at).toLocaleString('th-TH') : ''}</p>}
         {review?.status === 'reviewing' && <div className="text-sm text-stone-600">รอกรรมการอนุมัติครบทุกคน: {approvedVotes}/{expectedVotes} คน</div>}
-        {review?.status === 'approved' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={16} className="inline mr-1"/>กรรมการอนุมัติครบทุกคนแล้ว รอประธานยืนยันปิดงวด</div>}
-        {review?.status === 'approved' && isChair && <button type="button" className="btn" disabled={busy || !pendingCountKnown || pendingCount > 0} onClick={closeMonth}><LockKeyhole size={16} className="inline mr-1"/>ประธานยืนยันปิดงวด</button>}
-        {review?.status === 'approved' && !isChair && <p className="text-sm text-stone-600">ขั้นตอนถัดไปให้ประธานคณะกรรมการยืนยันปิดงวดเพียงคนเดียว</p>}
-        {review?.status === 'closed' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">ปิดงวดแล้ว · บุคลากรสามารถเห็นผลเงินเพิ่มของตนเองได้</div>}
+        
+
+        {review?.status === 'closed' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={16} className="inline mr-1"/>กรรมการอนุมัติครบทุกคน ระบบปิดงวดและเผยแพร่ผลโดยอัตโนมัติแล้ว</div>}
         {review?.status === 'rejected' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">มีกรรมการไม่เห็นชอบ Admin ต้องตรวจสอบและเริ่มกระบวนการรับรองใหม่</div>}
         {review?.status === 'stale' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">ข้อมูลหรือรายชื่อกรรมการเปลี่ยนแปลง ต้องเริ่มกระบวนการรับรองใหม่</div>}
       </div>
@@ -314,11 +397,10 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
           <tbody>{manthanaStaff && manthanaPreappointment?.active && !manthanaPreappointment.linked_user_id && <tr className="border-b bg-amber-50"><td className="p-2">{[manthanaStaff.prefix,manthanaStaff.first_name,manthanaStaff.last_name].filter(Boolean).join(' ')}</td><td className="p-2">แต่งตั้งแล้ว · รอสมัครบัญชี</td><td className="p-2">กรรมการ</td><td className="p-2">ระบบจะเชื่อมบัญชีอัตโนมัติ</td></tr>}{activeMembers.map(m => <tr key={m.user_id} className="border-b last:border-0">
             <td className="p-2">{profileName(m.user_id)}</td>
             <td className="p-2">{m.active ? 'ปฏิบัติหน้าที่' : 'ไม่ปฏิบัติหน้าที่'}</td>
-            <td className="p-2">{m.active && m.is_chair ? <span className="font-semibold text-teal-800">ประธานคณะกรรมการ</span> : 'กรรมการ'}</td>
+            <td className="p-2">'กรรมการ'</td>
             <td className="p-2"><div className="flex flex-wrap gap-1">
-              {m.active && !m.is_chair && <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => setMember(m.user_id, true, true)}>กำหนดเป็นประธาน</button>}
-              {m.active && <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => setMember(m.user_id, false, false)}>ถอดออก</button>}
-              {!m.active && <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => setMember(m.user_id, true, false)}>คืนสถานะ</button>}
+              {m.active && <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => setMember(m.user_id, false)}>ถอดออก</button>}
+              {!m.active && <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => setMember(m.user_id, true)}>คืนสถานะ</button>}
             </div></td>
           </tr>)}
           {!activeMembers.length && <tr><td colSpan={4} className="p-4 text-center text-stone-500">ยังไม่มีรายชื่อกรรมการที่ปฏิบัติหน้าที่</td></tr>}
