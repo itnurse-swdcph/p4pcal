@@ -125,7 +125,7 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
         {ineligibleReasons.map(([r, n]) => <button key={r} type="button" onClick={() => setReason(r)} className={'rounded-full border px-2.5 py-0.5 ' + (reason === r ? 'border-red-600 bg-red-600 text-white' : 'border-red-200 bg-white text-red-800')}>{r} · {n} คน</button>)}
       </div>}
       <div className="max-h-[32rem] overflow-auto"><table className="w-full min-w-[860px] text-sm">
-        <thead className="sticky top-0 bg-white"><tr className="border-b text-left"><th className="p-2">ชื่อ-สกุล</th><th className="p-2">ตำแหน่ง</th><th className="p-2 text-right">วันทำงาน</th><th className="p-2">สิทธิ์</th><th className="p-2 text-right">คะแนน</th><th className="p-2">แต้มประกัน</th><th className="p-2 text-right">รอรับรอง</th><th className="p-2 text-right">เงินที่ได้รับ</th><th className="p-2"><span className="sr-only">การดำเนินการ</span></th></tr></thead>
+        <thead className="sticky top-0 bg-white"><tr className="border-b text-left"><th className="p-2">ชื่อ-สกุล</th><th className="p-2">ตำแหน่ง</th><th className="p-2 text-right">วันทำงาน</th><th className="p-2">สิทธิ์</th><th className="p-2 text-right">คะแนน</th><th className="p-2">แต้มประกัน</th><th className="p-2 text-right">รอรับรอง</th><th className="p-2 text-right">เงินที่ได้รับ</th><th className="p-2">หมายเหตุอื่นๆ</th><th className="p-2"><span className="sr-only">การดำเนินการ</span></th></tr></thead>
         <tbody>{rows.map((l, i) => <tr key={l.id || i} className="border-b last:border-0 align-top">
           <td className="p-2 font-medium">{l.name || '—'}</td><td className="p-2 text-xs text-stone-600">{l.position || '—'}<div>{groupName(l.pay_group)}</div></td>
           <td className="p-2 text-right tabular-nums">{num(l.work_days, 0)}</td>
@@ -134,9 +134,10 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
           <td className="p-2">{!l.eligible ? <span className="text-stone-400">—</span> : l.below ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">ต่ำกว่า</span> : <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">ถึงเกณฑ์</span>}</td>
           <td className="p-2 text-right tabular-nums">{Number(l.pending) > 0 ? <b className="text-amber-700">{num(l.pending, 0)}</b> : <span className="text-stone-400">0</span>}</td>
           <td className="p-2 text-right font-semibold tabular-nums">{money(l.total)}</td>
+          <td className="p-2 max-w-[18rem] whitespace-pre-wrap break-words text-xs text-stone-700">{String(l.other_notes || '').trim() || <span className="text-stone-400">—</span>}</td>
           <td className="p-2 text-right"><button type="button" className="btn sec !py-1" onClick={() => onViewPerson(l)}>ตรวจกิจกรรม</button></td>
         </tr>)}
-          {!rows.length && <tr><td colSpan={9} className="p-6 text-center text-stone-500">ไม่พบรายชื่อตามเงื่อนไขที่เลือก</td></tr>}</tbody></table></div>
+          {!rows.length && <tr><td colSpan={10} className="p-6 text-center text-stone-500">ไม่พบรายชื่อตามเงื่อนไขที่เลือก</td></tr>}</tbody></table></div>
     </section>
   </div>
 }
