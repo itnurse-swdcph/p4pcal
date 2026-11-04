@@ -2167,7 +2167,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
         {reportOnly && <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)}>{leaveReportOpen ? 'กลับสรุปรายงานหน่วยงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>}
       </div>
       {leaveReportOpen && reportOnly && <div className="space-y-3">
-        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · นับเฉพาะเวรของกิจกรรมที่รับรองแล้ว และแสดงไม่เกินวันทำการตามปฏิทิน</p></div>
+        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · นับทุกเวรที่รับรองแล้วแยกเวรในวันเดียวกัน และจำกัดไม่เกินวันทำการหลังหักวันลารวม</p></div>
         <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1050px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนเวรที่ปฏิบัติ</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>วันสุทธิ</th><th>สิทธิ์รับเงิน</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
           {sum.map((x: any) => {
             const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
