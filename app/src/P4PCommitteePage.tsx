@@ -47,7 +47,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
         sb.rpc('p4p_committee_roster'),
         sb.rpc('p4p_committee_activity_status', { p_month: monthDate }),
         sb.from('units').select('id,name,parent_group'),
-        sb.from('staff_directory').select('source_row,org_role,nursing_group,unit_name').eq('active', true)
+        sb.rpc('p4p_committee_staff_groups')
       ])
       if (!alive) return
       const errs = [c.error && (c.error.message || 'ไม่สามารถโหลดผลคำนวณ P4P ได้'), r.error && 'ไม่สามารถโหลดสถานะการรับรองได้', m.error && 'ไม่สามารถโหลดรายชื่อกรรมการได้',
