@@ -61,6 +61,8 @@ export type UnitStat = {
   lowest: any | null
   ready: boolean
   progress: number
+  submitted?: boolean
+  submissionStatus?: string
 }
 
 /** รวมข้อมูลรายบุคคลเป็นสรุปรายหน่วยงาน */
