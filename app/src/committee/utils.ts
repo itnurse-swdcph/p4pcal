@@ -15,7 +15,7 @@ export const UNKNOWN_UNIT_NAME = 'ไม่ระบุหน่วยงาน'
 export const reasonLabel = (reason?: string) => {
   const r = String(reason || '').trim()
   if (!r) return 'ไม่ระบุเหตุผล'
-  if (r.startsWith('ไม่ผ่านเกณฑ์: ปฏิบัติงาน')) return 'ปฏิบัติงานน้อยกว่า 15 วัน'
+  if (r.startsWith('ไม่ผ่านเกณฑ์:')) return 'ยังไม่มีกิจกรรมที่รับรอง'
   return r
 }
 
