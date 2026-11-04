@@ -1,160 +1,95 @@
-import { useEffect, useMemo, useState
- } from 'react'
-import { AlertTriangle, CalendarDays, CheckCircle2, ClipboardCheck, LockKeyhole, RefreshCw, ShieldCheck, Users } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ArrowRight, CalendarDays, CheckCircle2, ClipboardList, Info, RefreshCw, ShieldCheck, UserCog } from 'lucide-react'
 import { appConfirm } from './AppDialog'
+import ActivityPanel from './committee/ActivityPanel'
+import ClosePanel from './committee/ClosePanel'
+import RosterAdmin from './committee/RosterAdmin'
+import UnitDetail from './committee/UnitDetail'
+import UnitOverview from './committee/UnitOverview'
+import { buildUnitStats, isBelowGuarantee, monthLabel, num } from './committee/utils'
 
-const money = (value: any) => Number(value || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const number = (value: any) => Number(value || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })
-const dateLabel = (month: string) => {
-  const [year, m] = String(month || '').split('-').map(Number)
-  const names = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม']
-  return year && m ? `${names[m - 1]} พ.ศ. ${year + 543}` : month
+type Tab = 'overview' | 'close' | 'roster'
+const STATUS_LABEL: Record<string, string> = {
+  none: 'ยังไม่เริ่มรับรอง', reviewing: 'อยู่ระหว่างลงมติ', approved: 'กรรมการอนุมัติครบ', rejected: 'มีมติไม่เห็นชอบ',
+  stale: 'ข้อมูลเปลี่ยน ต้องรับรองใหม่', closed: 'ปิดงวดและประกาศผลแล้ว', reopened: 'เปิดงวดใหม่'
 }
 
 export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, currentUserId }: any) {
+  const monthDate = `${month}-01`
+  const [tab, setTab] = useState<Tab>('overview')
+  const [unitKey, setUnitKey] = useState<number | null>(null)
+  const [panel, setPanel] = useState<{ person: any | null; randomUnitId?: number | null } | null>(null)
+  const [version, setVersion] = useState(0)
+  const [loadedFor, setLoadedFor] = useState('')
   const [calc, setCalc] = useState<any>(null)
   const [review, setReview] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
   const [votes, setVotes] = useState<any[]>([])
-  const [pendingCountLive, setPendingCountLive] = useState<number | null>(null)
-  const [committeeProfiles, setCommitteeProfiles] = useState<any[]>([])
-  const [availableProfiles, setAvailableProfiles] = useState<any[]>([])
-  const [manthanaStaff, setManthanaStaff] = useState<any>(null)
-  const [manthanaPreappointment, setManthanaPreappointment] = useState<any>(null)
-  const [selectedUser, setSelectedUser] = useState('')
-  const [comment, setComment] = useState('')
-  const [message, setMessage] = useState('')
+  const [roster, setRoster] = useState<any[]>([])
+  const [statusRows, setStatusRows] = useState<any[]>([])
+  const [statusOk, setStatusOk] = useState(true)
+  const [unitsMeta, setUnitsMeta] = useState<any[]>([])
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const [version, setVersion] = useState(0)
-  const [unitFilter, setUnitFilter] = useState('ทั้งหมด')
-  const [auditRows, setAuditRows] = useState<any[]>([])
-  const [auditLoading, setAuditLoading] = useState(false)
-  const [auditReason, setAuditReason] = useState<Record<number, string>>({})
-  const [auditBusyId, setAuditBusyId] = useState<number | null>(null)
-  const [auditMessage, setAuditMessage] = useState('')
-  const monthDate = `${month}-01`
+  const refresh = useCallback(() => setVersion(v => v + 1), [])
 
-  const refresh = () => setVersion(v => v + 1)
   useEffect(() => {
     let alive = true
     const load = async () => {
-      setLoading(true)
       setError('')
-      const [calcResult, reviewResult, memberResult, voteResult, rosterResult, pendingResult] = await Promise.all([
+      const [c, r, m, v, ro, st, un] = await Promise.all([
         sb.rpc('p4p_committee_calc', { p_month: monthDate }),
         sb.from('p4p_monthly_reviews').select('*').eq('month', monthDate).maybeSingle(),
         sb.from('p4p_committee_members').select('user_id,active,is_chair,appointed_at').order('appointed_at'),
         sb.from('p4p_monthly_review_votes').select('month,user_id,decision,comment,voted_at').eq('month', monthDate).order('voted_at'),
         sb.rpc('p4p_committee_roster'),
-        sb.from('v_logs').select('*', { count: 'exact', head: true }).eq('month', monthDate).eq('status', 'pending')
+        sb.rpc('p4p_committee_activity_status', { p_month: monthDate }),
+        sb.from('units').select('id,name,parent_group')
       ])
       if (!alive) return
-      if (calcResult.error) setError(calcResult.error.message || 'ไม่สามารถโหลดผลคำนวณ P4P ได้')
-      else setCalc(calcResult.data)
-      if (reviewResult.error) setError(reviewResult.error.message || 'ไม่สามารถโหลดสถานะการรับรองได้')
-      else setReview(reviewResult.data)
-      if (memberResult.error) setError(memberResult.error.message || 'ไม่สามารถโหลดรายชื่อกรรมการได้')
-      else setMembers(memberResult.data || [])
-      if (voteResult.error) setError(voteResult.error.message || 'ไม่สามารถโหลดผลลงมติได้')
-      else setVotes(voteResult.data || [])
-      if (rosterResult.error) setError(rosterResult.error.message || 'ไม่สามารถโหลดทะเบียนกรรมการได้')
-      else setCommitteeProfiles(rosterResult.data || [])
-      if (pendingResult.error) { setPendingCountLive(null); setError('ไม่สามารถตรวจสอบจำนวนรายการรอรับรองจากฐานข้อมูลได้') }
-      else setPendingCountLive(Number(pendingResult.count || 0))
-      if (isAdmin) {
-        const [profileResult, staffResult] = await Promise.all([
-          sb.from('profiles').select('user_id,full_name,username,role,org_role,position,unit_id,staff_directory_id').eq('org_role', 'หัวหน้ากลุ่มงาน').order('full_name'),
-          sb.from('staff_directory').select('source_row,prefix,first_name,last_name,position').eq('first_name', 'มัณฑนา').eq('last_name', 'เพชรคำ').eq('position', 'พยาบาลวิชาชีพชำนาญการพิเศษ').maybeSingle()
-        ])
-        if (!alive) return
-        if (!staffResult.error) {
-          setManthanaStaff(staffResult.data || null)
-          if (staffResult.data?.source_row) {
-            const pre = await sb.from('p4p_committee_preappointments').select('staff_directory_source_row,active,linked_user_id,appointed_at').eq('staff_directory_source_row', staffResult.data.source_row).maybeSingle()
-            if (!alive) return
-            if (!pre.error) setManthanaPreappointment(pre.data || null)
-            else setError(pre.error.message || 'ไม่สามารถโหลดสถานะแต่งตั้งล่วงหน้าได้')
-          }
-        } else setError(staffResult.error.message || 'ไม่สามารถโหลดทะเบียนบุคลากรได้')
-        let candidates = profileResult.data || []
-        if (staffResult.data?.source_row) {
-          const linked = await sb.from('profiles').select('user_id,full_name,username,role,org_role,position,unit_id,staff_directory_id').eq('staff_directory_id', staffResult.data.source_row).maybeSingle()
-          if (!alive) return
-          if (linked.data && !candidates.some((p: any) => p.user_id === linked.data.user_id)) candidates = [...candidates, linked.data]
-          if (linked.error) setError(linked.error.message || 'ไม่สามารถตรวจสอบบัญชีบุคลากรได้')
-        }
-        // Include previously appointed but inactive committee accounts in the same dropdown,
-        // so removing a member only hides them from the active roster and they can be restored.
-        const inactiveIds = (rosterResult.data || []).filter((m: any) => !m.active).map((m: any) => m.user_id)
-        if (inactiveIds.length) {
-          const inactiveResult = await sb.from('profiles')
-            .select('user_id,full_name,username,role,org_role,position,unit_id,staff_directory_id')
-            .in('user_id', inactiveIds)
-          if (!alive) return
-          if (inactiveResult.error) setError(inactiveResult.error.message || 'ไม่สามารถโหลดรายชื่อกรรมการที่ถอดออกได้')
-          else {
-            for (const p of inactiveResult.data || []) {
-              if (!candidates.some((item: any) => item.user_id === p.user_id)) candidates = [...candidates, p]
-            }
-          }
-        }
-        if (!profileResult.error) setAvailableProfiles(candidates)
-      }
-      setLoading(false)
+      const errs = [c.error && (c.error.message || 'ไม่สามารถโหลดผลคำนวณ P4P ได้'), r.error && 'ไม่สามารถโหลดสถานะการรับรองได้', m.error && 'ไม่สามารถโหลดรายชื่อกรรมการได้',
+        v.error && 'ไม่สามารถโหลดผลลงมติได้', ro.error && 'ไม่สามารถโหลดทะเบียนกรรมการได้', st.error && 'ไม่สามารถตรวจสอบสถานะกิจกรรมรายหน่วยงานได้ จึงยังไม่ถือว่าหน่วยงานใดพร้อมตรวจ',
+        un.error && 'ไม่สามารถโหลดรายชื่อหน่วยงานได้'].filter(Boolean)
+      if (errs.length) setError(errs.join(' · '))
+      setCalc(c.error ? null : c.data); setReview(r.error ? null : r.data); setMembers(m.data || []); setVotes(v.data || [])
+      setRoster(ro.data || []); setStatusRows(st.data || []); setStatusOk(!st.error); setUnitsMeta(un.data || [])
+      setLoadedFor(monthDate)
     }
     load()
     return () => { alive = false }
-  }, [sb, monthDate, isAdmin, version])
+  }, [sb, monthDate, version])
 
+  const loading = loadedFor !== monthDate
   const activeMembers = useMemo(() => members.filter(x => x.active), [members])
-  const myMembership = activeMembers.find(x => x.user_id === currentUserId)
-  const isChair = !!myMembership?.is_chair
-  const isMember = !!myMembership
-  const myVote = votes.find(x => x.user_id === currentUserId)
-  const expectedVotes = Number(review?.expected_members?.length || 0)
-  const approvedVotes = votes.filter(x => x.decision === 'approved').length
-  const pendingCountKnown = pendingCountLive !== null
-  const pendingCount = Number(pendingCountLive ?? calc?.warnings?.pending_rows ?? review?.pending_count ?? 0)
-  const viewCalc = review?.status === 'reviewing' || review?.status === 'approved' ? (review.snapshot || calc) : calc
-  const groups = viewCalc?.groups || []
-  const lines = viewCalc?.lines || []
-  const units = useMemo(() => [...new Set(lines.map((x: any) => x.unit_name).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'th')), [lines])
-  const unitSummaries = useMemo(() => {
-    const grouped = new Map<string, any>()
-    for (const line of lines) {
-      const key = line.unit_name || 'ไม่ระบุหน่วยงาน'
-      const item = grouped.get(key) || { name: key, total: 0, eligible: 0, ineligible: 0, below: 0, scoreTotal: 0, extraTotal: 0, highest: null, lowest: null }
-      item.total += 1
-      if (line.eligible) item.eligible += 1
-      else item.ineligible += 1
-      const score = Number(line.counted || 0)
-      if (Number(line.guarantee || 0) > 0 && score < Number(line.guarantee)) item.below += 1
-      item.scoreTotal += score
-      item.extraTotal += Number(line.extra || 0)
-      if (!item.highest || score > Number(item.highest.counted || 0)) item.highest = line
-      if (!item.lowest || score < Number(item.lowest.counted || 0)) item.lowest = line
-      grouped.set(key, item)
-    }
-    return [...grouped.values()].map(x => ({ ...x, ready: x.ineligible === 0 && pendingCountLive === 0 }))
-      .sort((a,b) => a.name.localeCompare(b.name, 'th'))
-  }, [lines, pendingCountLive])
-  const filteredLines = useMemo(() => unitFilter === 'ทั้งหมด' ? lines : lines.filter((x: any) => (x.unit_name || 'ไม่ระบุหน่วยงาน') === unitFilter), [lines, unitFilter])
-  const totals = useMemo(() => groups.reduce((acc: any, g: any) => {
-    const eligible = Number(g.n_eligible || 0)
-    const ineligible = Number(g.n_ineligible || 0)
-    acc.allocation += Number(g.full_amount || 0) * (eligible + ineligible)
-    acc.reserve += Number(g.reserve || 0) * eligible
-    acc.carry += Number(g.carry_extra_in || 0)
-    acc.byScore += Number(g.by_score || 0) * eligible
-    acc.below += Number(g.below_threshold_difference || 0)
-    acc.pool += Number(g.pool_extra || 0)
-    acc.excess += Number(g.sum_excess || 0)
-    return acc
-  }, { allocation: 0, reserve: 0, carry: 0, byScore: 0, below: 0, pool: 0, excess: 0 }), [groups])
+  const isMember = activeMembers.some(x => x.user_id === currentUserId)
+  const rstatus: string = review?.status || 'none'
+  const viewCalc = rstatus === 'reviewing' || rstatus === 'approved' ? (review?.snapshot || calc) : calc
+  const groups: any[] = viewCalc?.groups || []
 
-  const runAction = async (label: string, action: () => Promise<any>) => {
+  const statusByPerson = useMemo(() => new Map(statusRows.map((s: any) => [String(s.person_id), s])), [statusRows])
+  const lines = useMemo(() => {
+    const byPay = new Map(groups.map((g: any) => [Number(g.pay_group), g]))
+    return (viewCalc?.lines || []).map((l: any) => ({ ...l, below: isBelowGuarantee(l, byPay.get(Number(l.pay_group))), pending: Number(statusByPerson.get(String(l.id))?.pending || 0) }))
+  }, [viewCalc, groups, statusByPerson])
+  const units = useMemo(() => buildUnitStats(lines, unitsMeta, statusRows).map(u => ({ ...u, ready: statusOk && u.ready })), [lines, unitsMeta, statusRows, statusOk])
+  const unit = unitKey == null ? null : units.find(u => u.key === unitKey) || null
+  const readyCount = units.filter(u => u.ready).length
+  const pendingTotal = units.reduce((s, u) => s + u.pending, 0)
+  const allReady = statusOk && units.length > 0 && readyCount === units.length
+  const totals = useMemo(() => groups.reduce((a: any, g: any) => {
+    const el = Number(g.n_eligible || 0), inel = Number(g.n_ineligible || 0)
+    a.allocation += Number(g.full_amount || 0) * (el + inel); a.reserve += Number(g.reserve || 0) * el; a.carry += Number(g.carry_extra_in || 0)
+    a.below += Number(g.below_threshold_difference || 0); a.pool += Number(g.pool_extra || 0); a.excess += Number(g.sum_excess || 0)
+    return a
+  }, { allocation: 0, reserve: 0, carry: 0, below: 0, pool: 0, excess: 0 }), [groups])
+
+  const canAudit = isMember && !['reviewing', 'approved', 'closed'].includes(rstatus)
+  const lockedReason = !isMember ? 'เฉพาะกรรมการที่ปฏิบัติหน้าที่เท่านั้นที่ส่งกลับหรือไม่อนุมัติกิจกรรมได้'
+    : rstatus === 'closed' ? 'งวดนี้ปิดแล้ว แก้ไขผลกิจกรรมไม่ได้'
+      : 'ขณะนี้อยู่ระหว่างรอบรับรองผล จึงแก้ผลกิจกรรมไม่ได้ หากพบข้อผิดพลาดให้ลงมติ "ไม่เห็นชอบ" เพื่อยกเลิกรอบนี้ก่อน'
+
+  const runAction = async (label: string | ((d: any) => string), action: () => Promise<any>): Promise<boolean> => {
     setBusy(true); setMessage(''); setError('')
     try {
       const result = await action()
@@ -162,250 +97,79 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
       const data = result?.data
       if (data?.ok === false) {
         setError(data.reason === 'pending_items' ? `ยังมีรายการรอรับรอง ${data.pending_count || 0} รายการ` :
-          data.reason === 'snapshot_changed' ? 'ข้อมูลคะแนนเปลี่ยนหลังลงมติ ต้องเริ่มรับรองใหม่' :
-          data.reason === 'committee_roster_changed' ? 'รายชื่อกรรมการเปลี่ยนแปลง ต้องเริ่มรับรองใหม่' : 'ไม่สามารถดำเนินการได้')
-      } else {
-        setMessage(label)
-        setComment('')
+          data.reason === 'snapshot_changed' ? 'ข้อมูลคะแนนเปลี่ยนหลังเริ่มรับรอง มติทั้งหมดถูกล้าง ต้องเริ่มรับรองใหม่' :
+            data.reason === 'committee_roster_changed' ? 'รายชื่อกรรมการเปลี่ยนแปลง มติทั้งหมดถูกล้าง ต้องเริ่มรับรองใหม่' : 'ไม่สามารถดำเนินการได้')
+        refresh(); return false
       }
-      refresh()
-    } catch (e: any) {
-      setError(e?.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่')
-    } finally { setBusy(false) }
+      setMessage(typeof label === 'function' ? label(data) : label)
+      refresh(); return true
+    } catch (e: any) { setError(e?.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่'); return false }
+    finally { setBusy(false) }
   }
 
   const startReview = async () => {
-    if (review?.status === 'approved' && !(await appConfirm('การเริ่มรับรองใหม่จะล้างมติเดิมทั้งหมด ต้องการดำเนินการต่อหรือไม่?','เริ่มรับรองใหม่'))) return
-    runAction('เริ่มกระบวนการรับรองผลแล้ว', () => sb.rpc('p4p_start_review', { p_month: monthDate }))
+    if (!(await appConfirm(`เริ่มกระบวนการรับรองผล P4P ประจำเดือน${monthLabel(month)}\n\nระบบจะเก็บผลคำนวณชุดนี้ไว้ให้กรรมการทุกคนลงมติ และจะแก้ผลกิจกรรมไม่ได้จนกว่าจะปิดงวดหรือมีผู้ไม่เห็นชอบ`, 'เริ่มกระบวนการรับรอง'))) return
+    await runAction('เริ่มกระบวนการรับรองผลแล้ว กรรมการทุกคนลงมติได้ที่ขั้นตอนที่ 3', () => sb.rpc('p4p_start_review', { p_month: monthDate }))
   }
-  const castVote = (decision: 'approved' | 'rejected') => {
-    if (decision === 'rejected' && comment.trim().length < 5) {
-      setError('กรุณาระบุเหตุผลที่ไม่เห็นชอบอย่างน้อย 5 ตัวอักษร')
-      return
-    }
-    runAction(decision === 'approved' ? 'บันทึกมติอนุมัติแล้ว' : 'บันทึกมติไม่อนุมัติแล้ว', () =>
-      sb.rpc('p4p_review_vote', { p_month: monthDate, p_decision: decision, p_comment: comment }))
+  const castVote = async (decision: 'approved' | 'rejected', comment: string) => {
+    if (decision === 'rejected' && comment.trim().length < 5) { setError('กรุณาระบุเหตุผลที่ไม่เห็นชอบอย่างน้อย 5 ตัวอักษร'); return false }
+    if (decision === 'approved' && !(await appConfirm('ยืนยันอนุมัติผลการจัดสรรประจำเดือนนี้\nเมื่อกรรมการอนุมัติครบทุกคน ระบบจะปิดงวดและประกาศผลทันที', 'ยืนยันการอนุมัติ'))) return false
+    return runAction(d => d?.closed_automatically ? 'กรรมการอนุมัติครบทุกคน ระบบปิดงวดและประกาศผลเรียบร้อยแล้ว' : decision === 'approved' ? 'บันทึกมติอนุมัติแล้ว รอกรรมการท่านอื่น' : 'บันทึกมติไม่เห็นชอบแล้ว รอบนี้ถูกยกเลิก',
+      () => sb.rpc('p4p_review_vote', { p_month: monthDate, p_decision: decision, p_comment: comment }))
   }
-  const sampleAudit = async () => {
-    setAuditLoading(true); setAuditMessage(''); setError('')
-    try {
-      const { data, error: loadError } = await sb.from('v_logs')
-        .select('id,person_id,work_date,activity_code,title,qty,shift,evidence,person_name,unit_id,position,points,counted_points,status')
-        .eq('month', monthDate).eq('status', 'approved').limit(300)
-      if (loadError) throw loadError
-      const shuffled = [...(data || [])].sort(() => Math.random() - 0.5)
-      setAuditRows(shuffled.slice(0, 5))
-      setAuditReason({})
-      if (!shuffled.length) setAuditMessage('ไม่พบกิจกรรมที่อนุมัติแล้วในเดือนนี้')
-    } catch (e: any) { setError(e?.message || 'ไม่สามารถสุ่มกิจกรรมเพื่อตรวจสอบได้') }
-    finally { setAuditLoading(false) }
-  }
-  const auditActivity = async (logId: number, action: 'return_for_correction' | 'reject') => {
-    const reason = (auditReason[logId] || '').trim()
-    if (reason.length < 5) { setError('กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร'); return }
-    setAuditBusyId(logId); setError(''); setAuditMessage('')
-    try {
-      const { data, error: auditError } = await sb.rpc('p4p_committee_audit_activity', {
-        p_log_id: logId, p_action: action, p_reason: reason
-      })
-      if (auditError) throw auditError
-      if (data?.ok === false) throw new Error(data?.reason || 'ไม่สามารถบันทึกผลตรวจสอบได้')
-      setAuditRows(rows => rows.filter(x => x.id !== logId))
-      setAuditMessage(action === 'return_for_correction' ? 'ส่งกิจกรรมกลับแก้ไขและแจ้งเตือนเจ้าของกิจกรรมแล้ว' : 'ไม่รับรองกิจกรรมและแจ้งเตือนเจ้าของกิจกรรมแล้ว')
-      refresh()
-    } catch (e: any) { setError(e?.message || 'บันทึกผลตรวจสอบไม่สำเร็จ') }
-    finally { setAuditBusyId(null) }
-  }
-  const setMember = (userId: string, active: boolean) =>
-    runAction('บันทึกทะเบียนกรรมการแล้ว', () => sb.rpc('p4p_set_committee_member', {
-      p_user_id: userId, p_active: active, p_is_chair: false
-    }))
-  const profileName = (id: string) => {
-    const p = committeeProfiles.find(x => x.user_id === id)
-    return p?.full_name?.trim() || 'ไม่พบชื่อ-สกุลในทะเบียนบุคลากร'
-  }
-  const statusLabel: Record<string, string> = {
-    reviewing: 'อยู่ระหว่างลงมติ', approved: 'กรรมการอนุมัติครบแล้ว', rejected: 'มีมติไม่เห็นชอบ',
-    stale: 'ข้อมูลเปลี่ยน ต้องรับรองใหม่', closed: 'ปิดงวดแล้ว', reopened: 'เปิดงวดใหม่แล้ว'
-  }
+
+  const openUnit = (key: number) => { setTab('overview'); setUnitKey(key); window.scrollTo({ top: 0 }) }
+  const myVote = votes.find(v => v.user_id === currentUserId)
+  const iAmExpected = (review?.expected_members || []).includes(currentUserId)
+  const next = rstatus === 'closed' ? { text: 'งวดนี้ปิดและประกาศผลแล้ว', go: null as Tab | null, tone: 'ok' }
+    : rstatus === 'reviewing' && iAmExpected && !myVote ? { text: 'ถึงคิวคุณลงมติแล้ว', go: 'close' as Tab, tone: 'act' }
+      : rstatus === 'reviewing' ? { text: 'รอกรรมการลงมติให้ครบ', go: 'close' as Tab, tone: 'wait' }
+        : allReady ? { text: 'ทุกหน่วยงานพร้อมตรวจ 100% เริ่มกระบวนการรับรองได้', go: 'close' as Tab, tone: 'act' }
+          : { text: `ยังมี ${num(units.length - readyCount, 0)} หน่วยงานที่ยังไม่พร้อม (ค้างรับรอง ${num(pendingTotal, 0)} รายการ)`, go: null as Tab | null, tone: 'wait' }
+
+  const tabs: [Tab, string][] = [['overview', 'ตรวจรายหน่วยงาน'], ['close', 'รับรองและปิดงวด'], ...(isAdmin ? [['roster', 'กรรมการ'] as [Tab, string]] : [])]
 
   return <div className="space-y-4">
-    <section className="card flex flex-wrap items-center justify-between gap-3 border border-teal-100 bg-teal-50/50" aria-label="ตัวกรองเดือน">
-      <div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-teal-800"><CalendarDays size={19}/></span><div><h2 className="text-sm font-bold text-stone-800">ช่วงเวลาการแสดงผล</h2><p className="text-xs text-stone-600">เลือกเดือนสำหรับตรวจสอบข้อมูลและผลการคำนวณ P4P</p></div></div>
-      <label className="flex min-w-[190px] items-center gap-2 text-sm font-semibold text-stone-700"><span className="whitespace-nowrap">เดือน</span><input type="month" aria-label="เลือกเดือนที่ต้องการแสดงข้อมูล" className="inp w-full bg-white" value={month} onChange={e => e.target.value && setMonth(e.target.value)} /></label>
-    </section>
-    <div className="card space-y-3">
+    <section className="card space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-teal-800"><ShieldCheck size={18}/> ศูนย์ควบคุมและรับรองผล P4P</div>
-          <h2 className="mt-1 text-xl font-bold">ประมาณการจัดสรรค่าตอบแทนตามผลการปฏิบัติงาน</h2>
-          <p className="text-sm text-stone-600">ประจำเดือน{dateLabel(month)} · แสดงผลคำนวณแยก 5 กลุ่มวิชาชีพ</p>
+          <div className="flex items-center gap-2 text-sm font-semibold text-teal-800"><ShieldCheck size={18} />คณะกรรมการ P4P · ตรวจสอบและรับรองผล</div>
+          <h2 className="mt-1 text-xl font-bold">ประจำเดือน{monthLabel(month)}</h2>
         </div>
-        <button type="button" className="btn sec" onClick={refresh} disabled={loading || busy}><RefreshCw size={15} className="inline mr-1"/>รีเฟรชข้อมูล</button>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex items-center gap-2 text-sm font-semibold text-stone-700"><CalendarDays size={16} className="text-teal-800" /><span className="sr-only">เลือกเดือน</span>
+            <input type="month" aria-label="เลือกเดือนที่ต้องการตรวจสอบ" className="inp !w-44 bg-white" value={month} onChange={e => { if (e.target.value) { setMonth(e.target.value); setUnitKey(null); setPanel(null) } }} /></label>
+          <button type="button" className="btn sec" onClick={refresh} disabled={loading || busy}><RefreshCw size={15} />รีเฟรช</button>
+        </div>
       </div>
+      {!loading && <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="rounded-full bg-stone-100 px-3 py-1">สถานะ: <b>{STATUS_LABEL[rstatus] || rstatus}</b></span>
+        <span className={'rounded-full px-3 py-1 ' + (allReady ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800')}>หน่วยงานพร้อม <b>{num(readyCount, 0)}/{num(units.length, 0)}</b></span>
+        <span className="rounded-full bg-stone-100 px-3 py-1">ค้างรับรอง <b className={pendingTotal ? 'text-amber-700' : 'text-emerald-700'}>{num(pendingTotal, 0)}</b> รายการ</span>
+      </div>}
+      {!loading && <div className={'flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm ' + (next.tone === 'act' ? 'border-teal-300 bg-teal-50 text-teal-950' : next.tone === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-stone-200 bg-stone-50 text-stone-800')}>
+        <span className="flex items-center gap-2">{next.tone === 'ok' ? <CheckCircle2 size={17} /> : <Info size={17} />}<b>ขั้นตอนถัดไป:</b> {next.text}</span>
+        {next.go && tab !== next.go && <button type="button" className="btn !py-1" onClick={() => setTab(next.go!)}>ไปที่ขั้นตอนรับรอง<ArrowRight size={15} /></button>}
+      </div>}
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
       {message && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</div>}
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="rounded-full bg-slate-100 px-3 py-1">สถานะ: {statusLabel[review?.status] || 'ยังไม่เริ่มรับรอง'}</span>
-        {review?.status === 'closed' && <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-800"><LockKeyhole size={14} className="inline mr-1"/>ปิดงวดแล้ว</span>}
-        <span className="rounded-full bg-slate-100 px-3 py-1">มติอนุมัติ {approvedVotes}/{expectedVotes || activeMembers.length} คน</span>
-      </div>
-    </div>
+      <div className="flex flex-wrap gap-1 border-b border-stone-200" role="tablist">{tabs.map(([k, l]) =>
+        <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+          className={'-mb-px inline-flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-semibold ' + (tab === k ? 'border-teal-700 text-teal-800' : 'border-transparent text-stone-600 hover:text-stone-900')}>
+          {k === 'overview' ? <ClipboardList size={16} /> : k === 'close' ? <ShieldCheck size={16} /> : <UserCog size={16} />}{l}</button>)}</div>
+    </section>
 
-    {loading ? <div className="card text-sm text-stone-500">กำลังโหลดข้อมูลการจัดสรร…</div> : <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        {[
-          ['ยอดเงินจัดสรรในเดือนนี้', totals.allocation, 'บาท'],
-          ['เงินกัน 3% ในเดือนนี้', totals.reserve, 'บาท'],
-          ['เงินสะสมงวดก่อน', totals.carry, 'บาท'],
-          ['จำนวนเงินตามผลงาน', totals.byScore, 'บาท'],
-          ['เงินส่วนต่างผู้ได้ต่ำกว่าเกณฑ์', totals.below, 'บาท'],
-          ['เงินรอจัดสรรจากแต้มส่วนเกิน', totals.pool, 'บาท'],
-          ['แต้มส่วนเกินรวม', totals.excess, 'แต้ม']
-        ].map(([label, value, unit]: any) => <div key={label} className="card !p-3">
-          <div className="text-xs text-stone-600">{label}</div>
-          <div className="mt-1 text-xl font-bold tabular-nums">{number(value)} <span className="text-xs font-normal text-stone-500">{unit}</span></div>
-        </div>)}
-      </div>
-
-      <div className="card space-y-3">
-        <div className="flex items-center gap-2 font-semibold"><ClipboardCheck size={18}/> สรุปการจัดสรรแยกตามกลุ่มวิชาชีพ</div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[950px] text-sm">
-            <thead><tr className="border-b text-left">
-              <th className="p-2">กลุ่มวิชาชีพ</th><th className="p-2 text-right">บุคลากร</th><th className="p-2 text-right">ต่ำกว่าเกณฑ์</th>
-              <th className="p-2 text-right">เงินกัน 3%</th><th className="p-2 text-right">ยอดยกมา</th>
-              <th className="p-2 text-right">เงินส่วนต่าง</th><th className="p-2 text-right">แต้มส่วนเกิน</th>
-              <th className="p-2 text-right">เงินจัดสรรส่วนเกิน</th><th className="p-2 text-right">บาท/แต้ม</th>
-            </tr></thead>
-            <tbody>{groups.map((g: any) => <tr key={g.pay_group} className="border-b last:border-0">
-              <td className="p-2 font-medium">{g.name || `กลุ่ม ${g.pay_group}`}</td>
-              <td className="p-2 text-right tabular-nums">{number(Number(g.n_eligible || 0) + Number(g.n_ineligible || 0))}</td>
-              <td className="p-2 text-right tabular-nums">{number(g.n_below)}</td>
-              <td className="p-2 text-right tabular-nums">{money(Number(g.reserve || 0) * Number(g.n_eligible || 0))}</td>
-              <td className="p-2 text-right tabular-nums">{money(g.carry_extra_in)}</td>
-              <td className="p-2 text-right tabular-nums">{money(g.below_threshold_difference)}</td>
-              <td className="p-2 text-right tabular-nums">{number(g.sum_excess)}</td>
-              <td className="p-2 text-right tabular-nums">{money(g.pool_extra)}</td>
-              <td className="p-2 text-right tabular-nums">{money(g.rate_per_point)}</td>
-            </tr>)}
-            {!groups.length && <tr><td colSpan={9} className="p-5 text-center text-stone-500">ไม่พบข้อมูลกลุ่มวิชาชีพ</td></tr>}
-          </tbody></table>
-        </div>
-        <p className="text-xs text-stone-500">อัตราเงินเพิ่มคำนวณจากเงินใน pool_extra หารด้วยแต้มส่วนเกินรวมของกลุ่ม ตามสูตรจัดสรรเดิม</p>
-      </div>
-
-      <div className="card space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 font-semibold"><Users size={18}/> รายชื่อบุคลากรและเงินเพิ่มประมาณการ (สำหรับคณะกรรมการ)</div>
-          <label className="text-sm flex items-center gap-2">หน่วยงาน
-            <select className="inp min-w-[12rem]" value={unitFilter} onChange={e => setUnitFilter(e.target.value)}><option>ทั้งหมด</option>{units.map((u: string) => <option key={u} value={u}>{u}</option>)}</select>
-          </label></div>
-        <div className="text-xs text-stone-500">แสดง {number(filteredLines.length)} จาก {number(lines.length)} คน</div>
-        <div className="max-h-[28rem] overflow-auto">
-          <table className="w-full min-w-[800px] text-sm">
-            <thead className="sticky top-0 bg-white"><tr className="border-b text-left">
-              <th className="p-2">ชื่อ-สกุล</th><th className="p-2">ตำแหน่ง</th><th className="p-2">หน่วยงาน</th>
-              <th className="p-2 text-right">กลุ่ม</th><th className="p-2 text-right">วันทำงาน</th><th className="p-2">สิทธิ์</th>
-              <th className="p-2 text-right">คะแนนนับได้</th><th className="p-2 text-right">เงินเพิ่มประมาณการ</th>
-            </tr></thead>
-            <tbody>{filteredLines.map((line: any, index: number) => <tr key={line.id || index} className="border-b last:border-0">
-              <td className="p-2">{line.name || '—'}</td><td className="p-2">{line.position || '—'}</td><td className="p-2">{line.unit_name || '—'}</td>
-              <td className="p-2 text-right">{line.pay_group || '—'}</td>
-              <td className="p-2 text-right tabular-nums" title={line.eligibility_reason || ''}>{number(line.work_days)} วัน</td>
-              <td className="p-2"><span className={line.eligible ? 'text-emerald-700 font-medium' : 'text-red-700 font-medium'}>{line.eligible ? 'มีสิทธิ์' : 'ไม่มีสิทธิ์'}</span><div className="text-xs text-stone-500">{line.eligibility_reason || ''}</div></td>
-              <td className="p-2 text-right tabular-nums">{number(line.counted)}</td>
-              <td className="p-2 text-right tabular-nums font-semibold">{money(line.extra)} บาท</td>
-            </tr>)}
-            {!filteredLines.length && <tr><td colSpan={8} className="p-5 text-center text-stone-500">ไม่พบข้อมูลรายบุคคล</td></tr>}
-          </tbody></table>
-        </div>
-      </div>
-
-      <div className="card space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">ความพร้อมรายหน่วยงาน</div><span className="text-xs text-stone-500">พร้อม 100% เมื่อบุคลากรมีสิทธิ์ครบและไม่มีรายการรอรับรอง</span></div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="rounded-xl border p-3"><div className="text-xs text-stone-500">หน่วยงานที่พร้อม 100%</div><div className="text-2xl font-bold text-emerald-700">{number(unitSummaries.filter(x => x.ready).length)} / {number(unitSummaries.length)}</div></div>
-          <div className="rounded-xl border p-3"><div className="text-xs text-stone-500">บุคลากรมีสิทธิ์</div><div className="text-2xl font-bold">{number(lines.filter((x: any) => x.eligible).length)}</div></div>
-          <div className="rounded-xl border p-3"><div className="text-xs text-stone-500">บุคลากรไม่มีสิทธิ์</div><div className="text-2xl font-bold text-red-700">{number(lines.filter((x: any) => !x.eligible).length)}</div></div>
-        </div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead><tr className="border-b text-left"><th className="p-2">หน่วยงาน</th><th className="p-2 text-right">บุคลากร</th><th className="p-2 text-right">มีสิทธิ์</th><th className="p-2 text-right">ไม่มีสิทธิ์</th><th className="p-2 text-right">ต่ำกว่าแต้มประกัน</th><th className="p-2 text-right">คะแนนสูงสุด / ต่ำสุด</th><th className="p-2 text-right">ยอดเงินประมาณการ</th><th className="p-2">ความพร้อม</th></tr></thead>
-          <tbody>{unitSummaries.map((u: any) => <tr key={u.name} className="border-b"><td className="p-2 font-medium"><details><summary className="cursor-pointer text-teal-800 underline">{u.name} · ดูรายชื่อ</summary><div className="mt-2 min-w-[18rem] max-h-56 overflow-auto rounded-lg bg-stone-50 p-2 space-y-1">{lines.filter((line: any) => (line.unit_name || 'ไม่ระบุหน่วยงาน') === u.name).map((line: any, idx: number) => <div key={line.id || idx} className="border-b border-stone-200 pb-1 text-xs"><b>{line.name || 'ไม่ระบุชื่อ'}</b> · {line.eligible ? 'มีสิทธิ์' : 'ไม่มีสิทธิ์'} · {line.eligibility_reason || 'ไม่ระบุเหตุผล'} · {number(line.counted)} คะแนน</div>)}</div></details></td><td className="p-2 text-right">{number(u.total)}</td><td className="p-2 text-right text-emerald-700">{number(u.eligible)}</td><td className="p-2 text-right text-red-700">{number(u.ineligible)}</td><td className="p-2 text-right">{number(u.below)}</td><td className="p-2 text-right">{number(u.highest?.counted)} / {number(u.lowest?.counted)}</td><td className="p-2 text-right">{money(u.extraTotal)} บาท</td><td className="p-2"><span className={u.ready ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>{u.ready ? 'พร้อม 100%' : 'ต้องตรวจสอบ'}</span></td></tr>)}
-          {!unitSummaries.length && <tr><td colSpan={8} className="p-4 text-center text-stone-500">ไม่มีข้อมูลหน่วยงาน</td></tr>}</tbody></table></div>
-      </div>
-
-      <div className="card space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">สุ่มตรวจสอบกิจกรรมรายบุคคล</div>
-          <button type="button" className="btn sec" disabled={!isMember || auditLoading || busy} onClick={sampleAudit}>{auditLoading ? 'กำลังสุ่ม…' : 'สุ่มตรวจ 5 กิจกรรม'}</button>
-        </div>
-        <p className="text-xs text-stone-500">สุ่มจากกิจกรรมที่อนุมัติแล้วในเดือนที่เลือก กรรมการสามารถส่งกลับแก้ไขหรือไม่รับรอง พร้อมบันทึกเหตุผลและแจ้งเตือนเจ้าของกิจกรรม</p>
-        {auditMessage && <p role="status" className="text-sm text-teal-800">{auditMessage}</p>}
-        {!isMember && <p className="text-sm text-amber-700">เฉพาะกรรมการที่ปฏิบัติหน้าที่สามารถสุ่มตรวจและดำเนินการได้</p>}
-        {auditRows.map((a: any) => <div key={a.id} className="rounded-xl border p-3 space-y-2">
-          <div className="flex flex-wrap justify-between gap-2"><div><b>{a.person_name || 'ไม่ทราบชื่อ'}</b><div className="text-xs text-stone-500">{a.position || ''} · {a.work_date} · {a.shift || ''}</div></div><div className="text-right text-sm"><b>{a.title || a.activity_code}</b><div className="text-xs text-stone-500">คะแนน {number(a.counted_points ?? a.points)}</div></div></div>
-          {a.evidence && <p className="text-sm whitespace-pre-wrap">หลักฐาน: {a.evidence}</p>}
-          <textarea className="inp w-full min-h-16" value={auditReason[a.id] || ''} onChange={e => setAuditReason(v => ({ ...v, [a.id]: e.target.value }))} placeholder="ระบุเหตุผลที่ส่งกลับแก้ไข/ไม่รับรอง (อย่างน้อย 5 ตัวอักษร)" />
-          <div className="flex flex-wrap gap-2"><button type="button" className="btn sec" disabled={auditBusyId === a.id || !isMember} onClick={() => auditActivity(a.id,'return_for_correction')}>ส่งกลับแก้ไข</button><button type="button" className="btn danger" disabled={auditBusyId === a.id || !isMember} onClick={() => auditActivity(a.id,'reject')}>ไม่รับรองกิจกรรม</button></div>
-        </div>)}
-      </div>
-
-      <div className="card space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="font-semibold">การรับรองผลและปิดงวด</div>
-          <div className="text-sm text-stone-600">รายการรอรับรอง: <b className={pendingCount > 0 ? 'text-red-700' : 'text-emerald-700'}>{number(pendingCount)}</b></div>
-        </div>
-        {!pendingCountKnown && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><AlertTriangle size={16} className="inline mr-1"/>ยังยืนยันจำนวนรายการรอรับรองไม่ได้ จึงปิดการลงมติและปิดงวดไว้ก่อน</div>}
-        {pendingCountKnown && pendingCount > 0 && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle size={16} className="inline mr-1"/>ต้องรับรองรายการกิจกรรมทั้งหมดก่อน เริ่มลงมติและปิดงวดไม่ได้</div>}
-        {pendingCountKnown && pendingCount === 0 && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={16} className="inline mr-1"/>ไม่มีรายการรอรับรองค้างอยู่</div>}
-
-        {isMember && review?.status !== 'closed' && <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn" disabled={busy || !pendingCountKnown || pendingCount > 0 || activeMembers.length === 0 || review?.status === 'reviewing'} onClick={startReview}>
-            {review?.status === 'approved' || review?.status === 'rejected' || review?.status === 'stale' ? 'เริ่มรับรองใหม่' : 'เริ่มกระบวนการรับรอง'}
-          </button>
-          <span className="text-xs text-stone-500">กรรมการคนใดก็ได้สามารถเริ่มกระบวนการได้ ไม่ต้องมีประธาน</span>
-        </div>}
-
-        {review?.status === 'reviewing' && isMember && !myVote && <div className="space-y-2 rounded-lg border border-teal-200 bg-teal-50 p-3">
-          <p className="text-sm font-semibold">กรุณาตรวจสอบข้อมูลและลงมติในฐานะกรรมการ</p>
-          <textarea className="inp min-h-20 w-full" value={comment} onChange={e => setComment(e.target.value)} placeholder="หมายเหตุ/เหตุผล (จำเป็นเมื่อไม่เห็นชอบ)" />
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn" disabled={busy || !pendingCountKnown || pendingCount > 0} onClick={() => castVote('approved')}>อนุมัติผลการจัดสรร</button>
-            <button type="button" className="btn sec" disabled={busy || pendingCount > 0 || comment.trim().length < 5} onClick={() => castVote('rejected')}>ไม่เห็นชอบ / ส่งกลับแก้ไข</button>
-          </div>
-        </div>}
-        {myVote && <p className="text-sm text-teal-800">คุณลงมติแล้ว: {myVote.decision === 'approved' ? 'อนุมัติ' : 'ไม่เห็นชอบ'} · {myVote.voted_at ? new Date(myVote.voted_at).toLocaleString('th-TH') : ''}</p>}
-        {review?.status === 'reviewing' && <div className="text-sm text-stone-600">รอกรรมการอนุมัติครบทุกคน: {approvedVotes}/{expectedVotes} คน</div>}
-        
-
-        {review?.status === 'closed' && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 size={16} className="inline mr-1"/>กรรมการอนุมัติครบทุกคน ระบบปิดงวดและเผยแพร่ผลโดยอัตโนมัติแล้ว</div>}
-        {review?.status === 'rejected' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">มีกรรมการไม่เห็นชอบ Admin ต้องตรวจสอบและเริ่มกระบวนการรับรองใหม่</div>}
-        {review?.status === 'stale' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">ข้อมูลหรือรายชื่อกรรมการเปลี่ยนแปลง ต้องเริ่มกระบวนการรับรองใหม่</div>}
-      </div>
-
-      {isAdmin && <div className="card space-y-3">
-        <div className="font-semibold">จัดการรายชื่อคณะกรรมการ P4P</div>
-        <p className="text-xs text-stone-500">สามารถแต่งตั้งบุคลากรที่ยังไม่มีบัญชีผู้ใช้ไว้ล่วงหน้าได้ เมื่อสมัครและเลือกชื่อจากทะเบียนบุคลากร ระบบจะผูกบัญชีและเพิ่มเป็นกรรมการ P4P โดยอัตโนมัติ</p>
-        <div className="flex flex-wrap gap-2">
-          <select className="inp min-w-[16rem]" value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
-            <option value="">เลือกบัญชีบุคลากรเพื่อแต่งตั้ง</option>
-            {availableProfiles.filter(p => !members.some(m => m.user_id === p.user_id && m.active)).map(p => <option key={p.user_id} value={p.user_id}>{p.full_name || p.username || p.user_id}{p.position ? ` · ${p.position}` : ''}</option>)}
-          </select>
-          <button type="button" className="btn sec" disabled={!selectedUser || busy} onClick={() => { setMember(selectedUser, true, false); setSelectedUser('') }}>เพิ่มกรรมการ</button>
-          {manthanaStaff && <button type="button" className="btn sec" disabled={busy || !!manthanaPreappointment?.active} onClick={() => runAction('แต่งตั้งนางสาวมัณฑนา เพชรคำ เป็นกรรมการล่วงหน้าแล้ว', () => sb.from('p4p_committee_preappointments').upsert({ staff_directory_source_row: manthanaStaff.source_row, active: true }).select().single())}>{manthanaPreappointment?.active ? (manthanaPreappointment.linked_user_id ? 'แต่งตั้งแล้วและเชื่อมบัญชีแล้ว' : 'แต่งตั้งกรรมการแล้ว · รอสมัครบัญชี') : 'แต่งตั้งนางสาวมัณฑนา เพชรคำ ล่วงหน้า'}</button>}
-        </div>
-        <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b text-left"><th className="p-2">กรรมการ</th><th className="p-2">สถานะ</th><th className="p-2">ตำแหน่ง</th><th className="p-2">จัดการ</th></tr></thead>
-          <tbody>{manthanaStaff && manthanaPreappointment?.active && !manthanaPreappointment.linked_user_id && <tr className="border-b bg-amber-50"><td className="p-2">{[manthanaStaff.prefix,manthanaStaff.first_name,manthanaStaff.last_name].filter(Boolean).join(' ')}</td><td className="p-2">แต่งตั้งแล้ว · รอสมัครบัญชี</td><td className="p-2">กรรมการ</td><td className="p-2">ระบบจะเชื่อมบัญชีอัตโนมัติ</td></tr>}{activeMembers.map(m => <tr key={m.user_id} className="border-b last:border-0">
-            <td className="p-2">{profileName(m.user_id)}</td>
-            <td className="p-2">{m.active ? 'ปฏิบัติหน้าที่' : 'ไม่ปฏิบัติหน้าที่'}</td>
-            <td className="p-2">'กรรมการ'</td>
-            <td className="p-2"><div className="flex flex-wrap gap-1">
-              {m.active && <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => setMember(m.user_id, false)}>ถอดออก</button>}
-              {!m.active && <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => setMember(m.user_id, true)}>คืนสถานะ</button>}
-            </div></td>
-          </tr>)}
-          {!activeMembers.length && <tr><td colSpan={4} className="p-4 text-center text-stone-500">ยังไม่มีรายชื่อกรรมการที่ปฏิบัติหน้าที่</td></tr>}
-          </tbody></table></div>
-      </div>}
+    {loading ? <div className="card text-sm text-stone-500">กำลังโหลดข้อมูล…</div> : <>
+      {tab === 'overview' && (unit
+        ? <UnitDetail unit={unit} groups={groups} siblings={units} canAudit={canAudit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
+          onViewPerson={line => setPanel({ person: line })} onRandomAudit={() => setPanel({ person: null, randomUnitId: unit.key })} />
+        : <UnitOverview units={units} onOpen={openUnit} />)}
+      {tab === 'close' && <ClosePanel review={review} votes={votes} roster={roster} currentUserId={currentUserId} isMember={isMember} activeCount={activeMembers.length}
+        units={statusOk ? units : []} groups={groups} totals={totals} busy={busy} onStart={startReview} onVote={castVote} onOpenUnit={openUnit} />}
+      {tab === 'roster' && isAdmin && <RosterAdmin sb={sb} members={members} roster={roster} version={version} busy={busy} runAction={runAction} setError={setError} />}
     </>}
+
+    {panel && <ActivityPanel sb={sb} monthDate={monthDate} person={panel.person} randomUnitId={panel.randomUnitId} canAudit={canAudit} lockedReason={lockedReason}
+      onClose={() => setPanel(null)} onChanged={refresh} />}
   </div>
 }

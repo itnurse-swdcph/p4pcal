@@ -1,0 +1,145 @@
+import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, BellRing, CheckCircle2, RotateCcw, X, XCircle } from 'lucide-react'
+import { appConfirm } from '../AppDialog'
+import { num } from './utils'
+
+const STATUS: Record<string, { label: string; cls: string }> = {
+  approved: { label: 'อนุมัติแล้ว', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  pending: { label: 'รอรับรอง', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
+  rejected: { label: 'ไม่อนุมัติ', cls: 'bg-red-50 text-red-800 border-red-200' },
+  draft: { label: 'ร่าง', cls: 'bg-stone-100 text-stone-700 border-stone-200' }
+}
+const FILTERS: [string, string][] = [['all', 'ทั้งหมด'], ['approved', 'อนุมัติแล้ว'], ['pending', 'รอรับรอง'], ['rejected', 'ไม่อนุมัติ']]
+
+type Props = {
+  sb: any
+  monthDate: string
+  /** บุคลากรที่ต้องการตรวจ (แถวจาก p4p_calc) หรือ null ถ้าเป็นโหมดสุ่มตรวจหน่วยงาน */
+  person: any | null
+  /** โหมดสุ่มตรวจ: ระบุหน่วยงานแทนบุคคล */
+  randomUnitId?: number | null
+  /** อนุญาตให้ส่งกลับ/ไม่อนุมัติได้หรือไม่ และเหตุผลที่ไม่อนุญาต */
+  canAudit: boolean
+  lockedReason: string
+  onClose: () => void
+  onChanged: () => void
+}
+
+export default function ActivityPanel({ sb, monthDate, person, randomUnitId, canAudit, lockedReason, onClose, onChanged }: Props) {
+  const [rows, setRows] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [filter, setFilter] = useState('all')
+  const [open, setOpen] = useState<{ id: number; type: 'return_for_correction' | 'reject' } | null>(null)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const personId = person && !String(person.id).startsWith('dir:') ? person.id : null
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      setLoading(true); setError('')
+      const select = 'id,person_id,person_name,position,work_date,shift,activity_code,title,qty,points,counted_points,status,evidence,reject_reason'
+      let q = sb.from('v_logs').select(select).eq('month', monthDate)
+      if (randomUnitId != null) q = q.eq('unit_id', randomUnitId).eq('status', 'approved').limit(300)
+      else if (personId) q = q.eq('person_id', personId).order('work_date').order('id').range(0, 999)
+      else { setRows([]); setLoading(false); return }
+      const { data, error: e } = await q
+      if (!alive) return
+      if (e) setError(e.message || 'ไม่สามารถโหลดกิจกรรมได้')
+      else if (randomUnitId != null) setRows([...(data || [])].sort(() => Math.random() - 0.5).slice(0, 5))
+      else setRows(data || [])
+      setLoading(false)
+    }
+    load()
+    return () => { alive = false }
+  }, [sb, monthDate, personId, randomUnitId])
+
+  const counts = useMemo(() => rows.reduce((a: any, r: any) => { a[r.status] = (a[r.status] || 0) + 1; return a }, {}), [rows])
+  const shown = filter === 'all' ? rows : rows.filter(r => r.status === filter)
+  const totalCounted = rows.filter(r => r.status === 'approved').reduce((s, r) => s + Number(r.counted_points ?? r.points ?? 0), 0)
+
+  const submit = async () => {
+    if (!open) return
+    const text = reason.trim()
+    if (text.length < 5) { setError('กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร เพื่อให้เจ้าของกิจกรรมทราบว่าต้องแก้ไขอะไร'); return }
+    const isReturn = open.type === 'return_for_correction'
+    const row = rows.find(r => r.id === open.id)
+    if (!(await appConfirm(`${isReturn ? 'ส่งกิจกรรมกลับให้แก้ไข' : 'ไม่อนุมัติกิจกรรม'}\n"${row?.title || row?.activity_code}"\nของ ${row?.person_name || person?.name || ''}\n\nระบบจะแจ้งเตือนเจ้าของกิจกรรมพร้อมเหตุผลที่ระบุ`, isReturn ? 'ยืนยันส่งกลับแก้ไข' : 'ยืนยันไม่อนุมัติ'))) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const { data, error: e } = await sb.rpc('p4p_committee_audit_activity', { p_log_id: open.id, p_action: open.type, p_reason: text })
+      if (e) throw e
+      if (data?.ok === false) throw new Error(data?.reason || 'ไม่สามารถบันทึกผลตรวจสอบได้')
+      const newStatus = data?.new_status || (isReturn ? 'pending' : 'rejected')
+      setRows(rs => rs.map(r => r.id === open.id ? { ...r, status: newStatus, reject_reason: text } : r))
+      setNotice(isReturn
+        ? 'ส่งกลับให้แก้ไขแล้ว และแจ้งเตือนเจ้าของกิจกรรมเรียบร้อย'
+        : 'บันทึกไม่อนุมัติแล้ว และแจ้งเตือนเจ้าของกิจกรรมเรียบร้อย')
+      setOpen(null); setReason('')
+      onChanged()
+    } catch (e: any) { setError(e?.message || 'บันทึกผลตรวจสอบไม่สำเร็จ') }
+    finally { setBusy(false) }
+  }
+
+  return <div className="fixed inset-0 z-[120] flex justify-end bg-slate-950/45" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+    <section role="dialog" aria-modal="true" aria-label="กิจกรรมรายบุคคล" className="flex h-full w-full max-w-3xl flex-col bg-white shadow-2xl">
+      <header className="flex items-start justify-between gap-3 border-b border-stone-200 p-4">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-teal-800">{randomUnitId != null ? 'สุ่มตรวจกิจกรรมที่อนุมัติแล้ว 5 รายการ' : 'ตรวจกิจกรรมรายบุคคล'}</div>
+          <h2 className="truncate text-lg font-bold text-stone-900">{person?.name || 'หน่วยงานที่เลือก'}</h2>
+          {person && <p className="text-xs text-stone-600">{person.position || '—'} · {person.unit_name || '—'}</p>}
+        </div>
+        <button type="button" className="rounded-lg p-2 text-stone-500 hover:bg-stone-100" aria-label="ปิด" onClick={onClose}><X size={20} /></button>
+      </header>
+
+      <div className="space-y-3 overflow-y-auto p-4">
+        {!canAudit && <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><AlertTriangle size={16} className="mt-0.5 shrink-0" /><span>{lockedReason}</span></div>}
+        {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
+        {notice && <div role="status" className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><BellRing size={16} className="mt-0.5 shrink-0" /><span>{notice}</span></div>}
+
+        {randomUnitId == null && <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1.5">{FILTERS.map(([k, l]) => <button key={k} type="button" onClick={() => setFilter(k)}
+            className={'rounded-full border px-3 py-1 text-xs font-semibold ' + (filter === k ? 'border-teal-700 bg-teal-700 text-white' : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50')}>
+            {l} {k === 'all' ? rows.length : counts[k] || 0}</button>)}</div>
+          <div className="text-xs text-stone-600">คะแนนที่นับได้ (อนุมัติแล้ว) <b className="text-stone-900">{num(totalCounted)}</b></div>
+        </div>}
+
+        {loading ? <p className="py-8 text-center text-sm text-stone-500">กำลังโหลดกิจกรรม…</p>
+          : !personId && randomUnitId == null ? <p className="py-8 text-center text-sm text-stone-500">บุคลากรคนนี้ยังไม่มีบัญชีบันทึกกิจกรรมในระบบ</p>
+          : !shown.length ? <p className="py-8 text-center text-sm text-stone-500">ไม่พบกิจกรรมตามเงื่อนไขที่เลือก</p>
+          : <ul className="space-y-2">{shown.map(r => {
+            const st = STATUS[r.status] || { label: r.status, cls: 'bg-stone-100 text-stone-700 border-stone-200' }
+            const form = open && open.id === r.id ? open : null
+            return <li key={r.id} className="rounded-xl border border-stone-200 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-semibold text-stone-900">{r.title || r.activity_code}</div>
+                  <div className="text-xs text-stone-600">{randomUnitId != null && <b>{r.person_name} · </b>}{new Date(r.work_date + 'T00:00:00').toLocaleDateString('th-TH', { dateStyle: 'medium' })}{r.shift ? ` · เวร${r.shift}` : ''} · จำนวน {num(r.qty)}</div>
+                </div>
+                <div className="text-right">
+                  <span className={'inline-block rounded-full border px-2.5 py-0.5 text-xs font-semibold ' + st.cls}>{st.label}</span>
+                  <div className="mt-1 text-xs text-stone-600">แต้ม <b className="text-stone-900">{num(r.counted_points ?? r.points)}</b></div>
+                </div>
+              </div>
+              {r.evidence && <p className="mt-2 whitespace-pre-wrap rounded-lg bg-stone-50 p-2 text-xs text-stone-700">หลักฐาน: {r.evidence}</p>}
+              {r.reject_reason && r.status !== 'approved' && <p className="mt-2 text-xs text-red-800">เหตุผล: {r.reject_reason}</p>}
+              {r.status === 'approved' && <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" className="btn sec !py-1" disabled={!canAudit || busy} onClick={() => { setOpen({ id: r.id, type: 'return_for_correction' }); setReason(''); setError('') }}><RotateCcw size={14} />ส่งกลับให้แก้ไข</button>
+                <button type="button" className="btn sec !py-1 !border-red-200 !text-red-700" disabled={!canAudit || busy} onClick={() => { setOpen({ id: r.id, type: 'reject' }); setReason(''); setError('') }}><XCircle size={14} />ไม่อนุมัติ</button>
+              </div>}
+              {form && <div className="mt-2 space-y-2 rounded-lg border border-teal-200 bg-teal-50/60 p-3">
+                <label className="block text-xs font-semibold text-stone-800">{form.type === 'return_for_correction' ? 'สิ่งที่ต้องแก้ไข (เจ้าของกิจกรรมจะเห็นข้อความนี้)' : 'เหตุผลที่ไม่อนุมัติ (เจ้าของกิจกรรมจะเห็นข้อความนี้)'}
+                  <textarea autoFocus className="inp mt-1 min-h-16 w-full !cursor-text" value={reason} onChange={e => setReason(e.target.value)} placeholder="อย่างน้อย 5 ตัวอักษร" /></label>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={'btn !py-1 ' + (form.type === 'reject' ? 'red' : '')} disabled={busy} onClick={submit}><CheckCircle2 size={14} />{busy ? 'กำลังบันทึก…' : form.type === 'return_for_correction' ? 'ยืนยันส่งกลับและแจ้งเตือน' : 'ยืนยันไม่อนุมัติและแจ้งเตือน'}</button>
+                  <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => { setOpen(null); setReason('') }}>ยกเลิก</button>
+                </div>
+              </div>}
+            </li>
+          })}</ul>}
+      </div>
+    </section>
+  </div>
+}
