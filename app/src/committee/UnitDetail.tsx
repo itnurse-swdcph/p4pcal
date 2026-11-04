@@ -11,14 +11,18 @@ type Props = {
   onViewPerson: (line: any) => void
   onRandomAudit: () => void
   canAudit: boolean
+  submission?: any
+  onReturnPerson?: (line: any, reason: string) => void
 }
 
 type Sort = 'name' | 'score' | 'pay'
 
-export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUnit, onViewPerson, onRandomAudit, canAudit }: Props) {
+export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUnit, onViewPerson, onRandomAudit, canAudit, submission, onReturnPerson }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
   const [sort, setSort] = useState<Sort>('name')
   const [reason, setReason] = useState('')
+  const [returnTarget, setReturnTarget] = useState<string | null>(null)
+  const [returnReason, setReturnReason] = useState('')
 
   const groupName = (pg: any) => groups.find(g => Number(g.pay_group) === Number(pg))?.name || `กลุ่ม ${pg ?? '—'}`
   const cards: [Filter, string, number, string][] = [
@@ -72,6 +76,7 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
 
     <section className="card space-y-2">
       <div className="text-xs font-semibold text-teal-800">{unit.group}</div>
+      {submission && <p className="text-xs font-semibold text-emerald-800">สถานะส่งผลงาน: {submission.status === 'returned' ? 'ส่งกลับแก้ไขรายบุคคล' : submission.status === 'resubmitted' ? 'ส่งผลงานซ้ำแล้ว' : 'ส่งผลงานแล้ว'}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-bold text-stone-900">{unit.name}</h2>
         {unit.ready
@@ -135,7 +140,15 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
           <td className="p-2 text-right tabular-nums">{Number(l.pending) > 0 ? <b className="text-amber-700">{num(l.pending, 0)}</b> : <span className="text-stone-400">0</span>}</td>
           <td className="p-2 text-right font-semibold tabular-nums">{money(l.total)}</td>
           <td className="p-2 max-w-[18rem] whitespace-pre-wrap break-words text-xs text-stone-700">{String(l.other_notes || '').trim() || <span className="text-stone-400">—</span>}</td>
-          <td className="p-2 text-right"><button type="button" className="btn sec !py-1" onClick={() => onViewPerson(l)}>ตรวจกิจกรรม</button></td>
+          <td className="p-2 text-right space-y-1">
+            <button type="button" className="btn sec !py-1" onClick={() => onViewPerson(l)}>ตรวจกิจกรรม</button>
+            {submission && onReturnPerson && <div>
+              {returnTarget === String(l.staff_directory_id ?? l.directory_source_row) ? <div className="w-56 space-y-1">
+                <textarea className="inp min-h-16 w-full text-xs" value={returnReason} onChange={e => setReturnReason(e.target.value)} placeholder="ระบุสิ่งที่ต้องแก้ไข อย่างน้อย 5 ตัวอักษร" />
+                <div className="flex justify-end gap-1"><button type="button" className="btn sec !py-1" onClick={() => { setReturnTarget(null); setReturnReason('') }}>ยกเลิก</button><button type="button" className="btn !py-1" disabled={returnReason.trim().length < 5} onClick={() => { onReturnPerson(l, returnReason); setReturnTarget(null); setReturnReason('') }}>ยืนยันส่งกลับ</button></div>
+              </div> : <button type="button" className="btn sec !py-1 !text-amber-800" onClick={() => { setReturnTarget(String(l.staff_directory_id ?? l.directory_source_row)); setReturnReason('') }}>ส่งกลับรายบุคคล</button>}
+            </div>}
+          </td>
         </tr>)}
           {!rows.length && <tr><td colSpan={10} className="p-6 text-center text-stone-500">ไม่พบรายชื่อตามเงื่อนไขที่เลือก</td></tr>}</tbody></table></div>
     </section>
