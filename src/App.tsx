@@ -613,44 +613,59 @@ async function fetchPages(mk: (from: number, to: number) => any) {
   }
   return out
 }
+// Cache เฉพาะในหน่วยความจำของแท็บปัจจุบัน ลดการอ่านชุดกิจกรรมซ้ำระหว่างเปลี่ยนหน้า
+// การกด reload จากการบันทึก/อนุมัติจะข้าม cache เพื่อให้ข้อมูลล่าสุดแสดงทันที
+const logsQueryCache = new Map<string, { expiresAt: number; promise: Promise<any[]> }>()
 function useLogs(sb: any, month: string, personIds: string[] | null, unit?: number | null) {
   const [rows, setRows] = useState<any[]>([])
   const [n, setN] = useState(0)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const personKey = personIds ? [...personIds].sort().join(',') : '*'
+  const cacheKey = JSON.stringify([month, unit ?? null, personKey])
   useEffect(() => {
     let alive = true
     const [a, b] = mRange(month)
     setLoading(true); setLoadError('')
     ;(async () => {
       try {
-        // ใช้ RPC ที่กรองเดือน/หน่วยงาน/บุคลากรก่อนคำนวณ Window Functions
-        // เพื่อไม่ให้ฐานข้อมูลคำนวณกิจกรรมทุกเดือนของทุกหน่วยงานก่อนค่อยกรองผลลัพธ์
-        const baseRows = await fetchPages((x, y) =>
-          sb.rpc('get_v_logs_month', {
-            p_start: a,
-            p_end: b,
-            p_unit_id: unit || null,
-            p_person_ids: personIds || null
-          }).order('work_date', { ascending: true }).order('id', { ascending: true }).range(x, y)
-        )
-        if (!alive) return
-        if (!baseRows.length) { setRows([]); return }
-        const extraMap = new Map<any, any>()
-        for (let i = 0; i < baseRows.length; i += 200) {
-          const { data, error } = await sb.from('logs').select('id, sub_activity, evidence_image_path, entered_by, reject_reason, submitted_at, parent_log_id, supplemental_reason').in('id', baseRows.slice(i, i + 200).map((x: any) => x.id))
-          if (error) throw error
-          ;(data || []).forEach((x: any) => extraMap.set(x.id, x))
+        let request = n === 0 ? logsQueryCache.get(cacheKey)?.promise : undefined
+        if (!request) {
+          request = (async () => {
+            const baseRows = await fetchPages((x, y) =>
+              sb.rpc('get_v_logs_month', {
+                p_start: a,
+                p_end: b,
+                p_unit_id: unit || null,
+                p_person_ids: personIds || null
+              }).order('work_date', { ascending: true }).order('id', { ascending: true }).range(x, y)
+            )
+            if (!baseRows.length) return []
+            const extraMap = new Map<any, any>()
+            for (let i = 0; i < baseRows.length; i += 200) {
+              const { data, error } = await sb.from('logs').select('id, sub_activity, evidence_image_path, entered_by, reject_reason, submitted_at, parent_log_id, supplemental_reason').in('id', baseRows.slice(i, i + 200).map((x: any) => x.id))
+              if (error) throw error
+              ;(data || []).forEach((x: any) => extraMap.set(x.id, x))
+            }
+            return baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) }))
+          })()
+          logsQueryCache.set(cacheKey, { expiresAt: Date.now() + 12000, promise: request })
+          request.catch(() => { if (logsQueryCache.get(cacheKey)?.promise === request) logsQueryCache.delete(cacheKey) })
         }
-        if (alive) setRows(baseRows.map((x: any) => ({ ...x, ...(extraMap.get(x.id) || {}) })))
+        const result = await request
+        if (alive) setRows(result)
       } catch (error: any) {
         console.error('โหลดรายการกิจกรรมไม่สำเร็จ:', error)
         if (alive) { setRows([]); setLoadError(error?.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล กรุณาลองใหม่') }
       } finally { if (alive) setLoading(false) }
     })()
     return () => { alive = false }
-  }, [month, n, unit, personIds?.join(',')])
-  return [rows, () => setN(x => x + 1), { loading, error: loadError }] as const
+  }, [month, n, unit, personKey, cacheKey])
+  const reload = () => {
+    logsQueryCache.delete(cacheKey)
+    setN(x => x + 1)
+  }
+  return [rows, reload, { loading, error: loadError }] as const
 }
 
 function MonthFilter({ month, setMonth, description = 'เลือกเดือนที่ต้องการแสดงข้อมูล' }: any) {
