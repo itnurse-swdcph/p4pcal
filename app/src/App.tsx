@@ -1354,6 +1354,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const editActivityOptions = (acts || []).filter((a: any) => a.active !== false && editActivityTerms.every((term: string) => [a.code, a.main_activity, a.title].join(' ').toLowerCase().includes(term))).sort((a: any, b: any) => String(a.code).localeCompare(String(b.code), 'th'))
   useEffect(() => { if (!editTargetRow) return; if (['draft', 'rejected', 'pending'].includes(String(editTargetRow.status))) beginEdit(editTargetRow); else appAlert('รายการนี้รับรองแล้ว จึงไม่สามารถแก้ไขได้'); clearEditTarget() }, [editTargetRow, clearEditTarget])
   const beginEdit = (r: any) => {
+    setDetailRow(null)
     setEditing(r)
     setForm({ work_date: r.work_date || '', activity_code: r.activity_code || '', qty: String(r.qty ?? 1), role: r.role || '', evidence: r.evidence || '', sub_activity: r.sub_activity || '', shift: r.shift || 'เช้า' })
     setEditActivityQuery('')
@@ -1448,7 +1449,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
           {!readOnly && r.status === 'pending' && Boolean(String(r.reject_reason || '').trim()) &&
             (r.entered_by === me || (ownerPersonId && String(ownerPersonId) === String(r.person_id))) &&
             <button className="btn sec !py-0.5 !border-amber-300 !text-amber-800" onClick={e => { e.stopPropagation(); beginEdit(r) }}>แก้ไขตามที่ส่งกลับ</button>}
-          {!readOnly && r.status === 'pending' && canDecideRow(ap, me, r) && <button className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); setDetailRow(r) }}>รายละเอียด / รับรอง</button>}
+          {(r.status !== 'pending' || canDecideRow(ap, me, r)) && <button className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); setEditing(null); setDetailRow(r) }}>{r.status === 'pending' && canDecideRow(ap, me, r) && !readOnly ? 'รายละเอียด / รับรอง' : 'ดูรายละเอียด'}</button>}
           {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}</td>
       </tr>})}{!displayedRows.length && <tr><td colSpan={canApprove && !readOnly ? 10 : 9} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
     {detailRow && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="activity-detail-title" onClick={() => setDetailRow(null)}><div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
@@ -1478,6 +1479,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
       <div><div className="text-xs text-stone-500 mb-1">กิจกรรมย่อย</div><div className="rounded-lg bg-stone-50 p-3 text-sm whitespace-pre-wrap">{detailRow.sub_activity || 'ไม่ได้ระบุ'}</div></div>
       <div><div className="text-xs text-stone-500 mb-1">หลักฐานข้อความ</div><div className="rounded-lg bg-stone-50 p-3 text-sm whitespace-pre-wrap">{detailRow.evidence || 'ไม่ได้ระบุ'}</div></div>
       {detailRow.evidence_image_path && <button type="button" className="btn sec" onClick={() => openEvidence(sb, detailRow.evidence_image_path)}>เปิดดูรูปหลักฐาน</button>}
+      {canEditReturnedRow(detailRow) && <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><button type="button" className="btn" onClick={async () => { await submitRows([detailRow.id]); setDetailRow(null) }}>ส่ง</button><button type="button" className="btn sec" onClick={() => beginEdit(detailRow)}>แก้ไข</button><button type="button" className="btn sec !text-red-700" onClick={async () => { if (await appConfirm('ยืนยันลบรายการนี้?')) { const { error } = await sb.from('logs').delete().eq('id', detailRow.id).in('status', ['draft', 'rejected']); if (error) appAlert('ลบรายการไม่สำเร็จ: ' + error.message); else { setDetailRow(null); reload() } } }}>ลบ</button></div>}
       {detailRow.status === 'pending' && canDecideRow(ap, me, detailRow) && !readOnly && <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><button type="button" className="btn red" onClick={() => { setRejecting(detailRow); setReason(''); setDetailRow(null) }}>ไม่รับรอง</button><button type="button" className="btn !bg-emerald-600 !text-white hover:!bg-emerald-700" onClick={async () => { const ok = await set(Number(detailRow.id), 'approved'); if (ok) setDetailRow(null) }}>รับรองกิจกรรม</button></div>}
     </div></div>}
     {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="reject-title"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-3">
