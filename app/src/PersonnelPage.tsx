@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Search, X, Pencil, Filter, Users, RefreshCw } from 'lucide-react'
+import { Plus, Search, X, Pencil, Filter, Users, RefreshCw, UserX } from 'lucide-react'
 
 type Staff = {
   source_row: number
@@ -61,6 +61,19 @@ export default function PersonnelPage({ sb, positions = [], units = [], reload }
   }, [rows, query, unitFilter, groupFilter, roleFilter, activeFilter])
   const openAdd = () => { setEditing(blank()); setIsNew(true); setMessage('') }
   const openEdit = (r: Staff) => { setEditing({ ...r }); setIsNew(false); setMessage('') }
+  const offboard = async (r: Staff) => {
+    const fullName = `${r.prefix || ''}${r.first_name} ${r.last_name}`.trim()
+    const ok = window.confirm(`ยืนยันนำ ${fullName} ออกจากระบบ P4Pcal?\\n\\nบัญชีจะถูกระงับ ทะเบียนบุคลากรจะเปลี่ยนเป็นไม่ใช้งาน และจะไม่นำมาคำนวณเงินรายหัว\\n\\nประวัติกิจกรรมและการอนุมัติเดิมจะเก็บไว้ ไม่ลบย้อนหลัง`)
+    if (!ok) return
+    setBusy(true); setMessage('')
+    const { data, error } = await sb.rpc('admin_offboard_staff', { p_source_row: r.source_row })
+    setBusy(false)
+    if (error) { setMessage('นำบุคลากรออกไม่สำเร็จ: ' + error.message); return }
+    if (!data?.success) { setMessage('ระบบไม่สามารถยืนยันผลการดำเนินการได้'); return }
+    setMessage(`นำ ${data.staff_name} ออกจากการใช้งานแล้ว เก็บประวัติกิจกรรมเดิมไว้ครบถ้วน`)
+    await load()
+    if (reload) reload()
+  }
   const save = async () => {
     if (!editing) return
     const required: (keyof Staff)[] = ['prefix', 'first_name', 'last_name', 'position', 'org_role', 'staff_group', 'staff_type', 'nursing_group']
@@ -112,7 +125,7 @@ export default function PersonnelPage({ sb, positions = [], units = [], reload }
       <div className="overflow-x-auto border rounded-xl"><table className="w-full text-sm">
         <thead><tr><th>รหัสแถว</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>บทบาท</th><th>กลุ่มบุคลากร</th><th>ประเภทบุคลากร</th><th>หน่วยงาน</th><th>หน่วยงานเพิ่มเติม</th><th>กลุ่มงาน</th><th>กลุ่มงานเพิ่มเติม</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
         <tbody>{filtered.map(r => <tr key={r.source_row}>
-          <td>{r.source_row}</td><td className="min-w-44"><b>{r.prefix}{r.first_name} {r.last_name}</b></td><td className="min-w-40">{r.position}</td><td>{r.org_role}</td><td>{r.staff_group}</td><td>{r.staff_type}</td><td className="min-w-44">{r.unit_name || '—'}</td><td>{r.extra_unit_names || '—'}</td><td>{r.nursing_group}</td><td>{r.extra_nursing_group_names || '—'}</td><td><span className={r.active ? 'text-teal-800' : 'text-stone-500'}>{r.active ? 'ปฏิบัติงาน' : 'ไม่ใช้งาน'}</span></td><td><button className="btn sec !py-1 whitespace-nowrap" onClick={() => openEdit(r)}><Pencil size={14} className="inline mr-1"/>แก้ไข</button></td>
+          <td>{r.source_row}</td><td className="min-w-44"><b>{r.prefix}{r.first_name} {r.last_name}</b></td><td className="min-w-40">{r.position}</td><td>{r.org_role}</td><td>{r.staff_group}</td><td>{r.staff_type}</td><td className="min-w-44">{r.unit_name || '—'}</td><td>{r.extra_unit_names || '—'}</td><td>{r.nursing_group}</td><td>{r.extra_nursing_group_names || '—'}</td><td><span className={r.active ? 'text-teal-800' : 'text-stone-500'}>{r.active ? 'ปฏิบัติงาน' : 'ไม่ใช้งาน'}</span></td><td><div className="flex gap-1"><button className="btn sec !py-1 whitespace-nowrap" onClick={() => openEdit(r)}><Pencil size={14} className="inline mr-1"/>แก้ไข</button>{r.active && <button className="btn sec !py-1 whitespace-nowrap !text-red-700" disabled={busy} onClick={() => void offboard(r)} title="ระงับบัญชีและนำออกจากทะเบียน"><UserX size={14} className="inline mr-1"/>นำออก</button>}</div></td>
         </tr>)}
         {!filtered.length && <tr><td colSpan={12} className="text-center p-8 text-stone-500">{loading ? 'กำลังโหลดทะเบียน…' : 'ไม่พบรายชื่อที่ตรงกับตัวกรอง'}</td></tr>}</tbody>
       </table></div>
