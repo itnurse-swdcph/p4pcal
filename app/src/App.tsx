@@ -78,7 +78,7 @@ const mRange = (m: string) => { const d = new Date(m + '-01'); const e = new Dat
 // นับวันปฏิบัติงาน: มีกิจกรรมที่รับรองอย่างน้อย 1 รายการในวันนั้นนับ 1 วัน แม้มีหลายเวร
 const countWorkDays = (rows: any[]) => new Set((rows || []).map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
 const countApprovedWorkDays = (rows: any[]) => countWorkDays((rows || []).filter((r: any) => r.status === 'approved'))
-// วันปฏิบัติงานนับเฉพาะวันที่มีรายการรับรองแล้ว ไม่หักวันลา และไม่เกินวันทำการตามปฏิทิน
+// วันทำการสุทธิ = วันที่มีกิจกรรมรับรองแล้ว (ไม่เกินวันทำการตามปฏิทิน) หักวันลาที่บันทึกไว้
 const calculateNetWorkDays = (rows: any[], calendarWorkingDays: number | null, leaveDays = 0) => {
   const days = countApprovedWorkDays(rows)
   const baseline = calendarWorkingDays == null ? days : Math.max(0, Number(calendarWorkingDays) || 0)
