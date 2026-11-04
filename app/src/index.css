@@ -404,6 +404,14 @@ table:not(.pt) td .space-x-1 > * + * { margin-left: .15rem; }
     line-height: 1.25 !important;
   }
   .unit-report-print, .unit-report-print * { color: #000 !important; }
+  body.print-unit-report .unit-report-print,
+  body.print-unit-report .unit-report-print *,
+  body.print-unit-report .unit-report-table th,
+  body.print-unit-report .unit-report-table td,
+  body.print-unit-report .unit-report-table small,
+  body.print-unit-report .unit-report-table span,
+  body.print-unit-report .unit-report-table b,
+  body.print-unit-report .unit-report-table strong { color: #000 !important; -webkit-text-fill-color: #000 !important; }
    .unit-report-print h1 { margin: 0 0 4mm; text-align: center; font-size: 16pt; font-weight: 700; color: #000 !important; }
    .unit-report-subtitle { text-align: center; font-size: 11pt; font-weight: 400; color: #000 !important; margin-bottom: 5mm; }
   .unit-report-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
