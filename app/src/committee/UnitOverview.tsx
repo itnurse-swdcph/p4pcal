@@ -58,11 +58,15 @@ export default function UnitOverview({ units, onOpen }: { units: UnitStat[]; onO
             </div>
             {u.ready
               ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800"><CheckCircle2 size={14} />พร้อมตรวจ 100%</span>
-              : <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"><Clock3 size={14} />ค้าง {num(u.pending, 0)} รายการ</span>}
+              : u.submissionStatus === 'returned'
+                ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800"><Clock3 size={14} />ส่งกลับแก้ไข</span>
+                : !u.submitted
+                  ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-stone-200 bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-700"><Clock3 size={14} />ยังไม่ส่งผลงาน</span>
+                  : <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"><Clock3 size={14} />ค้าง {num(u.pending, 0)} รายการ</span>}
           </div>
           <div className="mt-3" aria-label={`ความคืบหน้าการรับรองกิจกรรม ${u.progress}%`}>
             <div className="h-2 overflow-hidden rounded-full bg-stone-100"><div className={'h-full rounded-full ' + (u.ready ? 'bg-emerald-500' : 'bg-amber-400')} style={{ width: `${u.progress}%` }} /></div>
-            <div className="mt-1 flex justify-between text-[11px] text-stone-500"><span>รับรองกิจกรรมแล้ว {u.progress}%</span><span>{num(u.approved + u.rejected, 0)}/{num(u.approved + u.rejected + u.pending, 0)} รายการ</span></div>
+            <div className="mt-1 flex justify-between text-[11px] text-stone-500"><span>ความคืบหน้าการรับรอง {u.progress}%</span><span>{num(u.approved + u.rejected, 0)}/{num(u.approved + u.rejected + u.pending, 0)} รายการ</span></div>
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-600">
             <span>ถึงแต้มประกัน <b className="text-emerald-700">{num(u.reached, 0)}</b> · ต่ำกว่า <b className={u.below ? 'text-red-700' : 'text-stone-800'}>{num(u.below, 0)}</b></span>
