@@ -86,18 +86,22 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   const units = useMemo(() => buildUnitStats(linesWithOrg, unitsMeta, statusRows).map(u => ({ ...u, ready: statusOk && u.ready })), [linesWithOrg, unitsMeta, statusRows, statusOk])
   const unit = unitKey == null ? null : units.find(u => u.key === unitKey) || null
   // หน้าตรวจสอบจะแสดงเฉพาะหน่วยงาน/กลุ่มงานที่กดส่งผลงานแล้ว
-  const submittedUnits = useMemo(() => units.filter(u => submissions.some(s =>
+  const submissionForUnit = (u: any) => submissions.find(s =>
     s.scope_type === 'unit' ? Number(s.unit_id) === Number(u.key) :
       s.scope_type === 'group' && Number(u.key) < 0 && String(s.group_name || '') === String(u.group || '')
-  )), [units, submissions])
-  const selectedSubmission = unit ? submissions.find(s =>
-    s.scope_type === 'unit' ? Number(s.unit_id) === Number(unit.key) :
-      s.scope_type === 'group' && Number(unit.key) < 0 && String(s.group_name || '') === String(unit.group || '')
-  ) || null : null
+  ) || null
+  // หน่วยงานพร้อมตรวจต้องส่งผลงานแล้ว และไม่มีรายการค้างรับรอง; รายการที่ถูกส่งกลับไม่นับ
+  const submittedUnits = useMemo(() => units.filter(u => ['submitted', 'resubmitted', 'reviewed'].includes(String(submissionForUnit(u)?.status || ''))), [units, submissions])
+  const overviewUnits = useMemo(() => units.map(u => {
+    const submission = submissionForUnit(u)
+    const submitted = ['submitted', 'resubmitted', 'reviewed'].includes(String(submission?.status || ''))
+    return { ...u, submitted, submissionStatus: String(submission?.status || ''), ready: statusOk && submitted && u.ready, progress: submitted ? u.progress : 0 }
+  }), [units, submissions, statusOk])
+  const selectedSubmission = unit ? submissionForUnit(unit) : null
 
-  const readyCount = units.filter(u => u.ready).length
+  const readyCount = submittedUnits.filter(u => statusOk && u.ready).length
   const pendingTotal = units.reduce((s, u) => s + u.pending, 0)
-  const allReady = statusOk && units.length > 0 && readyCount === units.length
+  const allReady = statusOk && units.length > 0 && submittedUnits.length === units.length && readyCount === units.length
   const totals = useMemo(() => groups.reduce((a: any, g: any) => {
     const el = Number(g.n_eligible || 0), inel = Number(g.n_ineligible || 0)
     a.allocation += Number(g.full_amount || 0) * (el + inel); a.reserve += Number(g.reserve || 0) * el; a.carry += Number(g.carry_extra_in || 0)
@@ -190,11 +194,11 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
 
     {loading ? <div className="card text-sm text-stone-500">กำลังโหลดข้อมูล…</div> : <>
       {tab === 'overview' && (unit
-        ? <UnitDetail unit={unit} groups={groups} siblings={submittedUnits} submission={selectedSubmission} onReturnPerson={canReturnSubmission ? returnSubmissionPerson : undefined} canAudit={canAudit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
+        ? <UnitDetail unit={overviewUnits.find((u: any) => u.key === unit.key) || unit} groups={groups} siblings={overviewUnits} submission={selectedSubmission} onReturnPerson={canReturnSubmission ? returnSubmissionPerson : undefined} canAudit={canAudit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
           onViewPerson={line => setPanel({ person: line })} onRandomAudit={() => setPanel({ person: null, randomUnitId: unit.key })} />
-        : <UnitOverview units={submittedUnits} onOpen={openUnit} />)}
+        : <UnitOverview units={overviewUnits} onOpen={openUnit} />)}
       {tab === 'close' && <ClosePanel review={review} votes={votes} roster={roster} currentUserId={currentUserId} isMember={isMember} activeCount={activeMembers.length}
-        units={statusOk ? units : []} groups={groups} totals={totals} busy={busy} onStart={startReview} onVote={castVote} onOpenUnit={openUnit} />}
+        units={statusOk ? overviewUnits : []} groups={groups} totals={totals} busy={busy} onStart={startReview} onVote={castVote} onOpenUnit={openUnit} />}
       {tab === 'roster' && isAdmin && <RosterAdmin sb={sb} members={members} roster={roster} version={version} busy={busy} runAction={runAction} setError={setError} />}
     </>}
 
