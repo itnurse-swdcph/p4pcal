@@ -10,9 +10,10 @@ type Props = {
   groupName: string
   month: string
   scopeType?: 'unit' | 'group'
+  scopeLabel?: string
 }
 
-export default function P4PSubmissionControl({ sb, profile, unitId, groupName, month, scopeType = 'unit' }: Props) {
+export default function P4PSubmissionControl({ sb, profile, unitId, groupName, month, scopeType = 'unit', scopeLabel }: Props) {
   const [staff, setStaff] = useState<any[]>([])
   const [logs, setLogs] = useState<any[]>([])
   const [peopleRows, setPeopleRows] = useState<any[]>([])
@@ -126,7 +127,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
   if (!canSubmitRole || !canSubmitScope) return null
   return <section className="card space-y-3 border border-teal-200">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h3 className="font-bold text-stone-900">การส่งผลงานประจำเดือน</h3><p className="text-sm text-stone-600">{scopeType === 'unit' ? 'หน่วยงาน' : 'กลุ่มงาน'} · {groupName} · {monthLabel(month)}</p></div>
+      <div><h3 className="font-bold text-stone-900">การส่งผลงานประจำเดือน</h3><p className="text-sm text-stone-600">หน่วยงาน: {scopeLabel || groupName} · {monthLabel(month)}</p></div>
       {submission && <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">{statusLabel[submission.status] || submission.status}</span>}
     </div>
     {loading ? <p className="text-sm text-stone-500">กำลังตรวจสอบความพร้อม…</p> : <>
@@ -154,7 +155,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
     </>}
     {preview && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-label="ตรวจทานข้อมูลก่อนส่งผลงาน">
       <div className="w-full max-w-2xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl">
-        <div><h3 className="text-lg font-bold">ตรวจทานก่อนยืนยันส่งผลงาน</h3><p className="text-sm text-stone-600">{groupName} · {monthLabel(month)}</p></div>
+        <div><h3 className="text-lg font-bold">ตรวจทานก่อนยืนยันส่งผลงาน</h3><p className="text-sm text-stone-600">หน่วยงาน: {scopeLabel || groupName} · {monthLabel(month)}</p></div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">บุคลากร</div><b>{num(staff.length,0)} คน</b></div>
           <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">กิจกรรมรับรอง</div><b>{num(approved.length,0)} รายการ</b></div>
