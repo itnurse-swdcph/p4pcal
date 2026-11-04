@@ -326,41 +326,4 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, current
       </div>}
     </>}
   </div>
-}  const myMembership = activeMembers.find(x => x.user_id === currentUserId)
-  const isChair = !!myMembership?.is_chair
-  const isMember = !!myMembership
-  const myVote = votes.find(x => x.user_id === currentUserId)
-  const expectedVotes = Number(review?.expected_members?.length || 0)
-  const approvedVotes = votes.filter(x => x.decision === 'approved').length
-  const pendingCountKnown = pendingCountLive !== null
-  const pendingCount = Number(pendingCountLive ?? calc?.warnings?.pending_rows ?? review?.pending_count ?? 0)
-  const viewCalc = review?.status === 'reviewing' || review?.status === 'approved' ? (review.snapshot || calc) : calc
-  const groups = viewCalc?.groups || []
-  const lines = viewCalc?.lines || []
-  const totals = useMemo(() => groups.reduce((acc: any, g: any) => {
-    const eligible = Number(g.n_eligible || 0)
-    const ineligible = Number(g.n_ineligible || 0)
-    acc.allocation += Number(g.full_amount || 0) * (eligible + ineligible)
-    acc.reserve += Number(g.reserve || 0) * eligible
-    acc.carry += Number(g.carry_extra_in || 0)
-    acc.byScore += Number(g.by_score || 0) * eligible
-    acc.below += Number(g.below_threshold_difference || 0)
-    acc.pool += Number(g.pool_extra || 0)
-    acc.excess += Number(g.sum_excess || 0)
-    return acc
-  }, { allocation: 0, reserve: 0, carry: 0, byScore: 0, below: 0, pool: 0, excess: 0 }), [groups])
-
-  const runAction = async (label: string, action: () => Promise<any>) => {
-    setBusy(true); setMessage(''); setError('')
-    try {
-      const result = await action()
-      if (result?.error) throw result.error
-      const data = result?.data
-      if (data?.ok === false) {
-        setError(data.reason === 'pending_items' ? `ยังมีรายการรอรับรอง ${data.pending_count || 0} รายการ` :
-          data.reason === 'snapshot_changed' ? 'ข้อมูลคะแนนเปลี่ยนหลังลงมติ ต้องเริ่มรับรองใหม่' :
-          data.reason === 'committee_roster_changed' ? 'รายชื่อกรรมการเปลี่ยนแปลง ต้องเริ่มรับรองใหม่' : 'ไม่สามารถดำเนินการได้')
-      } else {
-        setMessage(label)
-        setComment('')
-      }
+}
