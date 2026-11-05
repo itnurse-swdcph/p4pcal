@@ -1706,4 +1706,3 @@ body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row)
 .sidebar-build .build-ok{color:#047857}.sidebar-build .build-old{color:#b45309;font-weight:700}.sidebar-build .build-unknown{color:#b91c1c}
 .sidebar-build-force{margin-top:.3rem;padding:.2rem .55rem;border:1px solid #d6d3d1;border-radius:.5rem;background:#fff;font-size:.68rem;font-weight:600;color:#44403c;cursor:pointer}
 .sidebar-build-force:hover{border-color:#0d8976;color:#0d8976}
-.nav-compact .sidebar-build,.nav-compact .sidebar-build-force{display:none}
