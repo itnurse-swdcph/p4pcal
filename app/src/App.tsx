@@ -2134,7 +2134,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const excess = scoring.excess
     const staffId = Number(p.staff_directory_id ?? p.directory_source_row)
 
-    const days = calculateNetWorkDays(approved, calendarWorkingDays)
+    const days = calculateNetWorkDays(approved, calendarWorkingDays, sumLeaveDays(leaveDrafts[String(staffId)] || {}))
     const paymentEligible = days > 0
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
