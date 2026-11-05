@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, BellRing, CheckCircle2, RotateCcw, X, XCircle } from 'lucide-react'
+import { AlertTriangle, BellRing, CheckCircle2, Printer, RotateCcw, X, XCircle } from 'lucide-react'
 import { appConfirm } from '../AppDialog'
 import { num } from './utils'
 
@@ -23,9 +23,13 @@ type Props = {
   lockedReason: string
   onClose: () => void
   onChanged: () => void
+  /** คอมโพเนนต์ใบสรุปผลงานรายบุคคล (A4 แนวนอน) จาก App — ใช้ชุดเดียวกับหน้าพิมพ์เดิม */
+  PrintSheet?: any
+  units?: any[]
+  positions?: any[]
 }
 
-export default function ActivityPanel({ sb, monthDate, person, randomUnitId, canAudit, lockedReason, onClose, onChanged }: Props) {
+export default function ActivityPanel({ sb, monthDate, person, randomUnitId, canAudit, lockedReason, onClose, onChanged, PrintSheet, units, positions }: Props) {
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -35,12 +39,21 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const personId = person && !String(person.id).startsWith('dir:') ? person.id : null
+  const [printData, setPrintData] = useState<{ person: any; leave: any } | null>(null)
+  const [preparingPrint, setPreparingPrint] = useState(false)
+
+  // กด Esc เพื่อปิดหน้าต่าง (ไม่ปิดขณะเปิดตัวอย่างพิมพ์อยู่)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !printData) onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, printData])
 
   useEffect(() => {
     let alive = true
     const load = async () => {
       setLoading(true); setError('')
-      const select = 'id,person_id,person_name,position,work_date,shift,activity_code,title,qty,points,counted_points,status,evidence,reject_reason'
+      const select = 'id,person_id,person_name,position,unit_id,work_date,shift,activity_code,title,uom,minutes,rate,domain,qty,points,counted_points,status,evidence,reject_reason'
       let q = sb.from('v_logs').select(select).eq('month', monthDate)
       if (randomUnitId != null) q = q.eq('unit_id', randomUnitId).eq('status', 'approved').limit(300)
       else if (personId) q = q.eq('person_id', personId).order('work_date').order('id').range(0, 999)
@@ -59,6 +72,35 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
   const counts = useMemo(() => rows.reduce((a: any, r: any) => { a[r.status] = (a[r.status] || 0) + 1; return a }, {}), [rows])
   const shown = filter === 'all' ? rows : rows.filter(r => r.status === filter)
   const totalCounted = rows.filter(r => r.status === 'approved').reduce((s, r) => s + Number(r.counted_points ?? r.points ?? 0), 0)
+
+  const approvedCount = counts.approved || 0
+  // เตรียมข้อมูลใบสรุปรายบุคคล: ข้อมูลบุคคล + วันลา (ผ่านฟังก์ชันที่ตรวจสิทธิ์กรรมการ) แล้วเปิดตัวอย่างพิมพ์
+  const openPrint = async () => {
+    if (!person || !personId || !PrintSheet) return
+    setPreparingPrint(true); setError(''); setNotice('')
+    try {
+      const { data: prow } = await sb.from('people').select('*').eq('id', personId).maybeSingle()
+      const staffId = person.staff_directory_id ?? person.directory_source_row ?? prow?.staff_directory_id
+      let leave = { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
+      if (staffId != null) {
+        const { data, error: e } = await sb.rpc('p4p_committee_person_leave', { p_staff_directory_id: Number(staffId), p_month: monthDate })
+        if (e) throw new Error('โหลดวันลาไม่สำเร็จ จึงยังไม่เปิดใบพิมพ์เพื่อไม่ให้ตัวเลขวันลาผิดพลาด: ' + (e.message || ''))
+        if (data) leave = data
+      }
+      setPrintData({
+        leave,
+        person: {
+          ...(prow || {}), ...person, id: personId,
+          name: person.name || prow?.name, position: person.position || prow?.position,
+          org_role: prow?.org_role ?? person.org_role,
+          unit_id: prow?.unit_id ?? person.unit_id ?? rows[0]?.unit_id,
+          sub_unit: prow?.sub_unit ?? person.sub_unit,
+          staff_directory_id: staffId
+        }
+      })
+    } catch (e: any) { setError(e?.message || 'เปิดใบสรุปรายบุคคลไม่สำเร็จ') }
+    finally { setPreparingPrint(false) }
+  }
 
   const submit = async () => {
     if (!open) return
@@ -91,7 +133,14 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
           <h2 className="truncate text-lg font-bold text-stone-900">{person?.name || 'หน่วยงานที่เลือก'}</h2>
           {person && <p className="text-xs text-stone-600">{person.position || '—'} · {person.unit_name || '—'}</p>}
         </div>
-        <button type="button" className="rounded-lg p-2 text-stone-500 hover:bg-stone-100" aria-label="ปิด" onClick={onClose}><X size={20} /></button>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {person && PrintSheet && <button type="button" className="btn !py-2" disabled={!personId || loading || preparingPrint || approvedCount === 0}
+            title={approvedCount === 0 ? 'พิมพ์ได้เมื่อมีกิจกรรมที่อนุมัติแล้ว' : 'พิมพ์เฉพาะกิจกรรมที่รับรองแล้ว (A4 แนวนอน)'} onClick={openPrint}>
+            <Printer size={16} className="mr-1 inline -mt-0.5" />{preparingPrint ? 'กำลังเตรียม…' : 'พิมพ์ใบสรุปรายบุคคล'}</button>}
+          <button type="button" aria-label="ปิดหน้าต่าง" title="ปิดหน้าต่าง (Esc)" onClick={onClose}
+            className="inline-flex items-center gap-1.5 rounded-lg border-2 border-stone-400 bg-stone-100 px-3 py-2 text-sm font-bold text-stone-900 shadow-sm transition hover:border-red-400 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500">
+            <X size={20} strokeWidth={3} />ปิด</button>
+        </div>
       </header>
 
       <div className="space-y-3 overflow-y-auto p-4">
@@ -141,5 +190,7 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
           })}</ul>}
       </div>
     </section>
+    {printData && PrintSheet && <PrintSheet sb={sb} person={printData.person} rows={rows} month={monthDate.slice(0, 7)} units={units || []} positions={positions || []}
+      leaveDataOverride={printData.leave} onClose={() => setPrintData(null)} />}
   </div>
 }
