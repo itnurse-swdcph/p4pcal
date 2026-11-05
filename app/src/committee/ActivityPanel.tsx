@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, BellRing, CheckCircle2, RotateCcw, X, XCircle } from 'lucide-react'
+import { AlertTriangle, BellRing, CheckCircle2, Printer, RotateCcw, X, XCircle } from 'lucide-react'
 import { appConfirm } from '../AppDialog'
 import { num } from './utils'
 
@@ -40,7 +40,7 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
     let alive = true
     const load = async () => {
       setLoading(true); setError('')
-      const select = 'id,person_id,person_name,position,work_date,shift,activity_code,title,qty,points,counted_points,status,evidence,reject_reason'
+      const select = 'id,person_id,person_name,position,work_date,shift,activity_code,title,qty,points,counted_points,status,evidence,reject_reason,uom,minutes,rate'
       let q = sb.from('v_logs').select(select).eq('month', monthDate)
       if (randomUnitId != null) q = q.eq('unit_id', randomUnitId).eq('status', 'approved').limit(300)
       else if (personId) q = q.eq('person_id', personId).order('work_date').order('id').range(0, 999)
@@ -91,7 +91,7 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
           <h2 className="truncate text-lg font-bold text-stone-900">{person?.name || 'หน่วยงานที่เลือก'}</h2>
           {person && <p className="text-xs text-stone-600">{person.position || '—'} · {person.unit_name || '—'}</p>}
         </div>
-        <button type="button" className="rounded-lg p-2 text-stone-500 hover:bg-stone-100" aria-label="ปิด" onClick={onClose}><X size={20} /></button>
+        <div className="flex shrink-0 items-center gap-2">{personId && <button type="button" className="btn !py-1.5" onClick={printIndividualSummary}><Printer size={15} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปรายบุคคล</button>}<button type="button" className="rounded-lg p-2 text-stone-500 hover:bg-stone-100" aria-label="ปิด" onClick={onClose}><X size={20} /></button></div>
       </header>
 
       <div className="space-y-3 overflow-y-auto p-4">
