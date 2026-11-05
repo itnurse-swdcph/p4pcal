@@ -1844,6 +1844,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     if (error) setGroupLeaveMessages(v => ({ ...v, [key]: 'บันทึกไม่สำเร็จ: ' + error.message }))
     else {
       setGroupLeaveData(v => ({ ...v, [key]: values }))
+      window.dispatchEvent(new CustomEvent('p4p-leave-saved'))
       setGroupLeaveMessages(v => ({ ...v, [key]: 'บันทึกแล้ว' }))
       setGroupLeaveEditing(v => ({ ...v, [key]: false }))
     }
@@ -2163,7 +2164,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const { error } = await sb.from('p4p_monthly_leave').upsert({ staff_directory_id: staffId, unit_id: Number(unit), month: month + '-01', ...values }, { onConflict: 'staff_directory_id,month' })
     setLeaveSaving(v => ({ ...v, [staffId]: false }))
     setLeaveMessages(v => ({ ...v, [staffId]: error ? 'บันทึกไม่สำเร็จ: ' + error.message : 'บันทึกแล้ว' }))
-    if (!error) setLeaveEditing(v => ({ ...v, [String(staffId)]: false }))
+    if (!error) { setLeaveEditing(v => ({ ...v, [String(staffId)]: false })); window.dispatchEvent(new CustomEvent('p4p-leave-saved')) }
   }
   const selectedUnit = (units || []).find((u: any) => Number(u.id) === Number(unit))
   const unitName = selectedUnit?.name || ''

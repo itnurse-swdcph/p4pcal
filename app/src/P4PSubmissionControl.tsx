@@ -25,6 +25,14 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [isGroupHeadWithoutUnit, setIsGroupHeadWithoutUnit] = useState(false)
+  const [reloadTick, setReloadTick] = useState(0)
+
+  // เมื่อบันทึกวันลา/หมายเหตุในหน้าสรุปผลแล้ว ให้โหลดข้อมูลใหม่ทันที (ไม่ต้องสลับหน้า)
+  useEffect(() => {
+    const onSaved = () => setReloadTick(t => t + 1)
+    window.addEventListener('p4p-leave-saved', onSaved)
+    return () => window.removeEventListener('p4p-leave-saved', onSaved)
+  }, [])
 
   const monthDate = month + '-01'
   const rangeEnd = useMemo(() => {
@@ -36,7 +44,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
   useEffect(() => {
     let alive = true
     const load = async () => {
-      setLoading(true); setError(''); setMessage('')
+      if (reloadTick === 0) { setLoading(true); setError(''); setMessage('') }
       let rosterQuery = sb.from('staff_directory')
         .select('source_row,prefix,first_name,last_name,position,org_role,unit_name,nursing_group,extra_nursing_group_names,active')
         .eq('active', true).neq('source_row', 2)
@@ -86,7 +94,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
     }
     void load().catch((e: any) => { if (alive) { setError(e?.message || 'โหลดข้อมูลไม่สำเร็จ'); setLoading(false) } })
     return () => { alive = false }
-  }, [sb, unitId, groupName, month, scopeType, profile?.staff_directory_id, monthDate, rangeEnd])
+  }, [sb, unitId, groupName, month, scopeType, profile?.staff_directory_id, monthDate, rangeEnd, reloadTick])
 
   const pending = logs.filter((r: any) => r.status === 'pending').length
   const approved = logs.filter((r: any) => r.status === 'approved')
