@@ -977,13 +977,11 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   }
   return <div className="space-y-4">
     <MonthFilter month={month} setMonth={setMonth} description="เลือกเดือนสำหรับบันทึก ตรวจสอบ และสรุปกิจกรรม P4P" />
-    <div className={`rounded-lg border p-3 text-sm ${recordingPolicy.emergency_enabled ? 'border-amber-300 bg-amber-50 text-amber-900' : selectedMonthClosed ? 'border-red-300 bg-red-50 text-red-800' : 'border-teal-200 bg-teal-50 text-teal-900'}`} role="status">
-      {recordingPolicy.emergency_enabled
-        ? <b>เปิดโหมดฉุกเฉิน: ระบบอนุญาตให้บันทึกย้อนหลังได้แม้พ้นกำหนดปกติ</b>
-        : selectedMonthClosed
-          ? <b>ปิดรับบันทึกย้อนหลังของเดือน {selectedMonthLabel} แล้ว (กำหนดปกติไม่เกินวันที่ 5 ของเดือนถัดไป)</b>
-          : <><b>แจ้งเตือนกำหนดบันทึกย้อนหลัง:</b> กิจกรรมของเดือน {selectedMonthLabel} บันทึกย้อนหลังได้ไม่เกินวันที่ 5 เดือนถัดไป ({deadlineLabel}) ตั้งแต่วันที่ 6 เป็นต้นไปจะไม่สามารถบันทึกย้อนหลังได้</>}
-    </div>
+    {!recordingPolicy.emergency_enabled && <div className={`rounded-lg border p-3 text-sm ${selectedMonthClosed ? 'border-red-300 bg-red-50 text-red-800' : 'border-teal-200 bg-teal-50 text-teal-900'}`} role="status">
+      {selectedMonthClosed
+        ? <b>ปิดรับบันทึกย้อนหลังของเดือน {selectedMonthLabel} แล้ว (กำหนดปกติไม่เกินวันที่ 5 ของเดือนถัดไป)</b>
+        : <><b>แจ้งเตือนกำหนดบันทึกย้อนหลัง:</b> กิจกรรมของเดือน {selectedMonthLabel} บันทึกย้อนหลังได้ไม่เกินวันที่ 5 เดือนถัดไป ({deadlineLabel}) ตั้งแต่วันที่ 6 เป็นต้นไปจะไม่สามารถบันทึกย้อนหลังได้</>}
+    </div>}
     <div className="space-y-3">
       {person && <div className="flex flex-wrap justify-end gap-2"><button type="button" className="btn sec" onClick={() => setPrinting(true)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปประจำเดือน (A4)</button><button type="button" className="btn" onClick={() => document.getElementById('saved-activity-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>ตรวจสอบรายการบันทึก</button></div>}
       {printing && printPerson && <PrintSheet sb={sb} person={printPerson} rows={printRows} month={month} units={units} positions={positions} onClose={() => setPrinting(false)} />}
