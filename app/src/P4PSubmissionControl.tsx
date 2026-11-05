@@ -98,10 +98,15 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
 
   const pending = logs.filter((r: any) => r.status === 'pending').length
   const approved = logs.filter((r: any) => r.status === 'approved')
+  const approvedPointsByPerson = approved.reduce((totals: Map<string, number>, r: any) => {
+    const key = String(r.person_id)
+    totals.set(key, (totals.get(key) || 0) + Number(r.counted_points || 0))
+    return totals
+  }, new Map<string, number>())
   const missingNotes = staff.filter((p: any) => {
     const person = peopleRows.find((x: any) => Number(x.staff_directory_id) === Number(p.source_row))
-    const hasApproved = !!person && approved.some((r: any) => String(r.person_id) === String(person.id))
-    return !hasApproved && !String(notes[String(p.source_row)] || '').trim()
+    const approvedPoints = person ? (approvedPointsByPerson.get(String(person.id)) || 0) : 0
+    return approvedPoints <= 0 && !String(notes[String(p.source_row)] || '').trim()
   })
   const points = approved.reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const workDays = new Set(approved.map((r: any) => String(r.work_date).slice(0, 10))).size
