@@ -102,10 +102,10 @@ const thaiBahtText = (value: number) => {
 };
 // ช่วงวันที่ของเดือน (คำนวณแบบ UTC ไม่ขึ้นกับเขตเวลาของเครื่อง เพื่อไม่ให้ได้วันที่ผิดเช่น 2026-11-31)
 const mRange = (m: string) => { const [y, mo] = String(m).split('-').map(Number); const last = new Date(Date.UTC(y, mo, 0)).getUTCDate(); const p = String(mo).padStart(2, '0'); return [`${y}-${p}-01`, `${y}-${p}-${String(last).padStart(2, '0')}`] }
-// นับเวรปฏิบัติงาน: 1 เวร = 1 คู่ (วันที่ + เวร) ที่มีกิจกรรมอย่างน้อย 1 รายการ (เวรเดียวกันหลายกิจกรรมนับ 1 เวร)
-const countShifts = (rows: any[]) => new Set((rows || []).filter((r: any) => r.work_date).map((r: any) => String(r.work_date).slice(0, 10) + '|' + String(r.shift || '')) ).size
-const countWorkDays = countShifts
-const countApprovedWorkDays = (rows: any[]) => countShifts((rows || []).filter((r: any) => r.status === 'approved'))
+// นับวันทำการ: วันที่ปฏิบัติงานที่มีรายการอย่างน้อย 1 รายการให้นับ 1 วัน แม้มีหลายเวรในวันเดียวกัน
+const countShifts = (rows: any[]) => new Set((rows || []).filter((r: any) => r.work_date).map((r: any) => String(r.work_date).slice(0, 10) + '|' + String(r.shift || ''))).size
+const countWorkDays = (rows: any[]) => new Set((rows || []).filter((r: any) => r.work_date).map((r: any) => String(r.work_date).slice(0, 10))).size
+const countApprovedWorkDays = (rows: any[]) => countWorkDays((rows || []).filter((r: any) => r.status === 'approved'))
 // วันทำการสุทธิ = จำนวนเวรที่รับรองแล้ว − วันลาทั้งหมด (ต่ำสุด 0) และต้องไม่เกินวันทำการพื้นฐานตามปฏิทิน
 // เช่น 30 เวร ลา 2 วัน = 28 แต่วันทำการตามปฏิทิน 20 วัน จะได้ 20
 const calculateNetWorkDays = (rows: any[], calendarWorkingDays: number | null, leaveDays = 0) => {
@@ -1877,7 +1877,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
       setGroupLeaveEditing({})
     })
     return () => { alive = false }
-  }, [sb, groupName, month])
+  }, [sb, groupName, month, heads])
   const saveGroupLeave = async (person: any) => {
     const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
     if (!staffId) { appAlert('ไม่พบรหัสบุคลากรจากทะเบียนกลาง จึงยังบันทึกข้อมูลวันลาไม่ได้'); return }
