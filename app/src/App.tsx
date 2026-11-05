@@ -526,7 +526,7 @@ function Main({ sb, session }: any) {
 
   useEffect(() => { sb.from('activities').select('*').eq('active', true).order('code').then((r: any) => setActs(r.data || [])) }, [actsVersion])
 
-  if (profileLoadError) return <div className="p-8 space-y-3"><p>ไม่สามารถโหลดข้อมูลโปรไฟล์ได้: {profileLoadError}</p><p>บัญชีของคุณยังไม่ถูกออกจากระบบ สามารถลองโหลดหน้าใหม่ได้ก่อน</p><div className="flex flex-wrap gap-2"><button className="btn" onClick={() => window.location.reload()}>ลองโหลดอีกครั้ง</button><button className="btn sec" onClick={() => sb.auth.signOut({ scope: 'local' })}>กลับไปหน้าเข้าสู่ระบบ</button></div></div>
+  if (profileLoadError) return <div className="p-8 space-y-3"><p>ไม่สามารถโหลดข้อมูลโปรไฟล์ได้: {profileLoadError}</p><p>บัญชีของคุณยังไม่ถูกออกจากระบบ สามารถลองโหลดหน้าใหม่ได้ก่อน</p><div className="flex flex-wrap gap-2"><button className="btn" onClick={() => (() => { const freshUrl = new URL(window.location.href); freshUrl.searchParams.set('__p4p_refresh', CURRENT_BUILD_ID); window.location.replace(freshUrl.toString()) })()}>ลองโหลดอีกครั้ง</button><button className="btn sec" onClick={() => sb.auth.signOut({ scope: 'local' })}>กลับไปหน้าเข้าสู่ระบบ</button></div></div>
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'; const isHeadRole = role === 'head' || role === 'group_head'
