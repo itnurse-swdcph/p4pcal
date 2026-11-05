@@ -60,6 +60,41 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
   const shown = filter === 'all' ? rows : rows.filter(r => r.status === filter)
   const totalCounted = rows.filter(r => r.status === 'approved').reduce((s, r) => s + Number(r.counted_points ?? r.points ?? 0), 0)
 
+
+  const printIndividualSummary = async () => {
+    if (!personId) return
+    const win = window.open('', '_blank')
+    if (!win) { setError('กรุณาอนุญาต Pop-up เพื่อเปิดหน้าพิมพ์'); return }
+    const esc = (v: any) => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string))
+    const start = new Date(monthDate + 'T00:00:00')
+    const days = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate()
+    const approved = rows.filter((r: any) => r.status === 'approved')
+    const map = new Map<string, any>()
+    approved.forEach((r: any) => {
+      const key = String(r.activity_code || r.title || r.id)
+      const g = map.get(key) || { title: r.title || key, uom: r.uom || '', minutes: r.minutes || 0, rate: r.rate || 0, byDay: {}, qty: 0, points: 0 }
+      const d = Number(String(r.work_date || '').slice(8, 10))
+      if (d > 0 && d <= 31) g.byDay[d] = (g.byDay[d] || 0) + Number(r.qty || 0)
+      g.qty += Number(r.qty || 0); g.points += Number(r.counted_points ?? r.points ?? 0); map.set(key, g)
+    })
+    const groups = [...map.values()]
+    const nf = (v: any, digits = 2) => Number(v || 0).toLocaleString('th-TH', { maximumFractionDigits: digits })
+    let leave: any = {}; let signer: any = null
+    try {
+      const staffId = person.staff_directory_id ?? person.directory_source_row
+      if (staffId) { const { data } = await sb.from('p4p_monthly_leave').select('personal_leave_days,sick_leave_days,annual_leave_days').eq('staff_directory_id', staffId).eq('month', monthDate).maybeSingle(); leave = data || {} }
+      const { data } = await sb.rpc('approver_print_details_of', { p_person: personId }); signer = data?.[0] || null
+    } catch (e) { console.error(e) }
+    const role = String(signer?.approver_org_role || '')
+    const signRole = role.includes('หัวหน้ากลุ่มงาน') ? 'หัวหน้ากลุ่มงาน' : role.includes('หัวหน้างาน') ? 'หัวหน้างาน' : 'หัวหน้าพยาบาล/รักษาการหัวหน้าพยาบาล'
+    const fmtDays = Array.from({ length: days }, (_, i) => '<th>' + (i + 1) + '</th>').join('')
+    const body = groups.map((g: any, i: number) => '<tr><td>' + (i + 1) + '</td><td>' + esc(g.title) + '</td><td>' + esc(g.uom || '—') + '</td><td>' + nf(g.minutes, 0) + '</td><td>' + nf(g.rate, 3) + '</td><td>1</td><td>' + nf(Number(g.minutes) * Number(g.rate)) + '</td>' + Array.from({ length: days }, (_, d) => '<td>' + (g.byDay[d + 1] ? nf(g.byDay[d + 1]) : '') + '</td>').join('') + '<td>' + nf(g.qty) + '</td><td>' + nf(g.points) + '</td></tr>').join('')
+    const monthName = start.toLocaleDateString('th-TH', { month: 'long' })
+    const totalCols = days + 9
+    const html = '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>ใบสรุปรายบุคคล</title><style>@page{size:A4 landscape;margin:8mm}body{font-family:"Noto Sans Thai",Tahoma,sans-serif;color:#000;font-size:9px}h1{text-align:center;font-size:12pt}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #222;padding:2px;text-align:center;overflow-wrap:anywhere}td:nth-child(2){text-align:left}.meta{margin-bottom:5px}.sign{text-align:center;margin:20px 20px 0 60%;line-height:1.8}</style></head><body><h1>แบบบันทึกคะแนนผลการปฏิบัติงานรายบุคคล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</h1><div class="meta">' + esc(person.nursing_group || person.group_name || person.staff_group || '') + '　' + esc(person.unit_name || person.sub_unit || '') + '　ประจำเดือน ' + esc(monthName) + ' พ.ศ. ' + (start.getFullYear() + 543) + '<br>ชื่อ-สกุล ' + esc(person.name || person.person_name || '') + '　ตำแหน่ง ' + esc(person.position || '') + '<br>ลากิจ = ' + nf(leave.personal_leave_days) + ' วัน　ลาป่วย = ' + nf(leave.sick_leave_days) + ' วัน　ลาพักผ่อน = ' + nf(leave.annual_leave_days) + ' วัน</div><table><thead><tr><th rowspan="2">ลำดับ</th><th rowspan="2">กิจกรรม</th><th rowspan="2">หน่วยนับ</th><th rowspan="2">เวลา<br>(นาที)</th><th rowspan="2">คะแนน/นาที</th><th rowspan="2">ค่างาน</th><th rowspan="2">คะแนนปรับ</th><th colspan="' + days + '">วันที่</th><th rowspan="2">รวมหน่วย</th><th rowspan="2">รวมแต้ม</th></tr><tr>' + fmtDays + '</tr></thead><tbody>' + (body || '<tr><td colspan="' + totalCols + '">ไม่มีรายการกิจกรรมที่ผ่านการรับรองในเดือนนี้</td></tr>') + (groups.length ? '<tr><td colspan="' + (days + 7) + '">รวมทั้งหมด</td><td>' + nf(groups.reduce((a: number, g: any) => a + g.qty, 0)) + '</td><td>' + nf(groups.reduce((a: number, g: any) => a + g.points, 0)) + '</td></tr>' : '') + '</tbody></table><div class="sign">ขอรับรองว่าผู้มีรายนามข้างต้นได้ปฏิบัติงานจริง<br>ลงชื่อ ................................................<br>(' + esc(signer?.approver_name || '................................') + ')<br>' + esc(signRole) + '<br>วันที่ ....../....../......</div><script>window.onload=()=>setTimeout(()=>window.print(),300);window.onafterprint=()=>window.close()</script></body></html>'
+    win.document.open(); win.document.write(html); win.document.close()
+  }
+
   const submit = async () => {
     if (!open) return
     const text = reason.trim()
