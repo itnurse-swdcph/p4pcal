@@ -82,11 +82,11 @@ const countApprovedWorkShifts = (rows: any[]) => new Set((rows || []).filter((r:
   const date = String(r.work_date || '').slice(0, 10)
   return date ? `${date}|${String(r.shift || 'ไม่ระบุเวร').trim()}` : ''
 }).filter(Boolean)).size
-// วันทำการสุทธิ = (จำนวนเวรที่รับรองแล้ว − วันลาทั้งหมด) และต้องไม่เกินวันทำการตามปฏิทินของเดือน
-// เช่น 30 เวร ลา 2 วัน = 28 → แสดง 20 เมื่อเดือนนั้นมี 20 วันทำการ
-const calculateNetWorkDays = (rows: any[], calendarWorkingDays: number | null, leaveDays = 0) => {
-  const netShifts = Math.max(0, countApprovedWorkShifts(rows) - Math.max(0, Number(leaveDays) || 0))
-  return calendarWorkingDays == null ? netShifts : Math.min(netShifts, Math.max(0, Number(calendarWorkingDays) || 0))
+// วันทำการ/เดือน = จำนวนเวรที่ปฏิบัติและรับรองแล้ว โดยจำกัดไม่เกินวันทำการพื้นฐานตามปฏิทิน
+// ไม่หักวันลาอีก เพราะวันที่ลาไม่มีเวรที่ปฏิบัติจริงให้ระบบนับอยู่แล้ว
+const calculateNetWorkDays = (rows: any[], calendarWorkingDays: number | null) => {
+  const approvedShifts = countApprovedWorkShifts(rows)
+  return calendarWorkingDays == null ? approvedShifts : Math.min(approvedShifts, Math.max(0, Number(calendarWorkingDays) || 0))
 }
 const calculateCalendarWorkingDays = (month: string, overrides: any[] = []) => {
   const [year, monthNumber] = String(month || '').split('-').map(Number)
@@ -1228,8 +1228,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const difference = performanceTotal - guarantee
   const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(person.position || '').replace(/\s+/g, '').trim())
   const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-  const leaveDays = Number(leaveData.personal_leave_days || 0) + Number(leaveData.sick_leave_days || 0) + Number(leaveData.annual_leave_days || 0)
-  const eligibleWorkDays = calculateNetWorkDays((rows || []).filter((r: any) => r.status === 'approved'), calendarWorkingDays, leaveDays)
+  const eligibleWorkDays = calculateNetWorkDays((rows || []).filter((r: any) => r.status === 'approved'), calendarWorkingDays)
   const paymentEligible = eligibleWorkDays > 0
   const performancePay = !paymentEligible ? 0 : allocation > 0 ? allocation * (performanceTotal >= guarantee ? 0.97 : 0.77) : null
   const closed = payoutResult?.closed === true
@@ -1248,7 +1247,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   return <div className="space-y-1" aria-label="สรุปแต้มและเงินเพิ่มประจำเดือน">
     <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
       {cards.map((item) => <div key={item.label} className="card !p-3 sm:!p-4 min-w-0"><div className="text-xs sm:text-sm text-stone-600">{item.label}</div><div className={'mt-1 text-xl sm:text-2xl font-bold tabular-nums ' + item.color}>{item.value}</div>
-        {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!paymentEligible ? 'ไม่มีสิทธิ์รับเงินตามวันทำการสุทธิหลังหักวันลา · ยอดเงิน 0 บาท' : !closed ? 'เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังคณะกรรมการ P4P อนุมัติครบและปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · อัตรา {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
+        {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!paymentEligible ? 'ไม่มีสิทธิ์รับเงินตามจำนวนวันทำการที่ได้รับการรับรอง · ยอดเงิน 0 บาท' : !closed ? 'เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังคณะกรรมการ P4P อนุมัติครบและปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · อัตรา {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
       </div>)}
     </div>
     <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: จำนวนเงินตามผลงานเป็นยอดประมาณการจากคะแนนที่บันทึกไว้ (รวมรายการรอรับรอง) โดยใช้เกณฑ์ 97% หรือ 77%; เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังปิดงวด</p>
@@ -1836,8 +1835,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     setGroupLeaveSaving(v => ({ ...v, [key]: true })); setGroupLeaveMessages(v => ({ ...v, [key]: '' }))
     values.other_notes = String(draft.other_notes || '').trim()
     const personSummary = sum.find((x: any) => Number(x.p.staff_directory_id ?? x.p.directory_source_row) === staffId)
-    const leaveDays = values.personal_leave_days + values.sick_leave_days + values.annual_leave_days
-    const eligibleDays = calculateNetWorkDays(personSummary?.rs || [], calendarWorkingDays, leaveDays)
+    const eligibleDays = calculateNetWorkDays(personSummary?.rs || [], calendarWorkingDays)
     if (eligibleDays <= 0 && !values.other_notes) { setGroupLeaveMessages(v => ({ ...v, [key]: 'กรุณาระบุหมายเหตุอื่นๆ เนื่องจากบุคลากรรายนี้ไม่มีสิทธิ์รับเงิน' })); return }
     const { error } = await sb.from('p4p_group_monthly_leave').upsert({ staff_directory_id: staffId, group_name: groupName, month: month + '-01', ...values }, { onConflict: 'staff_directory_id,group_name,month' })
     setGroupLeaveSaving(v => ({ ...v, [key]: false }))
@@ -1868,10 +1866,8 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
     const rate = p.unit_id != null && rates[String(p.unit_id)] != null ? Number(rates[String(p.unit_id)]) : groupRate
     const staffId = Number(p.staff_directory_id ?? p.directory_source_row)
-    const leaveKey = String(staffId || '')
-    const leave = groupLeaveDrafts[leaveKey] || groupLeaveData[leaveKey] || {}
-    const leaveDays = Number(leave.personal_leave_days || 0) + Number(leave.sick_leave_days || 0) + Number(leave.annual_leave_days || 0)
-    const days = calculateNetWorkDays(approved, calendarWorkingDays, leaveDays)
+
+    const days = calculateNetWorkDays(approved, calendarWorkingDays)
     const paymentEligible = days > 0
     const basePay = paymentEligible ? allocation * (performancePoints >= g ? 0.97 : 0.77) : 0
     const payout = paymentEligible ? basePay + excess * rate : 0
@@ -1905,15 +1901,14 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
       <PaymentMemo sb={sb} profile={profile} groupName={groupName} month={month} amount={sum.reduce((total: number, person: any) => total + Number(person.payout || 0), 0)} />
     </div>
     {leaveReportOpen && <div className="space-y-3">
-      <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · วันทำการพื้นฐานตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · วันทำการ/เดือนนับจากวันที่มีกิจกรรมรับรองแล้ว โดยไม่นับเวรซ้ำในวันเดียวกัน · แสดงเฉพาะหัวหน้ากลุ่มงาน</p></div>
+      <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · วันทำการพื้นฐานตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · วันทำการ/เดือนนับจากจำนวนเวรที่ได้รับการรับรอง โดยนับหลายกิจกรรมในเวรเดียวกันเป็น 1 เวร และไม่หักวันลา · แสดงเฉพาะหัวหน้ากลุ่มงาน</p></div>
       <div className="overflow-x-auto rounded-xl border border-stone-200"><table className="w-full min-w-[1250px] text-sm"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>วันทำการ/เดือน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>หมายเหตุอื่นๆ</th><th>สิทธิ์รับเงิน</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
         {sum.map((x: any) => {
           const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
           const key = String(staffId || '')
           const saved = groupLeaveData[key] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0, other_notes: '' }
           const draft = groupLeaveDrafts[key] || { personal_leave_days: String(saved.personal_leave_days), sick_leave_days: String(saved.sick_leave_days), annual_leave_days: String(saved.annual_leave_days), other_notes: String(saved.other_notes || '') }
-          const leaveDays = Number(draft.personal_leave_days || 0) + Number(draft.sick_leave_days || 0) + Number(draft.annual_leave_days || 0)
-          const netWorkDays = calculateNetWorkDays(x.rs || [], calendarWorkingDays, leaveDays)
+          const netWorkDays = calculateNetWorkDays(x.rs || [], calendarWorkingDays)
           const workDays = netWorkDays
           const paymentEligible = netWorkDays > 0
           const setLeave = (field: string, value: string) => setGroupLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
@@ -2131,9 +2126,8 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const performancePoints = scoring.performance
     const excess = scoring.excess
     const staffId = Number(p.staff_directory_id ?? p.directory_source_row)
-    const leave = leaveDrafts[String(staffId || '')] || {}
-    const leaveDays = Number(leave.personal_leave_days || 0) + Number(leave.sick_leave_days || 0) + Number(leave.annual_leave_days || 0)
-    const days = calculateNetWorkDays(approved, calendarWorkingDays, leaveDays)
+
+    const days = calculateNetWorkDays(approved, calendarWorkingDays)
     const paymentEligible = days > 0
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
@@ -2158,8 +2152,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     setLeaveSaving(v => ({ ...v, [staffId]: true })); setLeaveMessages(v => ({ ...v, [staffId]: '' }))
     values.other_notes = String(draft.other_notes || '').trim()
     const personRows = rows.filter((r: any) => String(r.person_id) === String(person.id))
-    const leaveDays = values.personal_leave_days + values.sick_leave_days + values.annual_leave_days
-    const eligibleDays = calculateNetWorkDays(personRows, calendarWorkingDays, leaveDays)
+    const eligibleDays = calculateNetWorkDays(personRows, calendarWorkingDays)
     if (eligibleDays <= 0 && !values.other_notes) { setLeaveMessages(v => ({ ...v, [String(staffId)]: 'กรุณาระบุหมายเหตุอื่นๆ เนื่องจากบุคลากรรายนี้ไม่มีสิทธิ์รับเงิน' })); return }
     const { error } = await sb.from('p4p_monthly_leave').upsert({ staff_directory_id: staffId, unit_id: Number(unit), month: month + '-01', ...values }, { onConflict: 'staff_directory_id,month' })
     setLeaveSaving(v => ({ ...v, [staffId]: false }))
@@ -2253,15 +2246,14 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
         {reportOnly && <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)}>{leaveReportOpen ? 'กลับสรุปรายงานหน่วยงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>}
       </div>
       {leaveReportOpen && reportOnly && <div className="space-y-3">
-        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันทำการพื้นฐานตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · วันทำการ/เดือนนับจากวันที่มีกิจกรรมรับรองแล้ว โดยไม่นับเวรซ้ำในวันเดียวกัน</p></div>
+        <div className="card space-y-1"><h2 className="text-lg font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h2><p className="text-sm text-stone-600">{unitName} · ประจำเดือน {monthText} · วันทำการพื้นฐานตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · วันทำการ/เดือนนับจากจำนวนเวรที่ได้รับการรับรอง โดยนับหลายกิจกรรมในเวรเดียวกันเป็น 1 เวร และไม่หักวันลา</p></div>
         <div className="card overflow-x-auto p-0"><table className="w-full min-w-[1300px]"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>วันทำการ/เดือน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>หมายเหตุอื่นๆ</th><th>สิทธิ์รับเงิน</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
           {sum.map((x: any) => {
             const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
             const key = String(staffId || '')
             const draft = leaveDrafts[key] || { personal_leave_days: '0', sick_leave_days: '0', annual_leave_days: '0', other_notes: '' }
             const personRows = rows.filter((r: any) => String(r.person_id) === String(x.p.id))
-            const leaveDays = Number(draft.personal_leave_days || 0) + Number(draft.sick_leave_days || 0) + Number(draft.annual_leave_days || 0)
-            const netWorkDays = calculateNetWorkDays(personRows, calendarWorkingDays, leaveDays)
+            const netWorkDays = calculateNetWorkDays(personRows, calendarWorkingDays)
             const workDays = netWorkDays
             const paymentEligible = netWorkDays > 0
             const setLeave = (field: string, value: string) => setLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
