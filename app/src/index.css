@@ -1584,3 +1584,42 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
 /* Editable memo body supports user-authored line breaks in preview and print. */
 .memo-body-editor textarea { width:100%; min-height:8rem; resize:vertical; border:1px solid #ccd7df; border-radius:7px; padding:.5rem .6rem; font:inherit; font-size:.82rem; line-height:1.5; color:#172c3b; background:#fff; }
 .memo-paper .memo-body { white-space:pre-wrap !important; }
+
+/* ===== Print tables: column headings must wrap inside their own column (final, authoritative) ===== */
+/* Thai has no spaces, so word-break:keep-all / nowrap made headings run into neighbouring columns. */
+.unit-report-table th,
+.unit-report-table th.unit-col-payout-received,
+.unit-report-table th.unit-col-date {
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  hyphens: manual !important;
+}
+body .unit-report-table thead tr:not(.unit-report-heading-row) th,
+body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row) th {
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  font-size: 7.5pt !important;
+  line-height: 1.2 !important;
+  padding: 1mm .6mm !important;
+  vertical-align: middle !important;
+}
+@media print {
+  body.print-unit-report table, body.print-individual-report table, body.print-payment-memo table, body.print-activity-library table {
+    max-width: 100%;
+  }
+  body.print-unit-report table th, body.print-individual-report table th, body.print-payment-memo table th, body.print-activity-library table th {
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    hyphens: manual !important;
+  }
+}
