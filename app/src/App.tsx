@@ -103,7 +103,6 @@ const thaiBahtText = (value: number) => {
 // ช่วงวันที่ของเดือน (คำนวณแบบ UTC ไม่ขึ้นกับเขตเวลาของเครื่อง เพื่อไม่ให้ได้วันที่ผิดเช่น 2026-11-31)
 const mRange = (m: string) => { const [y, mo] = String(m).split('-').map(Number); const last = new Date(Date.UTC(y, mo, 0)).getUTCDate(); const p = String(mo).padStart(2, '0'); return [`${y}-${p}-01`, `${y}-${p}-${String(last).padStart(2, '0')}`] }
 // นับวันทำการ: วันที่ปฏิบัติงานที่มีรายการอย่างน้อย 1 รายการให้นับ 1 วัน แม้มีหลายเวรในวันเดียวกัน
-const countShifts = (rows: any[]) => new Set((rows || []).filter((r: any) => r.work_date).map((r: any) => String(r.work_date).slice(0, 10) + '|' + String(r.shift || ''))).size
 const countWorkDays = (rows: any[]) => new Set((rows || []).filter((r: any) => r.work_date).map((r: any) => String(r.work_date).slice(0, 10))).size
 const countApprovedWorkDays = (rows: any[]) => countWorkDays((rows || []).filter((r: any) => r.status === 'approved'))
 // วันทำการสุทธิ = จำนวนเวรที่รับรองแล้ว − วันลาทั้งหมด (ต่ำสุด 0) และต้องไม่เกินวันทำการพื้นฐานตามปฏิทิน
