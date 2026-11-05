@@ -157,7 +157,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       {submission?.status === 'submitted' || submission?.status === 'resubmitted' || submission?.status === 'reviewed'
         ? <p className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><CheckCircle2 size={17}/>ส่งผลงานแล้ว · ล็อกการบันทึกกิจกรรมในขอบเขตนี้</p>
         : <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn" disabled={!ready || busy || !canSubmitScope} onClick={() => setPreview(true)}><Send size={16}/>ตรวจทานและส่งผลงาน</button>
+          <button type="button" className="btn blue" disabled={!ready || busy || !canSubmitScope} onClick={() => setPreview(true)}><Send size={16}/>ตรวจทานและส่งผลงาน</button>
           {submission?.status === 'returned' && <span className="self-center text-xs text-stone-600">หลังแก้ไข ต้องส่งผลงานทั้งหน่วยงานอีกครั้ง</span>}
         </div>}
     </>}
