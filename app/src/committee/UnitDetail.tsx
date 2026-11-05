@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowDownToLine, ArrowUpToLine, CheckCircle2, Clock3, Dices, Wallet } from 'lucide-react'
-import { lineMatches, money, num, reasonLabel, type Filter, type UnitStat } from './utils'
+import { ArrowLeft, ArrowDownToLine, ArrowUpToLine, CheckCheck, CheckCircle2, Clock3, Dices, Wallet } from 'lucide-react'
+import { dateTime, lineMatches, money, num, reasonLabel, type Filter, type UnitStat } from './utils'
 
 type Props = {
   unit: UnitStat
@@ -13,11 +13,15 @@ type Props = {
   canAudit: boolean
   submission?: any
   onReturnPerson?: (line: any, reason: string) => void
+  reviewEnabled?: boolean
+  canReview?: boolean
+  onReviewUnit?: () => void
+  onUnreviewUnit?: () => void
 }
 
 type Sort = 'name' | 'score' | 'pay'
 
-export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUnit, onViewPerson, onRandomAudit, canAudit, submission, onReturnPerson }: Props) {
+export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUnit, onViewPerson, onRandomAudit, canAudit, submission, onReturnPerson, reviewEnabled = false, canReview = false, onReviewUnit, onUnreviewUnit }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
   const [sort, setSort] = useState<Sort>('name')
   const [reason, setReason] = useState('')
@@ -84,6 +88,19 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
           : <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800"><Clock3 size={16} />ยังไม่พร้อม · ค้างรับรอง {num(unit.pending, 0)} รายการ ({num(unit.peoplePending, 0)} คน)</span>}
       </div>
       {!unit.ready && <p className="text-xs text-stone-600">หัวหน้างานต้องรับรองกิจกรรมที่ค้างให้ครบก่อน จึงจะเริ่มกระบวนการรับรองผลประจำเดือนได้ (กรองดูรายชื่อที่ค้างได้ที่ตัวกรอง "มีรายการรอรับรอง")</p>}
+      {!reviewEnabled && <p className="border-t border-stone-100 pt-3 text-xs text-stone-500">ไม่สามารถอ่านสถานะตรวจจากฐานข้อมูลได้ จึงปิดการกดตรวจและเริ่มรับรองไว้ก่อน กรุณาแจ้งผู้ดูแลระบบ</p>}
+      {reviewEnabled && <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
+        {unit.reviewed
+          ? <>
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800"><CheckCheck size={16} />ตรวจแล้ว</span>
+            <span className="text-xs text-stone-600">โดย {unit.reviewedByName || 'กรรมการ'}{unit.reviewedAt ? ` · ${dateTime(unit.reviewedAt)}` : ''}</span>
+            <button type="button" className="btn sec !py-1" disabled={!canReview} onClick={onUnreviewUnit}>ยกเลิกการตรวจ</button>
+          </>
+          : <>
+            <button type="button" className="btn" disabled={!unit.ready || !canReview} onClick={onReviewUnit}><CheckCheck size={16} />ตรวจแล้ว</button>
+            <span className="text-xs text-stone-600">{!unit.ready ? 'กดได้เมื่อหน่วยงานส่งผลงานและพร้อมตรวจ 100%' : !canReview ? 'เฉพาะกรรมการที่ปฏิบัติหน้าที่ก่อนเริ่มรับรองผลเท่านั้น' : 'กดเมื่อกรรมการตรวจหน่วยงานนี้เรียบร้อยแล้ว'}</span>
+          </>}
+      </div>}
     </section>
 
     <section aria-label="สรุปบุคลากร (กดเพื่อดูรายชื่อ)" className="space-y-2">

@@ -13,6 +13,7 @@ type Props = {
   groups: any[]
   totals: any
   busy: boolean
+  reviewGate?: boolean
   onStart: () => void
   onVote: (decision: 'approved' | 'rejected', comment: string) => Promise<boolean>
   onOpenUnit: (key: number) => void
@@ -28,7 +29,7 @@ const Step = ({ n, state, title, children }: { n: number; state: 'done' | 'activ
     <div className="min-w-0 flex-1 pb-6"><h3 className={'font-semibold ' + (state === 'todo' ? 'text-stone-500' : 'text-stone-900')}>{title}</h3><div className="mt-2 space-y-2 text-sm">{children}</div></div>
   </li>
 
-export default function ClosePanel({ review, votes, roster, currentUserId, isMember, activeCount, units, groups, totals, busy, onStart, onVote, onOpenUnit }: Props) {
+export default function ClosePanel({ review, votes, roster, currentUserId, isMember, activeCount, units, groups, totals, busy, reviewGate = false, onStart, onVote, onOpenUnit }: Props) {
   const [comment, setComment] = useState('')
   const status: string = review?.status || 'none'
   const closed = status === 'closed'
@@ -42,11 +43,13 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
   const iAmExpected = expected.includes(currentUserId)
   const notReady = units.filter(u => !u.ready)
   const allReady = units.length > 0 && notReady.length === 0
+  const unchecked = reviewGate ? units.filter(u => u.ready && !u.reviewed) : []
+  const allChecked = reviewGate && units.length > 0 && unchecked.length === 0
   const pending = units.reduce((s, u) => s + u.pending, 0)
   const canRestart = isMember && !closed && !reviewing
 
   const s1: 'done' | 'active' = allReady || reviewing || closed ? 'done' : 'active'
-  const s2: 'done' | 'active' | 'todo' = reviewing || closed ? 'done' : allReady ? 'active' : 'todo'
+  const s2: 'done' | 'active' | 'todo' = reviewing || closed ? 'done' : allReady && allChecked ? 'active' : 'todo'
   const s3: 'done' | 'active' | 'todo' = closed ? 'done' : reviewing ? 'active' : 'todo'
   const s4: 'done' | 'todo' = closed ? 'done' : 'todo'
 
@@ -63,6 +66,7 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
         {!isMember && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">ดูได้อย่างเดียว (ไม่ใช่กรรมการที่ปฏิบัติหน้าที่)</span>}
       </div>
       <ol>
+        {!reviewGate && !reviewing && !closed && <div role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">ระบบไม่สามารถอ่านสถานะตรวจรายหน่วยงานได้ จึงปิดการเริ่มรับรองไว้ก่อน กรุณาตรวจสอบการอัปเดตฐานข้อมูลหรือแจ้งผู้ดูแลระบบ</div>}
         <Step n={1} state={s1} title="ตรวจความพร้อมทุกหน่วยงาน">
           {allReady || reviewing || closed
             ? <p className="text-emerald-800">ทุกหน่วยงานพร้อมตรวจ 100% ({num(units.length, 0)} หน่วยงาน) ไม่มีรายการรอรับรอง</p>
@@ -79,8 +83,10 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
             : <>
               {status === 'rejected' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900"><b>รอบก่อนมีกรรมการไม่เห็นชอบ</b>{rejectedVote && <> — {nameOf(rejectedVote.user_id)}: "{rejectedVote.comment}"</>}<br />แก้ไขข้อมูลตามเหตุผลแล้วเริ่มรับรองใหม่ได้ (มติเดิมจะถูกล้าง)</div>}
               {status === 'stale' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">ข้อมูลคะแนนหรือรายชื่อกรรมการเปลี่ยนหลังเริ่มรับรอง จึงต้องเริ่มรับรองใหม่</div>}
-              <button type="button" className="btn" disabled={busy || !canRestart || !allReady || activeCount === 0} onClick={onStart}><Play size={16} />{status === 'rejected' || status === 'stale' ? 'เริ่มรับรองใหม่' : 'เริ่มกระบวนการรับรอง'}</button>
+              <button type="button" className="btn" disabled={busy || !canRestart || !allReady || !allChecked || activeCount === 0} onClick={onStart}><Play size={16} />{status === 'rejected' || status === 'stale' ? 'เริ่มรับรองใหม่' : 'เริ่มกระบวนการรับรอง'}</button>
               {!allReady && <p className="text-xs text-stone-500">ปุ่มจะใช้ได้เมื่อทุกหน่วยงานพร้อม 100%</p>}
+              {allReady && !allChecked && <div className="space-y-1"><p className="text-xs text-amber-800">ต้องกดตรวจแล้วให้ครบทุกหน่วยงานก่อน (เหลือ {num(unchecked.length, 0)} หน่วยงาน)</p>
+                <ul className="max-h-40 divide-y overflow-auto rounded-lg border border-stone-200">{unchecked.map(u => <li key={u.key} className="flex items-center justify-between gap-2 p-2"><span className="truncate">{u.name}<span className="text-xs text-stone-500"> · {u.group}</span></span><button type="button" className="btn sec !py-1" onClick={() => onOpenUnit(u.key)}>ไปตรวจ</button></li>)}</ul></div>}
               {allReady && !isMember && <p className="text-xs text-stone-500">เฉพาะกรรมการที่ปฏิบัติหน้าที่เท่านั้นที่เริ่มได้</p>}</>}
         </Step>
 

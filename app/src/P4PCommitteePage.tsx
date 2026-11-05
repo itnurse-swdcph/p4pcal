@@ -28,6 +28,8 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   const [roster, setRoster] = useState<any[]>([])
   const [statusRows, setStatusRows] = useState<any[]>([])
   const [submissions, setSubmissions] = useState<any[]>([])
+  const [unitReviews, setUnitReviews] = useState<any[]>([])
+  const [reviewOk, setReviewOk] = useState(false)
   const [statusOk, setStatusOk] = useState(true)
   const [unitsMeta, setUnitsMeta] = useState<any[]>([])
   const [staffMeta, setStaffMeta] = useState<any[]>([])
@@ -40,7 +42,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
     let alive = true
     const load = async () => {
       setError('')
-      const [c, r, m, v, ro, st, un, sd, ss] = await Promise.all([
+      const [c, r, m, v, ro, st, un, sd, ss, ur] = await Promise.all([
         sb.rpc('p4p_committee_calc', { p_month: monthDate }),
         sb.from('p4p_monthly_reviews').select('*').eq('month', monthDate).maybeSingle(),
         sb.from('p4p_committee_members').select('user_id,active,is_chair,appointed_at').order('appointed_at'),
@@ -49,16 +51,19 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         sb.rpc('p4p_committee_activity_status', { p_month: monthDate }),
         sb.from('units').select('id,name,parent_group'),
         sb.rpc('p4p_committee_staff_groups'),
-        sb.rpc('p4p_committee_submissions', { p_month: monthDate })
+        sb.rpc('p4p_committee_submissions', { p_month: monthDate }),
+        sb.rpc('p4p_committee_unit_reviews', { p_month: monthDate })
       ])
       if (!alive) return
       const errs = [c.error && (c.error.message || 'ไม่สามารถโหลดผลคำนวณ P4P ได้'), r.error && 'ไม่สามารถโหลดสถานะการรับรองได้', m.error && 'ไม่สามารถโหลดรายชื่อกรรมการได้',
         v.error && 'ไม่สามารถโหลดผลลงมติได้', ro.error && 'ไม่สามารถโหลดทะเบียนกรรมการได้', st.error && 'ไม่สามารถตรวจสอบสถานะกิจกรรมรายหน่วยงานได้ จึงยังไม่ถือว่าหน่วยงานใดพร้อมตรวจ',
-        un.error && 'ไม่สามารถโหลดรายชื่อหน่วยงานได้', sd.error && 'ไม่สามารถโหลดข้อมูลกลุ่มงานของบุคลากรได้', ss.error && 'ไม่สามารถโหลดรายการส่งผลงานของหน่วยงานได้'].filter(Boolean)
+        un.error && 'ไม่สามารถโหลดรายชื่อหน่วยงานได้', sd.error && 'ไม่สามารถโหลดข้อมูลกลุ่มงานของบุคลากรได้', ss.error && 'ไม่สามารถโหลดรายการส่งผลงานของหน่วยงานได้', ur.error && 'ไม่สามารถโหลดสถานะตรวจรายหน่วยงานได้ จึงปิดการเริ่มรับรองไว้ก่อน'].filter(Boolean)
       if (errs.length) setError(errs.join(' · '))
       setCalc(c.error ? null : c.data); setReview(r.error ? null : r.data); setMembers(m.data || []); setVotes(v.data || [])
       setRoster(ro.data || []); setStatusRows(st.data || []); setStatusOk(!st.error)
       setUnitsMeta(un.data || []); setStaffMeta(sd.data || []); setSubmissions(ss.data || [])
+      // สถานะตรวจแล้วเป็นเงื่อนไขบังคับ: หากฐานข้อมูลยังไม่พร้อมหรืออ่านสถานะไม่ได้ ต้องไม่อนุญาตให้เริ่มรับรอง
+      setUnitReviews(ur.error ? [] : ur.data || []); setReviewOk(!ur.error)
       setLoadedFor(monthDate)
     }
     load()
@@ -95,12 +100,17 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   const overviewUnits = useMemo(() => units.map(u => {
     const submission = submissionForUnit(u)
     const submitted = ['submitted', 'resubmitted', 'reviewed'].includes(String(submission?.status || ''))
-    return { ...u, submitted, submissionStatus: String(submission?.status || ''), ready: statusOk && submitted && u.ready, progress: submitted ? u.progress : 0 }
-  }), [units, submissions, statusOk])
+    const ready = statusOk && submitted && u.ready
+    const rv = submission && ['submitted', 'resubmitted'].includes(String(submission.status)) ? unitReviews.find((x: any) => x.submission_id === submission.id) : null
+    return { ...u, submitted, submissionStatus: String(submission?.status || ''), ready, progress: submitted ? u.progress : 0,
+      reviewed: reviewOk && ready && !!rv, reviewedByName: rv?.reviewed_by_name || '', reviewedAt: rv?.reviewed_at || null }
+  }), [units, submissions, statusOk, unitReviews, reviewOk])
   const selectedSubmission = unit ? submissionForUnit(unit) : null
 
   const readyCount = submittedUnits.filter(u => statusOk && u.ready).length
   const pendingTotal = units.reduce((s, u) => s + u.pending, 0)
+  const reviewedCount = overviewUnits.filter((u: any) => u.reviewed).length
+  const allChecked = reviewOk && overviewUnits.length > 0 && reviewedCount === overviewUnits.length
   const allReady = statusOk && units.length > 0 && submittedUnits.length === units.length && readyCount === units.length
   const totals = useMemo(() => groups.reduce((a: any, g: any) => {
     const el = Number(g.n_eligible || 0), inel = Number(g.n_ineligible || 0)
@@ -152,12 +162,23 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       sb.rpc('p4p_return_submission_person', { p_submission_id: selectedSubmission.id, p_staff_directory_id: staffId, p_reason: reason.trim() }))
   };
 
+  const reviewUnit = async () => {
+    if (!selectedSubmission?.id) { setError('ไม่พบรายการส่งผลงานของหน่วยงานนี้'); return }
+    await runAction('ทำเครื่องหมายตรวจแล้วเรียบร้อย', () => sb.rpc('p4p_review_unit', { p_submission_id: selectedSubmission.id }))
+  }
+  const unreviewUnit = async () => {
+    if (!selectedSubmission?.id) return
+    if (!(await appConfirm('ยกเลิกสถานะ "ตรวจแล้ว" ของหน่วยงานนี้ใช่หรือไม่?'))) return
+    await runAction('ยกเลิกสถานะตรวจแล้วเรียบร้อย', () => sb.rpc('p4p_unreview_unit', { p_submission_id: selectedSubmission.id }))
+  }
+
   const myVote = votes.find(v => v.user_id === currentUserId)
   const iAmExpected = (review?.expected_members || []).includes(currentUserId)
   const next = rstatus === 'closed' ? { text: 'งวดนี้ปิดและประกาศผลแล้ว', go: null as Tab | null, tone: 'ok' }
     : rstatus === 'reviewing' && iAmExpected && !myVote ? { text: 'ถึงคิวคุณลงมติแล้ว', go: 'close' as Tab, tone: 'act' }
       : rstatus === 'reviewing' ? { text: 'รอกรรมการลงมติให้ครบ', go: 'close' as Tab, tone: 'wait' }
-        : allReady ? { text: 'ทุกหน่วยงานพร้อมตรวจ 100% เริ่มกระบวนการรับรองได้', go: 'close' as Tab, tone: 'act' }
+        : allReady && !allChecked ? { text: `ทุกหน่วยงานพร้อมตรวจแล้ว แต่ตรวจแล้ว ${num(reviewedCount, 0)}/${num(units.length, 0)} หน่วยงาน ต้องกดตรวจแล้วให้ครบก่อนเริ่มรับรอง`, go: null as Tab | null, tone: 'wait' }
+        : allReady ? { text: 'ตรวจครบทุกหน่วยงานแล้ว เริ่มกระบวนการรับรองได้', go: 'close' as Tab, tone: 'act' }
           : { text: `ยังมี ${num(units.length - readyCount, 0)} หน่วยงานที่ยังไม่พร้อม (ค้างรับรอง ${num(pendingTotal, 0)} รายการ)`, go: null as Tab | null, tone: 'wait' }
 
   const tabs: [Tab, string][] = [['overview', 'ตรวจรายหน่วยงาน'], ['close', 'รับรองและปิดงวด'], ...(isAdmin ? [['roster', 'กรรมการ'] as [Tab, string]] : [])]
@@ -178,6 +199,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       {!loading && <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="rounded-full bg-stone-100 px-3 py-1">สถานะ: <b>{STATUS_LABEL[rstatus] || rstatus}</b></span>
         <span className={'rounded-full px-3 py-1 ' + (allReady ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800')}>หน่วยงานพร้อม <b>{num(readyCount, 0)}/{num(units.length, 0)}</b></span>
+        {reviewOk && <span className={'rounded-full px-3 py-1 ' + (allChecked ? 'bg-emerald-50 text-emerald-800' : 'bg-stone-100')}>ตรวจแล้ว <b>{num(reviewedCount, 0)}/{num(units.length, 0)}</b></span>}
         <span className="rounded-full bg-stone-100 px-3 py-1">ค้างรับรอง <b className={pendingTotal ? 'text-amber-700' : 'text-emerald-700'}>{num(pendingTotal, 0)}</b> รายการ</span>
       </div>}
       {!loading && <div className={'flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm ' + (next.tone === 'act' ? 'border-teal-300 bg-teal-50 text-teal-950' : next.tone === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-stone-200 bg-stone-50 text-stone-800')}>
@@ -194,11 +216,11 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
 
     {loading ? <div className="card text-sm text-stone-500">กำลังโหลดข้อมูล…</div> : <>
       {tab === 'overview' && (unit
-        ? <UnitDetail unit={overviewUnits.find((u: any) => u.key === unit.key) || unit} groups={groups} siblings={overviewUnits} submission={selectedSubmission} onReturnPerson={canReturnSubmission ? returnSubmissionPerson : undefined} canAudit={canAudit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
+        ? <UnitDetail unit={overviewUnits.find((u: any) => u.key === unit.key) || unit} groups={groups} siblings={overviewUnits} submission={selectedSubmission} onReturnPerson={canReturnSubmission ? returnSubmissionPerson : undefined} canAudit={canAudit} reviewEnabled={reviewOk} canReview={canAudit && !busy} onReviewUnit={reviewUnit} onUnreviewUnit={unreviewUnit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
           onViewPerson={line => setPanel({ person: line })} onRandomAudit={() => setPanel({ person: null, randomUnitId: unit.key })} />
-        : <UnitOverview units={overviewUnits} onOpen={openUnit} />)}
+        : <UnitOverview units={overviewUnits} onOpen={openUnit} showReview={reviewOk} />)}
       {tab === 'close' && <ClosePanel review={review} votes={votes} roster={roster} currentUserId={currentUserId} isMember={isMember} activeCount={activeMembers.length}
-        units={statusOk ? overviewUnits : []} groups={groups} totals={totals} busy={busy} onStart={startReview} onVote={castVote} onOpenUnit={openUnit} />}
+        units={statusOk ? overviewUnits : []} groups={groups} totals={totals} busy={busy} reviewGate={reviewOk} onStart={startReview} onVote={castVote} onOpenUnit={openUnit} />}
       {tab === 'roster' && isAdmin && <RosterAdmin sb={sb} members={members} roster={roster} version={version} busy={busy} runAction={runAction} setError={setError} />}
     </>}
 
