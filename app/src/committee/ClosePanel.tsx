@@ -66,6 +66,7 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
         {!isMember && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">ดูได้อย่างเดียว (ไม่ใช่กรรมการที่ปฏิบัติหน้าที่)</span>}
       </div>
       <ol>
+        {!reviewGate && !reviewing && !closed && <div role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">ระบบไม่สามารถอ่านสถานะตรวจรายหน่วยงานได้ จึงปิดการเริ่มรับรองไว้ก่อน กรุณาตรวจสอบการอัปเดตฐานข้อมูลหรือแจ้งผู้ดูแลระบบ</div>}
         <Step n={1} state={s1} title="ตรวจความพร้อมทุกหน่วยงาน">
           {allReady || reviewing || closed
             ? <p className="text-emerald-800">ทุกหน่วยงานพร้อมตรวจ 100% ({num(units.length, 0)} หน่วยงาน) ไม่มีรายการรอรับรอง</p>
