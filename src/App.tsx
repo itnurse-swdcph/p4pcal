@@ -77,6 +77,11 @@ const countWorkShifts = (rows: any[]) => new Set((rows || []).map((r: any) => {
   return `${date}|${String(r.shift || 'ไม่ระบุเวร').trim()}`
 }).filter(Boolean)).size
 const countApprovedWorkShifts = (rows: any[]) => countWorkShifts((rows || []).filter((r: any) => r.status === 'approved'))
+const calculateNetWorkingDays = (workShifts: number, leave: any = {}, calendarDays: number | null = null) => {
+  const leaveDays = ['personal_leave_days', 'sick_leave_days', 'annual_leave_days'].reduce((total, key) => total + Math.max(0, Number(leave?.[key] || 0)), 0)
+  const netDays = Math.max(0, Number(workShifts || 0) - leaveDays)
+  return calendarDays == null ? netDays : Math.min(netDays, Math.max(0, Number(calendarDays) || 0))
+}
 const calculateCalendarWorkingDays = (month: string, overrides: any[] = []) => {
   const [year, monthNumber] = String(month || '').split('-').map(Number)
   if (!year || !monthNumber) return 0
@@ -1865,7 +1870,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
           const saved = groupLeaveData[key] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
           const draft = groupLeaveDrafts[key] || { personal_leave_days: String(saved.personal_leave_days), sick_leave_days: String(saved.sick_leave_days), annual_leave_days: String(saved.annual_leave_days) }
           const workDaysRaw = countApprovedWorkShifts(x.rs || [])
-          const workDays = calendarWorkingDays == null ? workDaysRaw : Math.min(workDaysRaw, calendarWorkingDays)
+          const workDays = calculateNetWorkingDays(workDaysRaw, groupLeaveDrafts[key] || saved, calendarWorkingDays)
           const setLeave = (field: string, value: string) => setGroupLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
           return <tr key={x.p.id || key}>
             <td className="p-2 text-center">{x.order}</td><td className="p-2 font-semibold">{x.p.displayName}</td><td className="p-2">{x.p.position || '—'}</td><td className="p-2 text-center font-semibold">{workDays}</td>
@@ -2070,7 +2075,8 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const performancePoints = scoring.performance
     const excess = scoring.excess
     const daysRaw = countApprovedWorkShifts(approved)
-    const days = calendarWorkingDays == null ? daysRaw : Math.min(daysRaw, calendarWorkingDays)
+    const leave = leaveDrafts[String(p.staff_directory_id ?? p.directory_source_row)] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
+    const days = calculateNetWorkingDays(daysRaw, leave, calendarWorkingDays)
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
     const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
@@ -2186,7 +2192,8 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
             const key = String(staffId || '')
             const draft = leaveDrafts[key] || { personal_leave_days: '0', sick_leave_days: '0', annual_leave_days: '0' }
             const workDaysRaw = countApprovedWorkShifts(rows.filter((r: any) => String(r.person_id) === String(x.p.id)))
-            const workDays = calendarWorkingDays == null ? workDaysRaw : Math.min(workDaysRaw, calendarWorkingDays)
+            const leave = leaveDrafts[key] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
+            const workDays = calculateNetWorkingDays(workDaysRaw, leave, calendarWorkingDays)
             const setLeave = (field: string, value: string) => setLeaveDrafts(v => ({ ...v, [key]: { ...(v[key] || draft), [field]: value } }))
             return <tr key={x.p.id}>
               <td className="text-center">{x.order}</td><td className="font-semibold">{x.p.name}</td><td>{x.p.position || '—'}</td><td className="text-center font-semibold">{workDays}</td>
