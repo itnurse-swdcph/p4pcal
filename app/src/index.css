@@ -20,6 +20,8 @@ body { margin:0; min-width:320px; background:#f4f7fb; color:#182b3d; }
 .btn.sec { background:#fff; color:#087f70; border:1px solid #c7e3dd; }
 .btn.sec:hover { background:#effaf7; }
 .btn.red { background:#b83d4b; }
+.btn.blue { background:#2563eb; color:#fff; }
+.btn.blue:hover { background:#1d4ed8; }
 .btn:disabled { opacity:.5; cursor:not-allowed; }
 .card { background:#fff; border:1px solid #e0e7ef; border-radius:1rem; padding:1rem; box-shadow:0 5px 18px rgba(27,47,68,.035); }
 th { text-align:left; font-weight:600; font-size:.8rem; color:#526477; padding:.7rem .8rem; border-bottom:1px solid #dbe4ed; white-space:nowrap; background:#f8fafc; }
