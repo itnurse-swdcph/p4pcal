@@ -2084,7 +2084,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, performancePoints, roleGuarantee, excess, days, rate: unitRate, basePay, payout, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
-  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays])
+  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays, leaveDrafts])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const saveLeaveData = async (person: any) => {
     const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
