@@ -1232,7 +1232,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const difference = performanceTotal - guarantee
   const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(person.position || '').replace(/\s+/g, '').trim())
   const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-  const eligibleWorkDays = calculateNetWorkDays((rows || []).filter((r: any) => r.status === 'approved'), calendarWorkingDays)
+  const eligibleWorkDays = calculateNetWorkDays((rows || []).filter((r: any) => r.status === 'approved'), calendarWorkingDays, sumLeaveDays(leaveData))
   const paymentEligible = eligibleWorkDays > 0
   const performancePay = !paymentEligible ? 0 : allocation > 0 ? allocation * (performanceTotal >= guarantee ? 0.97 : 0.77) : null
   const closed = payoutResult?.closed === true
