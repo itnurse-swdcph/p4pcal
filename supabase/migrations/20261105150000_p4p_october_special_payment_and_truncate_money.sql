@@ -1,4 +1,3 @@
-
 CREATE OR REPLACE FUNCTION public.p4p_alloc(
   g public.pay_groups,
   persons jsonb,
@@ -55,7 +54,7 @@ BEGIN
     FROM jsonb_array_elements(coalesce(persons, '[]'::jsonb)) e
   ) p;
 
-  below_difference := trunc((a - fixed_amount) * n_below, 2);
+  below_difference := trunc(((CASE WHEN is_october THEN a ELSE s END) - fixed_amount) * n_below, 2);
 
   IF is_october THEN
     pool_x := trunc((a * n_in) + ((a - fixed_amount) * n_below), 2);
