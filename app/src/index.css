@@ -1625,3 +1625,79 @@ body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row)
     hyphens: manual !important;
   }
 }
+
+/* ===== Tables fit the screen (desktop/tablet) =====
+   ตารางทุกหน้าต้องพอดีความกว้างของหน้าจอ: ยกเลิก min-width ตายตัว (min-w-[...px] / inline minWidth)
+   ให้คอลัมน์ปรับขนาดตามเนื้อหา และตัดบรรทัดข้อความแทนการเลื่อนแนวนอน
+   (ยังคงแถบเลื่อนไว้เป็นทางสำรองเฉพาะกรณีที่กว้างเกินจริงๆ) ไม่กระทบตารางพิมพ์ (.pt, .unit-report-table) */
+@media screen and (min-width: 761px) {
+  table:not(.pt):not(.unit-report-table):not(.ps-individual-table) {
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+  table:not(.pt):not(.unit-report-table):not(.ps-individual-table):not(.log-table) {
+    table-layout: auto;
+  }
+  table:not(.pt):not(.unit-report-table):not(.ps-individual-table):not(.log-table) th,
+  table:not(.pt):not(.unit-report-table):not(.ps-individual-table):not(.log-table) td {
+    padding: .5rem .45rem;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  table:not(.pt):not(.unit-report-table):not(.ps-individual-table):not(.log-table) th {
+    font-size: .78rem;
+    line-height: 1.35;
+    white-space: normal;
+  }
+  table:not(.pt):not(.unit-report-table):not(.ps-individual-table):not(.log-table) td {
+    font-size: .86rem;
+    line-height: 1.4;
+  }
+  /* ตัวเลข/สถานะสั้นๆ ไม่ให้ถูกตัดกลางคำ */
+  table:not(.pt):not(.unit-report-table) td.tabular-nums,
+  table:not(.pt):not(.unit-report-table) td.text-right { white-space: nowrap; }
+  /* ข้อความยาว (ตำแหน่ง/หมายเหตุ) ตัดบรรทัดได้ภายในเซลล์ */
+  table:not(.pt):not(.unit-report-table) td.text-xs,
+  table:not(.pt):not(.unit-report-table) td[class*="max-w-"] { overflow-wrap: anywhere; }
+  .overflow-x-auto > table:not(.pt),
+  .card.overflow-x-auto > table:not(.pt) { width: 100%; min-width: 0; max-width: 100%; }
+}
+
+/* ตารางบันทึกกิจกรรม/รับรอง: ย่อคอลัมน์เสริมบนหน้าจอขนาดกลางเพื่อให้คอลัมน์กิจกรรมมีที่พอ */
+@media screen and (min-width: 761px) and (max-width: 1500px) {
+  table.log-table .log-col-name { width: 7rem; }
+  table.log-table .log-col-activity { min-width: 0; }
+  table.log-table .log-col-qty { width: 4.5rem; }
+  table.log-table .log-col-points { width: 5rem; white-space: normal; }
+  table.log-table .log-col-check { width: 7rem; }
+  table.log-table .log-col-status { width: 6rem; }
+  table.log-table .log-col-reason { width: 7rem; }
+  table.log-table .log-col-actions { width: 7.5rem; white-space: normal; }
+  table.log-table td.log-col-actions .btn,
+  table.log-table td.log-col-actions button { white-space: normal; padding-inline: .5rem; }
+}
+@media screen and (min-width: 761px) and (max-width: 1100px) {
+  table.log-table .log-col-date { width: 4.75rem; }
+  table.log-table .log-col-check { width: 6rem; }
+  table.log-table .log-col-reason { width: 6rem; }
+  table.log-table .log-col-actions { width: 6.5rem; }
+}
+
+/* ปุ่ม/ป้ายสถานะสั้นๆ ในตารางไม่ถูกตัดกลางคำ (ให้คอลัมน์ข้อความยาวเป็นตัวที่ย่อแทน) */
+@media screen and (min-width: 761px) {
+  table:not(.pt):not(.unit-report-table):not(.ps-individual-table):not(.log-table) td .btn,
+  table:not(.pt):not(.unit-report-table):not(.ps-individual-table):not(.log-table) td button {
+    white-space: nowrap;
+    padding-inline: .6rem;
+    font-size: .82rem;
+  }
+  table:not(.pt):not(.unit-report-table):not(.ps-individual-table):not(.log-table) td > span.font-semibold,
+  table:not(.pt):not(.unit-report-table):not(.ps-individual-table):not(.log-table) td > span.rounded-full { white-space: nowrap; }
+}
+@media screen and (min-width: 761px) and (max-width: 1500px) {
+  table.log-table .log-col-points > span { display: block; }
+  table.log-table td.log-col-actions .btn,
+  table.log-table td.log-col-actions button { white-space: nowrap; font-size: .8rem; }
+  table.log-table .log-col-actions { width: 8rem; }
+}
