@@ -64,6 +64,13 @@ function canDecideRow(ap: any, me: string | null, r: any) {
 const ROLE_TH: any = { staff: 'เจ้าหน้าที่', head: 'หัวหน้างาน', group_head: 'หัวหน้ากลุ่มงาน', committee: 'กรรมการ P4P', admin: 'ผู้ดูแลระบบ' }
 const ROLES = ['ประธาน', 'เลขานุการ/กรรมการ', 'สมาชิก/ผู้เข้าร่วม']
 const nf = (n: any, d = 2) => Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: d, minimumFractionDigits: d })
+const truncateMoney2 = (value: number) => Math.floor((Math.max(0, Number(value) || 0) + 1e-8) * 100) / 100
+const basePayoutForMonth = (month: string, allocation: number, performancePoints: number, guarantee: number, eligible: boolean) => {
+  if (!eligible) return 0
+  const october2026 = String(month || '').slice(0, 7) === '2026-10'
+  const ratio = performancePoints >= guarantee ? (october2026 ? 1 : 0.97) : 0.77
+  return truncateMoney2(allocation * ratio)
+}
 const today = () => {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
   const part = (type: string) => parts.find(x => x.type === type)?.value || ''
@@ -1273,7 +1280,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const leaveDays = Number(leaveData.personal_leave_days || 0) + Number(leaveData.sick_leave_days || 0) + Number(leaveData.annual_leave_days || 0)
   const eligibleWorkDays = calculateNetWorkDays((rows || []).filter((r: any) => r.status === 'approved'), calendarWorkingDays, leaveDays)
   const paymentEligible = eligibleWorkDays > 0
-  const performancePay = !paymentEligible ? 0 : allocation > 0 ? allocation * (performanceTotal >= guarantee ? 0.97 : 0.77) : null
+  const performancePay = allocation > 0 ? basePayoutForMonth(month, allocation, performanceTotal, guarantee, paymentEligible) : null
   const closed = payoutResult?.closed === true
   const payoutAvailable = payoutResult?.payout_available === true
   const extraPay = paymentEligible && payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
@@ -1915,7 +1922,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     const leaveDays = Number(leave.personal_leave_days || 0) + Number(leave.sick_leave_days || 0) + Number(leave.annual_leave_days || 0)
     const days = calculateNetWorkDays(approved, calendarWorkingDays, leaveDays)
     const paymentEligible = days > 0
-    const basePay = paymentEligible ? allocation * (performancePoints >= g ? 0.97 : 0.77) : 0
+    const basePay = basePayoutForMonth(month, allocation, performancePoints, g, paymentEligible)
     const payout = paymentEligible ? basePay + excess * rate : 0
     const pendingWorkDays = countWorkDays(rs.filter((r: any) => r.status === 'pending'))
     return { p, order: index + 1, g, roleGuarantee, workPoints: displayedWorkPoints, submittedPoints, pendingWorkDays, days, performancePoints, excess, rate, allocation, basePay, payout, rs }
@@ -2179,7 +2186,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const paymentEligible = days > 0
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-    const basePay = paymentEligible ? allocation * (performancePoints >= g ? 0.97 : 0.77) : 0
+    const basePay = basePayoutForMonth(month, allocation, performancePoints, g, paymentEligible)
     const payout = paymentEligible ? basePay + excess * unitRate : 0
     return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, submittedPoints, pendingWorkDays, workPoints: displayedWorkPoints, performancePoints, roleGuarantee, excess, days, rate: unitRate, basePay, payout, g, appr: displayedWorkPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
