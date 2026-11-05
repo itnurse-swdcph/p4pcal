@@ -102,16 +102,15 @@ const thaiBahtText = (value: number) => {
 };
 // ช่วงวันที่ของเดือน (คำนวณแบบ UTC ไม่ขึ้นกับเขตเวลาของเครื่อง เพื่อไม่ให้ได้วันที่ผิดเช่น 2026-11-31)
 const mRange = (m: string) => { const [y, mo] = String(m).split('-').map(Number); const last = new Date(Date.UTC(y, mo, 0)).getUTCDate(); const p = String(mo).padStart(2, '0'); return [`${y}-${p}-01`, `${y}-${p}-${String(last).padStart(2, '0')}`] }
-// นับวันทำการ: วันที่ปฏิบัติงานที่มีรายการอย่างน้อย 1 รายการให้นับ 1 วัน แม้มีหลายเวรในวันเดียวกัน
-const countWorkDays = (rows: any[]) => new Set((rows || []).filter((r: any) => r.work_date).map((r: any) => String(r.work_date).slice(0, 10))).size
+// นับจำนวนเวร: 1 เวร = 1 คู่ (วันที่ + เวร); หลายกิจกรรมในเวรเดียวกันนับ 1 เวร
+// เวรต่างกันในวันเดียวกันนับแยกกัน
+const countWorkDays = (rows: any[]) => new Set((rows || []).filter((r: any) => r.work_date).map((r: any) => String(r.work_date).slice(0, 10) + '|' + String(r.shift || ''))).size
 const countApprovedWorkDays = (rows: any[]) => countWorkDays((rows || []).filter((r: any) => r.status === 'approved'))
-// วันทำการสุทธิ = จำนวนเวรที่รับรองแล้ว − วันลาทั้งหมด (ต่ำสุด 0) และต้องไม่เกินวันทำการพื้นฐานตามปฏิทิน
-// เช่น 30 เวร ลา 2 วัน = 28 แต่วันทำการตามปฏิทิน 20 วัน จะได้ 20
-const calculateNetWorkDays = (rows: any[], calendarWorkingDays: number | null, leaveDays = 0) => {
-  const shifts = countApprovedWorkDays(rows)
-  const afterLeave = Math.max(0, shifts - Math.max(0, Number(leaveDays) || 0))
-  const baseline = calendarWorkingDays == null ? afterLeave : Math.max(0, Number(calendarWorkingDays) || 0)
-  return Math.min(afterLeave, baseline)
+// วันทำการ = จำนวนเวรที่รับรองแล้ว แต่ไม่เกินวันทำการพื้นฐานของเดือน และไม่หักวันลา
+const calculateNetWorkDays = (rows: any[], calendarWorkingDays: number | null, _leaveDays = 0) => {
+  const approvedShifts = countApprovedWorkDays(rows)
+  const baseline = calendarWorkingDays == null ? approvedShifts : Math.max(0, Number(calendarWorkingDays) || 0)
+  return Math.min(approvedShifts, baseline)
 }
 const calculateCalendarWorkingDays = (month: string, overrides: any[] = []) => {
   const [year, monthNumber] = String(month || '').split('-').map(Number)
