@@ -1854,20 +1854,28 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
   useEffect(() => {
     let alive = true
     if (!groupName || !month) { setGroupLeaveData({}); setGroupLeaveDrafts({}); return () => { alive = false } }
-    sb.from('p4p_group_monthly_leave').select('staff_directory_id,personal_leave_days,sick_leave_days,annual_leave_days,other_notes')
-      .eq('group_name', groupName).eq('month', month + '-01')
-      .then(({ data, error }: any) => {
-        if (!alive) return
-        if (error) { console.error('โหลดข้อมูลวันลากลุ่มงานไม่สำเร็จ:', error); setGroupLeaveData({}); return }
-        const mapped = Object.fromEntries((data || []).map((x: any) => [String(x.staff_directory_id), {
-          personal_leave_days: Number(x.personal_leave_days || 0), sick_leave_days: Number(x.sick_leave_days || 0), annual_leave_days: Number(x.annual_leave_days || 0), other_notes: String(x.other_notes || '')
-        }]))
-        setGroupLeaveData(mapped)
-        setGroupLeaveDrafts(Object.fromEntries(Object.entries(mapped).map(([k, v]) => [k, {
-          personal_leave_days: String((v as any).personal_leave_days), sick_leave_days: String((v as any).sick_leave_days), annual_leave_days: String((v as any).annual_leave_days), other_notes: String((v as any).other_notes || '')
-        }])))
-        setGroupLeaveEditing({})
-      })
+    const headStaffIds = heads.map((p: any) => Number(p.staff_directory_id ?? p.directory_source_row)).filter((id: number) => Number.isFinite(id) && id > 0)
+    Promise.all([
+      sb.from('p4p_group_monthly_leave').select('staff_directory_id,personal_leave_days,sick_leave_days,annual_leave_days,other_notes')
+        .eq('group_name', groupName).eq('month', month + '-01'),
+      headStaffIds.length
+        ? sb.from('p4p_monthly_leave').select('staff_directory_id,personal_leave_days,sick_leave_days,annual_leave_days,other_notes').in('staff_directory_id', headStaffIds).eq('month', month + '-01')
+        : Promise.resolve({ data: [], error: null })
+    ]).then(([groupResult, unitResult]: any[]) => {
+      if (!alive) return
+      if (groupResult.error) console.error('โหลดข้อมูลวันลากลุ่มงานไม่สำเร็จ:', groupResult.error)
+      if (unitResult.error) console.error('โหลดข้อมูลวันลารายหน่วยงานไม่สำเร็จ:', unitResult.error)
+      const toLeaveMap = (data: any[]) => Object.fromEntries((data || []).map((x: any) => [String(x.staff_directory_id), {
+        personal_leave_days: Number(x.personal_leave_days || 0), sick_leave_days: Number(x.sick_leave_days || 0), annual_leave_days: Number(x.annual_leave_days || 0), other_notes: String(x.other_notes || '')
+      }]))
+      // ใช้ข้อมูลรายหน่วยงานเป็นหลัก หากไม่มีจึงใช้ข้อมูลที่เคยบันทึกในระดับกลุ่มงาน
+      const mapped = { ...toLeaveMap(groupResult.data || []), ...toLeaveMap(unitResult.data || []) }
+      setGroupLeaveData(mapped)
+      setGroupLeaveDrafts(Object.fromEntries(Object.entries(mapped).map(([k, v]) => [k, {
+        personal_leave_days: String((v as any).personal_leave_days), sick_leave_days: String((v as any).sick_leave_days), annual_leave_days: String((v as any).annual_leave_days), other_notes: String((v as any).other_notes || '')
+      }])))
+      setGroupLeaveEditing({})
+    })
     return () => { alive = false }
   }, [sb, groupName, month])
   const saveGroupLeave = async (person: any) => {
@@ -2038,18 +2046,26 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   useEffect(() => {
     let alive = true
     if (!unit || !month) { setLeaveDrafts({}); return () => { alive = false } }
-    sb.from('p4p_monthly_leave').select('staff_directory_id,personal_leave_days,sick_leave_days,annual_leave_days,other_notes')
-      .eq('unit_id', unit).eq('month', month + '-01')
-      .then(({ data, error }: any) => {
-        if (!alive) return
-        if (error) { console.error('โหลดข้อมูลวันลาไม่สำเร็จ:', error); setLeaveDrafts({}); return }
-        setLeaveDrafts(Object.fromEntries((data || []).map((x: any) => [String(x.staff_directory_id), {
-          personal_leave_days: String(x.personal_leave_days ?? 0), sick_leave_days: String(x.sick_leave_days ?? 0), annual_leave_days: String(x.annual_leave_days ?? 0), other_notes: String(x.other_notes || '')
-        }])))
-        setLeaveEditing({})
-      })
+    const selectedGroupName = String((units || []).find((u: any) => Number(u.id) === Number(unit))?.parent_group || '').trim()
+    Promise.all([
+      sb.from('p4p_monthly_leave').select('staff_directory_id,personal_leave_days,sick_leave_days,annual_leave_days,other_notes')
+        .eq('unit_id', unit).eq('month', month + '-01'),
+      selectedGroupName
+        ? sb.from('p4p_group_monthly_leave').select('staff_directory_id,personal_leave_days,sick_leave_days,annual_leave_days,other_notes').eq('group_name', selectedGroupName).eq('month', month + '-01')
+        : Promise.resolve({ data: [], error: null })
+    ]).then(([unitResult, groupResult]: any[]) => {
+      if (!alive) return
+      if (unitResult.error) console.error('โหลดข้อมูลวันลารายหน่วยงานไม่สำเร็จ:', unitResult.error)
+      if (groupResult.error) console.error('โหลดข้อมูลวันลากลุ่มงานสำรองไม่สำเร็จ:', groupResult.error)
+      const toLeaveMap = (data: any[]) => Object.fromEntries((data || []).map((x: any) => [String(x.staff_directory_id), {
+        personal_leave_days: String(x.personal_leave_days ?? 0), sick_leave_days: String(x.sick_leave_days ?? 0), annual_leave_days: String(x.annual_leave_days ?? 0), other_notes: String(x.other_notes || '')
+      }]))
+      // ข้อมูลรายหน่วยงานมีลำดับความสำคัญสูงกว่า ส่วนวันลาที่บันทึกไว้ระดับกลุ่มงานใช้เป็นข้อมูลสำรอง
+      setLeaveDrafts({ ...toLeaveMap(groupResult.data || []), ...toLeaveMap(unitResult.data || []) })
+      setLeaveEditing({})
+    })
     return () => { alive = false }
-  }, [sb, unit, month])
+  }, [sb, unit, month, units])
   useEffect(() => { let alive = true; sb.from('pay_groups').select('id,full_amount').order('id').then(({ data, error }: any) => { if (alive) setPayGroups(!error && Array.isArray(data) ? data : []) }); return () => { alive = false } }, [sb])
   useEffect(() => {
     let alive = true
