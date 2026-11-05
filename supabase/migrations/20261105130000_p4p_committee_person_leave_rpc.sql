@@ -36,3 +36,6 @@ $$;
 
 revoke execute on function public.p4p_committee_person_leave(integer, date) from public, anon;
 grant execute on function public.p4p_committee_person_leave(integer, date) to authenticated;
+
+-- ให้ API (PostgREST) เห็นฟังก์ชันใหม่ทันที
+notify pgrst, 'reload schema';
