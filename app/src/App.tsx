@@ -11,6 +11,25 @@ import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardL
 
 declare const __P4P_BUILD_ID__: string
 const CURRENT_BUILD_ID = typeof __P4P_BUILD_ID__ !== 'undefined' ? __P4P_BUILD_ID__ : 'unknown-build'
+const shortBuildId = (id?: string | null) => (id && id !== 'unknown-build' ? String(id).slice(0, 7) : 'ไม่ทราบ')
+
+// บังคับโหลดเวอร์ชันล่าสุด: ล้าง cache/service worker แล้วเปิด URL ใหม่ที่มีพารามิเตอร์ไม่ซ้ำ
+// เพื่อให้ proxy/CDN ที่เก็บหน้าตาม URL มองเป็นคำขอใหม่และไปดึงหน้าหลักจากต้นทาง
+async function forceRefreshApp(targetBuildId?: string | null) {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(regs.map(r => r.unregister()))
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys()
+      await Promise.all(keys.map(k => caches.delete(k)))
+    }
+  } catch (error) { console.debug('P4P cache cleanup skipped', error) }
+  const url = new URL(window.location.href)
+  url.searchParams.set('_v', (targetBuildId ? String(targetBuildId).slice(0, 12) + '-' : '') + Date.now().toString(36))
+  window.location.replace(url.toString())
+}
 
 const DEFAULT_CFG = { url: 'https://foypareeazfzidwygolc.supabase.co', key: 'sb_publishable_8qxOgD-AHGnv9RWWAZTUQQ_I0MPIMv3' }
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ว่าที่ร้อยตรี', 'ว่าที่ร้อยตรีหญิง']
@@ -397,6 +416,8 @@ function Main({ sb, session }: any) {
   const [compactNav, setCompactNav] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [latestBuildId, setLatestBuildId] = useState<string | null>(null)
+  const [versionStatus, setVersionStatus] = useState<'checking' | 'latest' | 'outdated' | 'unavailable'>('checking')
   const [myLevel, setMyLevel] = useState(0); const [personLevel, setPersonLevel] = useState<Record<string, number>>({})
   useEffect(() => {
     if (!profile) return
@@ -490,14 +511,26 @@ function Main({ sb, session }: any) {
   const checkForUpdate = useMemo(() => async () => {
     try {
       const response = await fetch('/version.json?check=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
-      if (!response.ok) return
+      if (!response.ok) { setVersionStatus('unavailable'); return }
       const latest = await response.json()
-      if (latest?.buildId && String(latest.buildId) !== CURRENT_BUILD_ID) setUpdateAvailable(true)
+      if (latest?.buildId) {
+        setLatestBuildId(String(latest.buildId))
+        if (String(latest.buildId) !== CURRENT_BUILD_ID) { setUpdateAvailable(true); setVersionStatus('outdated') } else { setUpdateAvailable(false); setVersionStatus('latest') }
+      } else setVersionStatus('unavailable')
     } catch (error) {
+      setVersionStatus('unavailable')
       // การตรวจสอบเวอร์ชันล้มเหลวไม่ควรรบกวนการทำงานหลักของระบบ
       console.debug('P4P version check unavailable', error)
     }
   }, [])
+  // เก็บ URL ให้สะอาด: ลบพารามิเตอร์ _v ที่ใช้บังคับโหลดใหม่ออกหลังหน้าโหลดเสร็จ (ไม่โหลดซ้ำ)
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('_v')) { url.searchParams.delete('_v'); window.history.replaceState(null, '', url.pathname + url.search + url.hash) }
+  }, [])
+  const confirmForceUpdate = async () => {
+    if (await appConfirm('ก่อนอัปเดต กรุณาตรวจสอบว่าบันทึกข้อมูลที่กำลังทำเรียบร้อยแล้ว\nต้องการล้างข้อมูลที่ค้างและโหลด P4P เวอร์ชันล่าสุดหรือไม่?')) await forceRefreshApp(latestBuildId)
+  }
   useEffect(() => {
     void checkForUpdate()
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void checkForUpdate() }, 120000)
@@ -554,7 +587,16 @@ function Main({ sb, session }: any) {
       <div className="sidebar-brand"><img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/icon.png" alt="P4P" /><div className="sidebar-brand-copy"><strong>P4P Nursing</strong><span>SMART WORKFLOW</span></div><button className="sidebar-icon mobile-close" aria-label="ปิดเมนู" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
       <div className="sidebar-org"><span className="sidebar-org-icon"><Building2 size={17}/></span><div><strong>กลุ่มการพยาบาล</strong><span>รพ.สมเด็จพระยุพราชสว่างแดนดิน</span></div></div>
       <div className="sidebar-section-label">เมนูหลัก</div><nav className="sidebar-navigation" aria-label="เมนูหลัก">{navigation}</nav>
-      <div className="sidebar-bottom"><div className="sidebar-version">P4P · Nursing Informatics</div></div>
+      <div className="sidebar-bottom"><div className="sidebar-version">
+        <div>P4P · Nursing Informatics</div>
+        <div className="sidebar-build" title={`เวอร์ชันที่กำลังใช้: ${CURRENT_BUILD_ID}${latestBuildId ? `\nเวอร์ชันล่าสุดบนเซิร์ฟเวอร์: ${latestBuildId}` : ''}`}>
+          เวอร์ชัน <code>{shortBuildId(CURRENT_BUILD_ID)}</code>
+          {versionStatus === 'latest' && <span className="build-ok"> · เป็นล่าสุด</span>}
+          {versionStatus === 'outdated' && <span className="build-old"> · มีใหม่ <code>{shortBuildId(latestBuildId)}</code></span>}
+          {versionStatus === 'unavailable' && <span className="build-unknown"> · ตรวจไม่ได้</span>}
+        </div>
+        <button type="button" className="sidebar-build-force" onClick={() => void confirmForceUpdate()}>บังคับอัปเดต</button>
+      </div></div>
       <button className="sidebar-collapse" title={compactNav ? 'ขยายเมนู' : 'ย่อเมนู'} aria-label={compactNav ? 'ขยายเมนู' : 'ย่อเมนู'} onClick={() => setCompactNav(v => !v)}><ChevronLeft size={18}/><span>{compactNav ? 'ขยายเมนู' : 'ย่อเมนู'}</span></button>
     </aside>
     <div className="p4p-main">
@@ -565,7 +607,7 @@ function Main({ sb, session }: any) {
       </div></header>
       {updateAvailable && <div role="status" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm">
         <div><strong>มี P4P เวอร์ชันใหม่พร้อมใช้งาน</strong><p className="mt-0.5 text-xs">กรุณาบันทึกงานที่กำลังทำให้เรียบร้อยก่อนกดอัปเดตระบบ</p></div>
-        <button type="button" className="btn !bg-amber-700 hover:!bg-amber-800" onClick={async () => { if (await appConfirm('ก่อนอัปเดต กรุณาตรวจสอบว่าบันทึกข้อมูลที่กำลังทำเรียบร้อยแล้ว\nต้องการโหลด P4P เวอร์ชันใหม่หรือไม่?')) window.location.reload() }}>อัปเดตระบบ</button>
+        <button type="button" className="btn !bg-amber-700 hover:!bg-amber-800" onClick={() => void confirmForceUpdate()}>อัปเดตระบบ</button>
       </div>}
       <main className="app-content">
       {showLogNotice && cur === 'log' && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="presentation">
