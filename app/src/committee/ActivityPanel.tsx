@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, BellRing, CheckCircle2, Printer, RotateCcw, X, XCircle } from 'lucide-react'
+import { AlertTriangle, BellRing, CheckCircle2, Paperclip, Printer, RotateCcw, X, XCircle } from 'lucide-react'
 import { appConfirm } from '../AppDialog'
 import { num } from './utils'
 
@@ -27,9 +27,13 @@ type Props = {
   PrintSheet?: any
   units?: any[]
   positions?: any[]
+  /** สูตรคำนวณแต้มชุดเดียวกับหน้าสรุปผลรายบุคคลของระบบ */
+  scoreBreakdown?: (position: any, positions: any[], orgRole: any, activityPoints: number, month?: string) => { insurance: number; roleGuarantee: number; activityPoints: number; performance: number; excess: number }
+  /** เปิดรูปหลักฐานผ่านลิงก์ชั่วคราวจาก Storage */
+  openEvidence?: (sb: any, path: string) => void
 }
 
-export default function ActivityPanel({ sb, monthDate, person, randomUnitId, canAudit, lockedReason, onClose, onChanged, PrintSheet, units, positions }: Props) {
+export default function ActivityPanel({ sb, monthDate, person, randomUnitId, canAudit, lockedReason, onClose, onChanged, PrintSheet, units, positions, scoreBreakdown, openEvidence }: Props) {
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -41,6 +45,8 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
   const personId = person && !String(person.id).startsWith('dir:') ? person.id : null
   const [printData, setPrintData] = useState<{ person: any; leave: any } | null>(null)
   const [preparingPrint, setPreparingPrint] = useState(false)
+  const [personRow, setPersonRow] = useState<any>(null)
+  const [evidencePaths, setEvidencePaths] = useState<Record<string, string>>({})
 
   // กด Esc เพื่อปิดหน้าต่าง (ไม่ปิดขณะเปิดตัวอย่างพิมพ์อยู่)
   useEffect(() => {
@@ -60,10 +66,28 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
       else { setRows([]); setLoading(false); return }
       const { data, error: e } = await q
       if (!alive) return
+      let list: any[] = data || []
       if (e) setError(e.message || 'ไม่สามารถโหลดกิจกรรมได้')
-      else if (randomUnitId != null) setRows([...(data || [])].sort(() => Math.random() - 0.5).slice(0, 5))
-      else setRows(data || [])
+      else {
+        if (randomUnitId != null) list = [...list].sort(() => Math.random() - 0.5).slice(0, 5)
+        setRows(list)
+      }
       setLoading(false)
+      if (e) return
+      // โหลดข้อมูลเสริมแยกจากรายการหลัก เพื่อให้รายการแสดงทันที และไม่ล้มทั้งแผงหากส่วนนี้โหลดไม่ได้
+      try {
+        const paths: Record<string, string> = {}
+        const ids = list.map((r: any) => r.id)
+        for (let i = 0; i < ids.length; i += 200) {
+          const { data: ev } = await sb.from('logs').select('id,evidence_image_path').in('id', ids.slice(i, i + 200)).not('evidence_image_path', 'is', null)
+          ;(ev || []).forEach((x: any) => { if (x.evidence_image_path) paths[String(x.id)] = x.evidence_image_path })
+        }
+        if (alive) setEvidencePaths(paths)
+        if (personId) {
+          const { data: pr } = await sb.from('people').select('org_role,position,unit_id').eq('id', personId).maybeSingle()
+          if (alive) setPersonRow(pr || null)
+        }
+      } catch { /* ไม่แสดงปุ่มหลักฐาน/ใช้ค่าเริ่มต้นของการ์ดแต้ม */ }
     }
     load()
     return () => { alive = false }
@@ -74,6 +98,16 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
   const totalCounted = rows.filter(r => r.status === 'approved').reduce((s, r) => s + Number(r.counted_points ?? r.points ?? 0), 0)
 
   const approvedCount = counts.approved || 0
+  // การ์ดสรุปแต้ม: ใช้สูตรเดียวกับหน้าสรุปผลรายบุคคล (นับเฉพาะกิจกรรมที่อนุมัติแล้ว)
+  const score = person && scoreBreakdown && positions && positions.length
+    ? scoreBreakdown(person.position || personRow?.position, positions, person.org_role ?? personRow?.org_role, totalCounted, monthDate.slice(0, 7)) : null
+  const scoreCards: { label: string; value: string; note?: string; strong?: boolean }[] = score ? [
+    { label: 'แต้มประกัน', value: num(score.insurance) },
+    { label: 'แต้มการันตี', value: num(score.roleGuarantee) },
+    { label: 'แต้มการปฏิบัติงาน', value: num(score.activityPoints), note: `จากกิจกรรมที่อนุมัติแล้ว ${num(approvedCount, 0)} รายการ` },
+    { label: 'รวมแต้มทั้งหมด', value: num(score.performance), strong: true,
+      note: score.insurance > 0 ? (score.performance + 0.005 >= score.insurance ? `ถึงแต้มประกัน (ส่วนเกิน ${num(score.performance - score.insurance)})` : `ต่ำกว่าแต้มประกัน ${num(score.insurance - score.performance)}`) : undefined }
+  ] : []
   // เตรียมข้อมูลใบสรุปรายบุคคล: ข้อมูลบุคคล + วันลา (ผ่านฟังก์ชันที่ตรวจสิทธิ์กรรมการ) แล้วเปิดตัวอย่างพิมพ์
   const openPrint = async () => {
     if (!person || !personId || !PrintSheet) return
@@ -148,6 +182,14 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
         {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
         {notice && <div role="status" className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><BellRing size={16} className="mt-0.5 shrink-0" /><span>{notice}</span></div>}
 
+        {randomUnitId == null && scoreCards.length > 0 && <div className="grid grid-cols-2 gap-2 md:grid-cols-4" aria-label="สรุปแต้มรายบุคคล">
+          {scoreCards.map(c => <div key={c.label} className={'rounded-xl border p-3 ' + (c.strong ? 'border-teal-300 bg-teal-50' : 'border-stone-200 bg-white')}>
+            <div className="text-xs text-stone-600">{c.label}</div>
+            <div className={'mt-1 text-2xl font-bold tabular-nums ' + (c.strong ? 'text-teal-800' : 'text-stone-900')}>{c.value}</div>
+            {c.note && <div className="mt-0.5 text-[11px] leading-snug text-stone-500">{c.note}</div>}
+          </div>)}
+        </div>}
+
         {randomUnitId == null && <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-1.5">{FILTERS.map(([k, l]) => <button key={k} type="button" onClick={() => setFilter(k)}
             className={'rounded-full border px-3 py-1 text-xs font-semibold ' + (filter === k ? 'border-teal-700 bg-teal-700 text-white' : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50')}>
@@ -174,9 +216,12 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
               </div>
               {r.evidence && <p className="mt-2 whitespace-pre-wrap rounded-lg bg-stone-50 p-2 text-xs text-stone-700">หลักฐาน: {r.evidence}</p>}
               {r.reject_reason && r.status !== 'approved' && <p className="mt-2 text-xs text-red-800">เหตุผล: {r.reject_reason}</p>}
-              {r.status === 'approved' && <div className="mt-2 flex flex-wrap gap-2">
+              {(r.status === 'approved' || (evidencePaths[String(r.id)] && openEvidence)) && <div className="mt-2 flex flex-wrap gap-2">
+                {evidencePaths[String(r.id)] && openEvidence && <button type="button" className="btn sec !py-1" onClick={() => openEvidence(sb, evidencePaths[String(r.id)])}><Paperclip size={14} />ดูหลักฐาน</button>}
+                {r.status === 'approved' && <>
                 <button type="button" className="btn sec !py-1" disabled={!canAudit || busy} onClick={() => { setOpen({ id: r.id, type: 'return_for_correction' }); setReason(''); setError('') }}><RotateCcw size={14} />ส่งกลับให้แก้ไข</button>
                 <button type="button" className="btn sec !py-1 !border-red-200 !text-red-700" disabled={!canAudit || busy} onClick={() => { setOpen({ id: r.id, type: 'reject' }); setReason(''); setError('') }}><XCircle size={14} />ไม่อนุมัติ</button>
+                </>}
               </div>}
               {form && <div className="mt-2 space-y-2 rounded-lg border border-teal-200 bg-teal-50/60 p-3">
                 <label className="block text-xs font-semibold text-stone-800">{form.type === 'return_for_correction' ? 'สิ่งที่ต้องแก้ไข (เจ้าของกิจกรรมจะเห็นข้อความนี้)' : 'เหตุผลที่ไม่อนุมัติ (เจ้าของกิจกรรมจะเห็นข้อความนี้)'}
