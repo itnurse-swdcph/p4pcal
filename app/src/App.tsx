@@ -77,13 +77,16 @@ const thaiBahtText = (value: number) => {
 const mRange = (m: string) => { const d = new Date(m + '-01'); const e = new Date(d.getFullYear(), d.getMonth() + 1, 0); return [m + '-01', `${m}-${String(e.getDate()).padStart(2, '0')}`] }
 // นับวันปฏิบัติงาน: มีกิจกรรมที่รับรองอย่างน้อย 1 รายการในวันนั้นนับ 1 วัน แม้มีหลายเวร
 const countWorkDays = (rows: any[]) => new Set((rows || []).map((r: any) => String(r.work_date || '').slice(0, 10)).filter(Boolean)).size
-const countApprovedWorkDays = (rows: any[]) => countWorkDays((rows || []).filter((r: any) => r.status === 'approved'))
-// วันทำการสุทธิ = วันที่มีกิจกรรมรับรองแล้ว (ไม่เกินวันทำการตามปฏิทิน) หักวันลาที่บันทึกไว้
+// นับเวรที่รับรองแล้ว: วันเดียวกันคนละเวรนับแยกกัน (เช้า/บ่าย/ดึก) หลายกิจกรรมในเวรเดียวกันนับครั้งเดียว
+const countApprovedWorkShifts = (rows: any[]) => new Set((rows || []).filter((r: any) => r.status === 'approved').map((r: any) => {
+  const date = String(r.work_date || '').slice(0, 10)
+  return date ? `${date}|${String(r.shift || 'ไม่ระบุเวร').trim()}` : ''
+}).filter(Boolean)).size
+// วันทำการสุทธิ = (จำนวนเวรที่รับรองแล้ว − วันลาทั้งหมด) และต้องไม่เกินวันทำการตามปฏิทินของเดือน
+// เช่น 30 เวร ลา 2 วัน = 28 → แสดง 20 เมื่อเดือนนั้นมี 20 วันทำการ
 const calculateNetWorkDays = (rows: any[], calendarWorkingDays: number | null, leaveDays = 0) => {
-  const days = countApprovedWorkDays(rows)
-  const baseline = calendarWorkingDays == null ? days : Math.max(0, Number(calendarWorkingDays) || 0)
-  const netDays = Math.min(days, baseline) - Math.max(0, Number(leaveDays) || 0)
-  return Math.max(0, netDays)
+  const netShifts = Math.max(0, countApprovedWorkShifts(rows) - Math.max(0, Number(leaveDays) || 0))
+  return calendarWorkingDays == null ? netShifts : Math.min(netShifts, Math.max(0, Number(calendarWorkingDays) || 0))
 }
 const calculateCalendarWorkingDays = (month: string, overrides: any[] = []) => {
   const [year, monthNumber] = String(month || '').split('-').map(Number)
