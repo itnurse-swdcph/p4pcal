@@ -1996,6 +1996,23 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   const [signaturePeople, setSignaturePeople] = useState<any[]>([])
   const [unitRate, setUnitRate] = useState(0)
   const [payGroups, setPayGroups] = useState<any[]>([])
+  const [octoberPayoutLines, setOctoberPayoutLines] = useState<any[] | null>(null)
+  const [octoberPayoutError, setOctoberPayoutError] = useState('')
+  useEffect(() => {
+    let alive = true
+    if (month !== '2026-10') { setOctoberPayoutLines(null); setOctoberPayoutError(''); return () => { alive = false } }
+    setOctoberPayoutLines(null); setOctoberPayoutError('')
+    sb.rpc('p4p_calc', { p_month: month + '-01' }).then(({ data, error }: any) => {
+      if (!alive) return
+      if (error || !Array.isArray(data?.lines)) {
+        setOctoberPayoutLines([])
+        setOctoberPayoutError(error?.message || 'ไม่พบผลจัดสรรเงินของเดือนตุลาคม')
+      } else setOctoberPayoutLines(data.lines)
+    }).catch((error: any) => {
+      if (alive) { setOctoberPayoutLines([]); setOctoberPayoutError(error?.message || 'โหลดผลจัดสรรเงินไม่สำเร็จ') }
+    })
+    return () => { alive = false }
+  }, [sb, month])
   const [actingChief, setActingChief] = useState<any>({ name: 'นางสาวมัณฑนา เพชรคำ', position: 'พยาบาลวิชาชีพชำนาญการพิเศษ' })
   const [printReport, setPrintReport] = useState(false)
   const [monthClosed, setMonthClosed] = useState<boolean | null>(null)
@@ -2186,12 +2203,24 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const paymentEligible = days > 0
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-    const basePay = basePayoutForMonth(month, allocation, performancePoints, g, paymentEligible)
-    const payout = paymentEligible ? basePay + excess * unitRate : 0
-    return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, submittedPoints, pendingWorkDays, workPoints: displayedWorkPoints, performancePoints, roleGuarantee, excess, days, rate: unitRate, basePay, payout, g, appr: displayedWorkPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
+    const staffId = Number(p.staff_directory_id ?? p.directory_source_row)
+    const octoberLine = month === '2026-10' ? (octoberPayoutLines || []).find((line: any) =>
+      String(line.id || '') === String(p.id || '') ||
+      (staffId > 0 && Number(line.staff_directory_id) === staffId) ||
+      (staffId > 0 && String(line.id || '') === `dir:${staffId}`)
+    ) : null
+    const basePay = month === '2026-10'
+      ? Number(octoberLine?.activity || 0)
+      : basePayoutForMonth(month, allocation, performancePoints, g, paymentEligible)
+    const extraPay = month === '2026-10' ? Number(octoberLine?.extra || 0) : excess * unitRate
+    const payout = month === '2026-10'
+      ? Number(octoberLine?.total || 0)
+      : (paymentEligible ? basePay + extraPay : 0)
+    const effectiveRate = month === '2026-10' ? (excess > 0 ? extraPay / excess : 0) : unitRate
+    return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, submittedPoints, pendingWorkDays, workPoints: displayedWorkPoints, performancePoints, roleGuarantee, excess, days, rate: effectiveRate, basePay, payout, g, appr: displayedWorkPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
-  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays, month, leaveDrafts])
+  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays, month, leaveDrafts, octoberPayoutLines])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const saveLeaveData = async (person: any) => {
     const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
