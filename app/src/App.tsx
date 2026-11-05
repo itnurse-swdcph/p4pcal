@@ -2203,7 +2203,6 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const paymentEligible = days > 0
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-    const staffId = Number(p.staff_directory_id ?? p.directory_source_row)
     const octoberLine = month === '2026-10' ? (octoberPayoutLines || []).find((line: any) =>
       String(line.id || '') === String(p.id || '') ||
       (staffId > 0 && Number(line.staff_directory_id) === staffId) ||
