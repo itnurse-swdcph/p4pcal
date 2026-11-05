@@ -14,7 +14,7 @@ const STATUS_LABEL: Record<string, string> = {
   stale: 'ข้อมูลเปลี่ยน ต้องรับรองใหม่', closed: 'ปิดงวดและประกาศผลแล้ว', reopened: 'เปิดงวดใหม่'
 }
 
-export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentralAdminAccount = false, currentUserId }: any) {
+export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentralAdminAccount = false, currentUserId, PrintSheet, appUnits, appPositions }: any) {
   const monthDate = `${month}-01`
   const [tab, setTab] = useState<Tab>('overview')
   const [unitKey, setUnitKey] = useState<number | null>(null)
@@ -224,7 +224,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       {tab === 'roster' && isAdmin && <RosterAdmin sb={sb} members={members} roster={roster} version={version} busy={busy} runAction={runAction} setError={setError} />}
     </>}
 
-    {panel && <ActivityPanel sb={sb} monthDate={monthDate} person={panel.person} randomUnitId={panel.randomUnitId} canAudit={canAudit} lockedReason={lockedReason}
+    {panel && <ActivityPanel sb={sb} monthDate={monthDate} person={panel.person} randomUnitId={panel.randomUnitId} canAudit={canAudit} lockedReason={lockedReason} PrintSheet={PrintSheet} units={appUnits} positions={appPositions}
       onClose={() => setPanel(null)} onChanged={refresh} />}
   </div>
 }
