@@ -61,7 +61,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
         const all: any[] = []
         for (let offset = 0; ; offset += 1000) {
           let query = sb.from('v_logs').select('id,person_id,work_date,status,counted_points')
-            .gte('work_date', monthDate).lt('work_date', rangeEnd)
+            .gte('work_date', monthDate).lt('work_date', rangeEnd).order('id', { ascending: true })
           query = scopeType === 'unit' ? query.eq('unit_id', unitId) : query.is('unit_id', null)
           const { data, error } = await query.range(offset, offset + 999)
           if (error) return { data: null, error }
