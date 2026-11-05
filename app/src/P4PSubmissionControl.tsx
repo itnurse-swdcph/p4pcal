@@ -55,11 +55,24 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       } else {
         rosterQuery = rosterQuery.is('unit_name', null)
       }
+      // PostgREST returns at most 1,000 rows per request by default.
+      // Fetch every page so eligibility is calculated from the complete month's activity.
+      const fetchAllMonthLogs = async () => {
+        const all: any[] = []
+        for (let offset = 0; ; offset += 1000) {
+          let query = sb.from('v_logs').select('id,person_id,work_date,status,counted_points')
+            .gte('work_date', monthDate).lt('work_date', rangeEnd)
+          query = scopeType === 'unit' ? query.eq('unit_id', unitId) : query.is('unit_id', null)
+          const { data, error } = await query.range(offset, offset + 999)
+          if (error) return { data: null, error }
+          all.push(...(data || []))
+          if (!data || data.length < 1000) break
+        }
+        return { data: all, error: null }
+      }
       const [rosterResult, logResult, peopleResult, leaveResult, groupLeaveResult, subResult, ownStaff] = await Promise.all([
         rosterQuery,
-        scopeType === 'unit'
-          ? sb.from('v_logs').select('id,person_id,work_date,status,counted_points').eq('unit_id', unitId).gte('work_date', monthDate).lt('work_date', rangeEnd)
-          : sb.from('v_logs').select('id,person_id,work_date,status,counted_points').gte('work_date', monthDate).lt('work_date', rangeEnd).is('unit_id', null),
+        fetchAllMonthLogs(),
         sb.from('people').select('id,staff_directory_id,unit_id').eq('active', true),
         scopeType === 'unit'
           ? sb.from('p4p_monthly_leave').select('staff_directory_id,other_notes').eq('unit_id', unitId).eq('month', monthDate)
