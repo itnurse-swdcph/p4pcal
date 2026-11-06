@@ -1378,7 +1378,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const detailEarnedPoints = detailRow ? Number(detailRow.points ?? (Number(detailRow.qty || 0) * detailWorkpoint)) : 0
   const detailCountedPoints = detailRow ? Number(detailRow.counted_points ?? detailEarnedPoints) : 0
   const detailEligible = detailActivity && detailPosition ? (Array.isArray(detailActivity.eligible) ? detailActivity.eligible.includes(detailPosition.grp) : true) : null
-  const canEditReturnedRow = (r: any) => !readOnly && !!me && (centralAdminDelegate ? (!!ownerPersonId && String(ownerPersonId) === String(r.person_id) && ['pending', 'draft', 'rejected'].includes(String(r.status)) && !!String(r.reject_reason || '').trim()) : (!draftsReadOnly && (r.entered_by === me || (!!ownerPersonId && String(ownerPersonId) === String(r.person_id))) && ['draft', 'rejected'].includes(String(r.status))));
+  const canEditReturnedRow = (r: any) => !readOnly && !!me && (centralAdminDelegate ? (!!ownerPersonId && String(ownerPersonId) === String(r.person_id) && ['pending', 'draft', 'rejected'].includes(String(r.status)) && !!String(r.reject_reason || '').trim()) : ((isCommitteeRejected(r) || !draftsReadOnly) && (r.entered_by === me || (!!ownerPersonId && String(ownerPersonId) === String(r.person_id))) && ['draft', 'rejected'].includes(String(r.status))));
   const isReturnedPending = (r: any) => !readOnly && !!me && r?.status === 'pending' && !!String(r.reject_reason || '').trim() && (r.entered_by === me || (!!ownerPersonId && String(ownerPersonId) === String(r.person_id)))
   const submitRows = async (ids: number[]) => {
     if (!ids.length) return
