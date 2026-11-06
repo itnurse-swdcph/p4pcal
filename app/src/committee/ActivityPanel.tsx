@@ -84,8 +84,14 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
         }
         if (alive) setEvidencePaths(paths)
         if (personId) {
-          const { data: pr } = await sb.from('people').select('org_role,position,unit_id').eq('id', personId).maybeSingle()
-          if (alive) setPersonRow(pr || null)
+          // people ไม่มีคอลัมน์ org_role (อยู่ที่ staff_directory) จึงดึงแยก เพื่อไม่ให้เกิด 400
+          const { data: pr } = await sb.from('people').select('position,unit_id,staff_directory_id').eq('id', personId).maybeSingle()
+          let orgRole: string | undefined
+          if (pr?.staff_directory_id != null) {
+            const { data: sd } = await sb.from('staff_directory').select('org_role').eq('source_row', pr.staff_directory_id).maybeSingle()
+            orgRole = sd?.org_role
+          }
+          if (alive) setPersonRow(pr ? { ...pr, org_role: orgRole } : null)
         }
       } catch { /* ไม่แสดงปุ่มหลักฐาน/ใช้ค่าเริ่มต้นของการ์ดแต้ม */ }
     }
@@ -146,7 +152,7 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
     setBusy(true); setError(''); setNotice('')
     try {
       const { data, error: e } = await sb.rpc('p4p_committee_audit_activity', { p_log_id: open.id, p_action: open.type, p_reason: text })
-      if (e) throw e
+      if (e) throw new Error([e.message, (e as any).details, (e as any).hint].filter(Boolean).join(' · ') || 'บันทึกผลตรวจสอบไม่สำเร็จ')
       if (data?.ok === false) throw new Error(data?.reason || 'ไม่สามารถบันทึกผลตรวจสอบได้')
       const newStatus = data?.new_status || (isReturn ? 'pending' : 'rejected')
       setRows(rs => rs.map(r => r.id === open.id ? { ...r, status: newStatus, reject_reason: text } : r))
