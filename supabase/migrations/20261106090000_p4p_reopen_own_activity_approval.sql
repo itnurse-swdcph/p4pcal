@@ -1,3 +1,9 @@
+alter table public.p4p_activity_audit_events
+  drop constraint if exists p4p_activity_audit_events_action_check;
+alter table public.p4p_activity_audit_events
+  add constraint p4p_activity_audit_events_action_check
+  check (action = any (array['return_for_correction'::text, 'reject'::text, 'reopen_approval'::text]));
+
 -- Allow the certifier who approved an activity to revoke that approval,
 -- returning only that activity to the normal pending-certification queue.
 create or replace function public.p4p_reopen_own_activity_approval(
