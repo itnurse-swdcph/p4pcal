@@ -135,7 +135,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
 
   async function cancelSubmissionForEdit() {
     if (!submission || !['submitted', 'resubmitted', 'reviewed'].includes(String(submission.status))) return
-    if (!(await appConfirm('ยืนยันยกเลิกส่งผลงานประจำเดือนนี้? สถานะหน่วยงานจะเปลี่ยนเป็น “ยังไม่พร้อมตรวจ” และปลดล็อกเฉพาะการแก้ไขการรับรองกิจกรรมในหน่วยงานนี้ เมื่อแก้ไขเสร็จต้องส่งผลงานใหม่ทั้งหน่วยงาน', 'ยกเลิกส่งผลงาน'))) return
+    if (!(await appConfirm('ยืนยันยกเลิกส่งผลงานประจำเดือนนี้? สถานะหน่วยงานจะเปลี่ยนเป็น “ยังไม่พร้อมตรวจ” และบุคลากรทุกคนในหน่วยงานจะสามารถบันทึกกิจกรรมใหม่ได้ รวมถึงผู้มีสิทธิ์สามารถแก้ไขการรับรองรายกิจกรรม เมื่อดำเนินการเสร็จต้องส่งผลงานใหม่ทั้งหน่วยงาน', 'ยกเลิกส่งผลงาน'))) return
     setBusy(true); setError(''); setMessage('')
     try {
       const { data, error: e } = await sb.rpc('p4p_cancel_submission_for_activity_edit', {
@@ -145,7 +145,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       if (data?.ok === false) throw new Error(data?.reason || 'ไม่สามารถยกเลิกส่งผลงานได้')
       setSubmission({ ...submission, status: 'reopened', updated_at: new Date().toISOString() })
       setPreview(false)
-      setMessage('ยกเลิกส่งผลงานแล้ว ขณะนี้ยังไม่พร้อมตรวจ สามารถแก้ไขการรับรองกิจกรรมรายรายการได้')
+      setMessage('ยกเลิกส่งผลงานแล้ว ขณะนี้ยังไม่พร้อมตรวจ บุคลากรทุกคนในหน่วยงานสามารถบันทึกกิจกรรมใหม่ และผู้มีสิทธิ์สามารถแก้ไขการรับรองรายกิจกรรมได้')
       setReloadTick(t => t + 1)
     } catch (e: any) { setError(e?.message || 'ยกเลิกส่งผลงานไม่สำเร็จ') }
     finally { setBusy(false) }
@@ -193,7 +193,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       {['submitted', 'resubmitted', 'reviewed'].includes(String(submission?.status || ''))
         ? <div className="flex flex-wrap items-center gap-2"><p className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><CheckCircle2 size={17}/>ส่งผลงานแล้ว · ล็อกการบันทึกกิจกรรมในขอบเขตนี้</p><button type="button" className="btn sec !border-amber-300 !text-amber-800" disabled={busy} onClick={cancelSubmissionForEdit}>ยกเลิกส่งผลงาน</button></div>
         : <div className="flex flex-wrap gap-2">
-          {submission?.status === 'reopened' && <p className="w-full text-sm font-semibold text-amber-800">ยังไม่พร้อมตรวจ · เปิดให้แก้ไขการรับรองกิจกรรมรายรายการแล้ว เมื่อแก้ไขเสร็จให้ส่งผลงานทั้งหน่วยงานใหม่</p>}
+          {submission?.status === 'reopened' && <p className="w-full text-sm font-semibold text-amber-800">ยังไม่พร้อมตรวจ · เปิดให้บุคลากรทุกคนบันทึกกิจกรรมใหม่ และผู้มีสิทธิ์แก้ไขการรับรองรายกิจกรรมได้ เมื่อดำเนินการเสร็จให้ส่งผลงานทั้งหน่วยงานใหม่</p>}
           <button type="button" className="btn blue" disabled={!ready || busy || !canSubmitScope} onClick={() => setPreview(true)}><Send size={16}/>{submission?.status === 'reopened' ? 'ตรวจทานและส่งผลงานใหม่' : 'ตรวจทานและส่งผลงาน'}</button>
           {submission?.status === 'returned' && <span className="self-center text-xs text-stone-600">หลังแก้ไข ต้องส่งผลงานทั้งหน่วยงานอีกครั้ง</span>}
         </div>}
