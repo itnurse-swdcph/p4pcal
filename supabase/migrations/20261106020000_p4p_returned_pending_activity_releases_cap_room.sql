@@ -1,0 +1,12 @@
+-- Returned-for-correction activities (status='pending' AND non-empty reject_reason) no longer consume
+-- shift/day/monthly cap room in v_logs and get_v_logs_month, so points that were cut by a cap are
+-- pulled back in for other approved activities (same as rejected activities, which become 'draft').
+-- Applied to production via MCP as: p4p_returned_pending_activity_releases_cap_room
+--
+-- Change (both v_logs view and get_v_logs_month function), in the `pts_eff` CASE of CTE `s`:
+--   before: WHEN b.status = 'draft' THEN 0
+--   after : WHEN b.status = 'draft'
+--             OR (b.status = 'pending' AND length(btrim(coalesce(lg.reject_reason,''))) > 0) THEN 0
+-- When the activity is corrected and re-approved (reject_reason cleared) it consumes cap again
+-- in the normal id order. Score totals (p4p_calc) still count only status='approved'.
+-- The original statements were applied with a DO block that rewrites pg_get_viewdef/pg_get_functiondef text.
