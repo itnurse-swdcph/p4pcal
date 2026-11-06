@@ -82,7 +82,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       ? people.find((d: any) => String(d.org_role || '').includes('หัวหน้างาน') && (String(d.unit_name || '').trim() === unitName || includesName(d.extra_unit_names, unitName)))
       : null
     const groupAuthor = people.find((d: any) => String(d.org_role || '').includes('หัวหน้ากลุ่มงาน') && (String(d.nursing_group || '').trim() === groupName || includesName(d.extra_nursing_group_names, groupName)))
-    const managerialTitle = (d: any) => !d ? '' : String(d.org_role || '').includes('หัวหน้ากลุ่มงาน') ? officeUnitName(d.nursing_group || groupName, 'หัวหน้ากลุ่มงาน') : String(d.org_role || '').includes('หัวหน้างาน') ? officeUnitName(d.unit_name || unitName, 'หัวหน้างาน') : String(d.org_role || '')
+    const managerialTitle = (d: any) => !d ? '' : String(d.org_role || '').includes('หัวหน้ากลุ่มงาน') ? `หัวหน้ากลุ่มงาน${String(d.nursing_group || groupName).trim().replace(/^(?:(?:กลุ่มงาน|กลุ่ม|งาน)\\s*)+/u, '')}` : String(d.org_role || '').includes('หัวหน้างาน') ? officeUnitName(d.unit_name || unitName, 'หัวหน้างาน') : String(d.org_role || '')
     const chiefs = people.filter((d: any) => /หัวหน้าพยาบาล|หัวหน้าภารกิจด้านการพยาบาล/.test(String(d.org_role || '')))
     const committee = chiefs.find((d: any) => /รักษาการ/.test(String(d.org_role || ''))) || chiefs.find((d: any) => !/รักษาการ/.test(String(d.org_role || '')))
     return {
@@ -161,7 +161,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             <p className="memo-body"><ThaiText text={form.bodyText ?? defaultBodyText} /></p>
             <p className="memo-closing"><ThaiText text="จึงเรียนมาเพื่อโปรดพิจารณา" /></p><div className="memo-requester-signers"><MemoSign name={form.authorName} position={form.authorPosition} managerial={form.authorManagerial} /><MemoSign name={form.groupAuthorName} position={form.groupAuthorPosition} managerial={form.groupAuthorManagerial} /></div>
             <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.committeeName} position={form.committeePosition} />
-            <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.directorName} position={form.directorPosition} />
+            <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.directorName} position={form.directorPosition} />
             <ApprovalBlock heading="เรียน รองผู้อำนวยการฝ่ายบริหาร" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.deputyName} position={form.deputyPosition} />
             <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณาอนุมัติ" name={form.adminName} position={form.adminPosition} />
             <div className="memo-final-approval"><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ <b className="memo-dotted-line">................................</b></span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" /></div>
