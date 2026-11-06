@@ -139,16 +139,22 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     if (result.error) { setError(result.error.message); return }
     setForm({ ...(result.data.payload || {}), id: result.data.id }); await loadHistory()
   }
-  const print = () => {
+  // เตรียมหน้าพิมพ์ (ใช้ทั้งปุ่ม "พิมพ์ A4" และ Ctrl+P/เมนูพิมพ์ของเบราว์เซอร์) เพื่อให้งานพิมพ์ตรงกับตัวอย่างเสมอ
+  const preparePrint = () => {
     document.getElementById('payment-memo-page-rule')?.remove()
     const pageRule = document.createElement('style')
     pageRule.id = 'payment-memo-page-rule'
     pageRule.textContent = '@page { size: A4 portrait !important; margin: 10mm 15mm 5mm 30mm !important; }'
     document.head.appendChild(pageRule)
     document.body.classList.add('print-payment-memo')
-    window.requestAnimationFrame(() => window.print())
   }
-  useEffect(() => { const after = () => { document.body.classList.remove('print-payment-memo'); document.getElementById('payment-memo-page-rule')?.remove() }; window.addEventListener('afterprint', after); return () => window.removeEventListener('afterprint', after) }, [])
+  const cleanupPrint = () => { document.body.classList.remove('print-payment-memo'); document.getElementById('payment-memo-page-rule')?.remove() }
+  const print = () => { preparePrint(); window.requestAnimationFrame(() => window.print()) }
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('beforeprint', preparePrint); window.addEventListener('afterprint', cleanupPrint)
+    return () => { window.removeEventListener('beforeprint', preparePrint); window.removeEventListener('afterprint', cleanupPrint); cleanupPrint() }
+  }, [open])
   const money = Number(form?.amount || 0)
   const officeName = unitName
     ? officeUnitName(form?.work, 'งาน')
