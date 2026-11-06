@@ -863,6 +863,9 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const act = acts.find((a: any) => a.code === code)
   const prev = act && pos ? act.minutes * Number(qty || 0) * pos.rate : 0
   const shown = effectivePid ? rows.filter((r: any) => String(r.person_id) === String(effectivePid)) : rows
+  // หน้า "บันทึกกิจกรรม" ให้เจ้าของ person_id จัดการแบบร่างของตนเองได้โดยตรง
+  // ไม่พึ่ง entered_by เพียงอย่างเดียว เพราะบางรายการเดิมอาจไม่มี entered_by ในข้อมูลที่อ่านจาก view
+  const editableDraftPersonId = !isCentralAdminAccount && effectivePid && (!picker || entryMode === 'self') ? effectivePid : null
   // ใช้ข้อมูลบุคลากรและชุดรายการแบบเดียวกับหน้าสรุปรายบุคคลก่อนเปิดใบพิมพ์
   const printPerson = person ? (() => {
     const canonical = personRecords.find((p: any) => p.id === person.id || (person.person_id && p.id === person.person_id))
@@ -1062,7 +1065,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     <div className="space-y-3">
       {notice && <p role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
       {myRejected.length > 0 && <button type="button" role="alert" aria-expanded={showReturnedOnly} aria-controls="saved-activity-table" onClick={() => setShowReturnedOnly(v => !v)} className="w-full rounded-lg border-2 border-red-400 bg-red-50 p-3 text-left text-sm text-red-900 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500"><span className="flex items-center justify-between gap-3"><span><b>มีรายการกิจกรรมไม่รับรอง/ส่งกลับให้แก้ไขจำนวน {myRejected.length} รายการ</b><span className="mt-1 block">กรุณาตรวจสอบ กดที่แถบนี้เพื่อ{showReturnedOnly ? 'แสดงรายการทั้งหมด' : 'ดูรายการที่ต้องแก้ไข'}</span></span><span className="shrink-0 rounded-full bg-red-700 px-3 py-1 font-bold text-white">{showReturnedOnly ? 'ดูทั้งหมด' : 'ดูรายการ'}</span></span></button>}
-      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={showReturnedOnly ? returnedRows : shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!effectivePid && people.length > 1} showAllDrafts={isCentralAdminAccount} ownerPersonId={ownPerson?.id || null} draftsReadOnly={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
+      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={showReturnedOnly ? returnedRows : shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!effectivePid && people.length > 1} showAllDrafts={isCentralAdminAccount} ownerPersonId={editableDraftPersonId} draftsReadOnly={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
     </div>
   </div>
 }
