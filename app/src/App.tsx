@@ -1460,8 +1460,10 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
     if (!(await appConfirm('ยืนยันแก้ไขการรับรองกิจกรรมนี้? เฉพาะรายการนี้จะกลับไปสถานะรอรับรอง รายการอื่นจะไม่เปลี่ยนแปลง'))) return false
     const { data, error } = await sb.rpc('p4p_reopen_own_activity_approval', { p_log_id: Number(r.id), p_reason: 'ผู้มีสิทธิ์ในหน่วยงานยกเลิกการรับรองเพื่อทบทวนรายการอีกครั้ง' })
     if (error || !data?.ok) { appAlert('แก้ไขการรับรองไม่สำเร็จ: ' + (error?.message || data?.error || 'ไม่สามารถเปลี่ยนสถานะได้')); return false }
+    // เปิดหน้าต่างรายละเอียดแบบเดียวกับรายการรอรับรองทันที
+    // ให้ผู้มีสิทธิ์ตัดสินใจรับรองหรือไม่รับรองได้ในขั้นตอนเดียว
+    setDetailRow({ ...r, status: 'pending', reject_reason: null, reviewed_by: null, reviewed_at: null })
     reload()
-    appAlert('ยกเลิกการรับรองแล้ว รายการนี้กลับไปสถานะรอรับรอง โดยรายการอื่นยังคงสถานะเดิม')
     return true
   }
   const del = async (id: number): Promise<boolean> => {
