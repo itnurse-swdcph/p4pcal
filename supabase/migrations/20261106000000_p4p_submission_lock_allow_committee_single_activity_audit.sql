@@ -1,0 +1,16 @@
+-- Allow p4p_committee_audit_activity (single approved activity -> pending/draft, content unchanged)
+-- to pass guard_p4p_submission_lock after a unit has submitted its monthly results.
+-- Applied to production via MCP as: p4p_submission_lock_allow_committee_single_activity_audit
+-- Change vs previous definition: only the bypass block at the top of the function body.
+--
+--   if tg_op='UPDATE'
+--      and coalesce(current_setting('p4p.committee_audit', true), '') = old.id::text
+--      and old.status = 'approved' and new.status in ('pending','draft')
+--      and old.person_id is not distinct from new.person_id
+--      and old.work_date is not distinct from new.work_date
+--      and old.activity_code is not distinct from new.activity_code
+--      and old.qty is not distinct from new.qty then
+--     return new;
+--   end if;
+--
+-- Full function body: select pg_get_functiondef('public.guard_p4p_submission_lock'::regproc);
