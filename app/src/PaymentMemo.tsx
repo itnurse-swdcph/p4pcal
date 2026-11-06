@@ -82,7 +82,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       ? people.find((d: any) => String(d.org_role || '').includes('หัวหน้างาน') && (String(d.unit_name || '').trim() === unitName || includesName(d.extra_unit_names, unitName)))
       : null
     const groupAuthor = people.find((d: any) => String(d.org_role || '').includes('หัวหน้ากลุ่มงาน') && (String(d.nursing_group || '').trim() === groupName || includesName(d.extra_nursing_group_names, groupName)))
-    const managerialTitle = (d: any) => !d ? '' : String(d.org_role || '').includes('หัวหน้ากลุ่มงาน') ? `หัวหน้ากลุ่มงาน${String(d.nursing_group || groupName).trim().replace(/^(?:(?:กลุ่มงาน|กลุ่ม|งาน)\\s*)+/u, '')}` : String(d.org_role || '').includes('หัวหน้างาน') ? officeUnitName(d.unit_name || unitName, 'หัวหน้างาน') : String(d.org_role || '')
+    const managerialTitle = (d: any) => !d ? '' : String(d.org_role || '').includes('หัวหน้ากลุ่มงาน') ? `หัวหน้ากลุ่มงาน${String(d.nursing_group || groupName).trim().replace(/^(?:(?:กลุ่มงาน|กลุ่ม|งาน)\s*)+/u, '')}` : String(d.org_role || '').includes('หัวหน้างาน') ? officeUnitName(d.unit_name || unitName, 'หัวหน้างาน') : String(d.org_role || '')
     const chiefs = people.filter((d: any) => /หัวหน้าพยาบาล|หัวหน้าภารกิจด้านการพยาบาล/.test(String(d.org_role || '')))
     const committee = chiefs.find((d: any) => /รักษาการ/.test(String(d.org_role || ''))) || chiefs.find((d: any) => !/รักษาการ/.test(String(d.org_role || '')))
     return {
