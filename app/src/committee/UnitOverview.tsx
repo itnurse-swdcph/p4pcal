@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { CheckCheck, CheckCircle2, ChevronRight, Clock3 } from 'lucide-react'
 import { dateTime, money, num, type UnitStat } from './utils'
 
-type Ready = 'all' | 'ready' | 'notready' | 'reviewed'
+type Ready = 'all' | 'ready' | 'notready' | 'reviewed' | 'returned'
 
 export default function UnitOverview({ units, onOpen, showReview = false }: { units: UnitStat[]; onOpen: (key: number) => void; showReview?: boolean }) {
   const [group, setGroup] = useState('')
@@ -13,7 +13,7 @@ export default function UnitOverview({ units, onOpen, showReview = false }: { un
   const unitOptions = useMemo(() => units.filter(u => !group || u.group === group), [units, group])
   const filtered = useMemo(() => units.filter(u =>
     (!group || u.group === group) && (!unit || String(u.key) === unit) &&
-    (ready === 'all' || (ready === 'ready' ? u.ready : ready === 'reviewed' ? !!u.reviewed : !u.ready))), [units, group, unit, ready])
+    (ready === 'all' || (ready === 'ready' ? u.ready : ready === 'reviewed' ? !!u.reviewed : ready === 'returned' ? u.submissionStatus === 'returned' : !u.ready))), [units, group, unit, ready])
   const byGroup = useMemo(() => {
     const m = new Map<string, UnitStat[]>()
     for (const u of filtered) m.set(u.group, [...(m.get(u.group) || []), u])
@@ -22,7 +22,8 @@ export default function UnitOverview({ units, onOpen, showReview = false }: { un
 
   const readyCount = units.filter(u => u.ready).length
   const pendingTotal = units.reduce((s, u) => s + u.pending, 0)
-  const chips: [Ready, string, number][] = [['all', 'ทั้งหมด', units.length], ['ready', 'พร้อมตรวจ 100%', readyCount], ['notready', 'ยังไม่พร้อม', units.length - readyCount],
+  const returnedCount = units.filter(u => u.submissionStatus === 'returned').length
+  const chips: [Ready, string, number][] = [['all', 'ทั้งหมด', units.length], ['ready', 'พร้อมตรวจ 100%', readyCount], ['returned', 'รอแก้ไข', returnedCount], ['notready', 'ยังไม่พร้อม', units.length - readyCount - returnedCount],
     ...(showReview ? [['reviewed', 'ตรวจแล้ว', units.filter(u => u.reviewed).length] as [Ready, string, number]] : [])]
 
   return <div className="space-y-4">
@@ -74,7 +75,7 @@ export default function UnitOverview({ units, onOpen, showReview = false }: { un
             <td className="p-2.5">{u.ready
               ? <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800"><CheckCircle2 size={13} />พร้อมตรวจ 100%</span>
               : u.submissionStatus === 'returned'
-                ? <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-800"><Clock3 size={13} />ส่งกลับแก้ไข</span>
+                ? <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-800"><Clock3 size={13} />รอแก้ไข</span>
                 : !u.submitted
                   ? <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-stone-200 bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-700"><Clock3 size={13} />ยังไม่ส่งผลงาน</span>
                   : <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800"><Clock3 size={13} />ค้าง {num(u.pending, 0)} รายการ</span>}</td>

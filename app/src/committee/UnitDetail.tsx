@@ -12,7 +12,9 @@ type Props = {
   onRandomAudit: () => void
   canAudit: boolean
   submission?: any
+  returnedPeople?: any[]
   onReturnPerson?: (line: any, reason: string) => void
+  onAllowAdditional?: (line: any, reason: string) => void
   reviewEnabled?: boolean
   canReview?: boolean
   onReviewUnit?: () => void
@@ -21,12 +23,14 @@ type Props = {
 
 type Sort = 'name' | 'score' | 'pay'
 
-export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUnit, onViewPerson, onRandomAudit, canAudit, submission, onReturnPerson, reviewEnabled = false, canReview = false, onReviewUnit, onUnreviewUnit }: Props) {
+export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUnit, onViewPerson, onRandomAudit, canAudit, submission, returnedPeople = [], onReturnPerson, onAllowAdditional, reviewEnabled = false, canReview = false, onReviewUnit, onUnreviewUnit }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
   const [sort, setSort] = useState<Sort>('name')
   const [reason, setReason] = useState('')
   const [returnTarget, setReturnTarget] = useState<string | null>(null)
   const [returnReason, setReturnReason] = useState('')
+  const [additionalTarget, setAdditionalTarget] = useState<string | null>(null)
+  const [additionalReason, setAdditionalReason] = useState('คะแนนต่ำกว่าแต้มประกัน จึงขออนุญาตบันทึกกิจกรรมเพิ่มเติม')
 
   const groupName = (pg: any) => groups.find(g => Number(g.pay_group) === Number(pg))?.name || `กลุ่ม ${pg ?? '—'}`
   const cards: [Filter, string, number, string][] = [
@@ -80,14 +84,15 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
 
     <section className="card space-y-2">
       <div className="text-xs font-semibold text-teal-800">{unit.group}</div>
-      {submission && <p className="text-xs font-semibold text-emerald-800">สถานะส่งผลงาน: {submission.status === 'returned' ? 'ส่งกลับแก้ไขรายบุคคล' : submission.status === 'resubmitted' ? 'ส่งผลงานซ้ำแล้ว' : 'ส่งผลงานแล้ว'}</p>}
+      {submission && <p className={'text-xs font-semibold ' + (submission.status === 'returned' || returnedPeople.length ? 'text-red-800' : 'text-emerald-800')}>สถานะส่งผลงาน: {submission.status === 'returned' || returnedPeople.length ? 'รอแก้ไข' : submission.status === 'resubmitted' ? 'ส่งผลงานซ้ำแล้ว' : 'ส่งผลงานแล้ว'}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-bold text-stone-900">{unit.name}</h2>
         {unit.ready
           ? <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800"><CheckCircle2 size={16} />พร้อมตรวจ 100%</span>
+          : unit.returnCount > 0 ? <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-semibold text-red-800"><Clock3 size={16} />รอแก้ไข {num(unit.returnCount, 0)} คน</span>
           : <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800"><Clock3 size={16} />ยังไม่พร้อม · ค้างรับรอง {num(unit.pending, 0)} รายการ ({num(unit.peoplePending, 0)} คน)</span>}
       </div>
-      {!unit.ready && <p className="text-xs text-stone-600">หัวหน้างานต้องรับรองกิจกรรมที่ค้างให้ครบก่อน จึงจะเริ่มกระบวนการรับรองผลประจำเดือนได้ (กรองดูรายชื่อที่ค้างได้ที่ตัวกรอง "มีรายการรอรับรอง")</p>}
+      {!unit.ready && <p className="text-xs text-stone-600">{unit.returnCount > 0 ? 'ต้องแก้ไขกิจกรรมที่คณะกรรมการส่งกลับ และให้หัวหน้างานรับรองรายการที่แก้ไขแล้วให้ครบก่อน จึงจะส่งกลับเข้าคิวตรวจได้' : 'หัวหน้างานต้องรับรองกิจกรรมที่ค้างให้ครบก่อน จึงจะเริ่มกระบวนการรับรองผลประจำเดือนได้ (กรองดูรายชื่อที่ค้างได้ที่ตัวกรอง "มีรายการรอรับรอง")'}</p>}
       {!reviewEnabled && <p className="border-t border-stone-100 pt-3 text-xs text-stone-500">ไม่สามารถอ่านสถานะตรวจจากฐานข้อมูลได้ จึงปิดการกดตรวจและเริ่มรับรองไว้ก่อน กรุณาแจ้งผู้ดูแลระบบ</p>}
       {reviewEnabled && <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
         {unit.reviewed
@@ -102,6 +107,17 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
           </>}
       </div>}
     </section>
+
+    {returnedPeople.length > 0 && <section className="card space-y-3 border-red-200" aria-label="บุคลากรรอแก้ไข">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-red-800">บุคลากรที่รอแก้ไขรายการจากคณะกรรมการ</h3><span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">{num(returnedPeople.length, 0)} คน</span></div>
+      <div className="divide-y divide-red-100">{returnedPeople.map((p: any) => <div key={p.return_id || p.staff_directory_id} className="flex flex-wrap items-start justify-between gap-3 py-2 first:pt-0 last:pb-0">
+        <div className="min-w-0 flex-1"><div className="font-semibold text-stone-900">{p.name || 'ไม่พบชื่อบุคลากร'}</div><div className="text-xs text-stone-600">{p.position || '—'} · รหัสทะเบียน {p.staff_directory_id}</div>
+          {p.reason && <div className="mt-1 whitespace-pre-wrap rounded-lg bg-red-50 p-2 text-xs text-red-800"><b>เหตุผลที่ส่งกลับ:</b> {p.reason}</div>}
+          {p.activities?.length > 0 && <div className="mt-2 space-y-1">{p.activities.map((a: any) => <div key={a.id} className="rounded-lg border border-red-100 bg-red-50/60 p-2 text-xs text-red-900"><b>{a.code} · {a.title || 'กิจกรรม'}</b><div>{a.action === 'reject' ? 'คณะกรรมการไม่อนุมัติ' : 'คณะกรรมการส่งกลับให้แก้ไข'} · {a.reason || 'ไม่ได้ระบุเหตุผล'}</div></div>)}</div>}
+        </div>
+        {p.id && <button type="button" className="btn sec !py-1" onClick={() => onViewPerson(p)}>เปิดกิจกรรมรายบุคคล</button>}
+      </div>)}</div>
+    </section>}
 
     <section aria-label="สรุปบุคลากร (กดเพื่อดูรายชื่อ)" className="space-y-2">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">{cards.map(([k, label, n, color]) =>
@@ -164,6 +180,12 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
                 <textarea className="inp min-h-16 w-full text-xs" value={returnReason} onChange={e => setReturnReason(e.target.value)} placeholder="ระบุสิ่งที่ต้องแก้ไข อย่างน้อย 5 ตัวอักษร" />
                 <div className="flex justify-end gap-1"><button type="button" className="btn sec !py-1" onClick={() => { setReturnTarget(null); setReturnReason('') }}>ยกเลิก</button><button type="button" className="btn !py-1" disabled={returnReason.trim().length < 5} onClick={() => { onReturnPerson(l, returnReason); setReturnTarget(null); setReturnReason('') }}>ยืนยันส่งกลับ</button></div>
               </div> : <button type="button" className="btn sec !py-1 !text-amber-800" onClick={() => { setReturnTarget(String(l.staff_directory_id ?? l.directory_source_row)); setReturnReason('') }}>ส่งกลับรายบุคคล</button>}
+            </div>}
+            {submission && onAllowAdditional && l.below && <div>
+              {additionalTarget === String(l.staff_directory_id ?? l.directory_source_row) ? <div className="w-56 space-y-1">
+                <textarea className="inp min-h-16 w-full text-xs" value={additionalReason} onChange={e => setAdditionalReason(e.target.value)} placeholder="เหตุผลที่อนุญาตให้บันทึกเพิ่ม" />
+                <div className="flex justify-end gap-1"><button type="button" className="btn sec !py-1" onClick={() => setAdditionalTarget(null)}>ยกเลิก</button><button type="button" className="btn !py-1" disabled={additionalReason.trim().length < 5} onClick={() => { onAllowAdditional(l, additionalReason); setAdditionalTarget(null) }}>เปิดให้บันทึกเพิ่ม</button></div>
+              </div> : <button type="button" className="btn sec !py-1 !text-teal-800" onClick={() => { setAdditionalTarget(String(l.staff_directory_id ?? l.directory_source_row)); setAdditionalReason('คะแนนต่ำกว่าแต้มประกัน จึงขออนุญาตบันทึกกิจกรรมเพิ่มเติม') }}>เปิดให้บันทึกเพิ่ม</button>}
             </div>}
           </td>
         </tr>)}

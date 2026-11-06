@@ -47,6 +47,7 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
   const [preparingPrint, setPreparingPrint] = useState(false)
   const [personRow, setPersonRow] = useState<any>(null)
   const [evidencePaths, setEvidencePaths] = useState<Record<string, string>>({})
+  const [activityDefinitions, setActivityDefinitions] = useState<Record<string, any>>({})
 
   // กด Esc เพื่อปิดหน้าต่าง (ไม่ปิดขณะเปิดตัวอย่างพิมพ์อยู่)
   useEffect(() => {
@@ -76,6 +77,11 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
       if (e) return
       // โหลดข้อมูลเสริมแยกจากรายการหลัก เพื่อให้รายการแสดงทันที และไม่ล้มทั้งแผงหากส่วนนี้โหลดไม่ได้
       try {
+        const codes = [...new Set(list.map((r: any) => String(r.activity_code || '')).filter(Boolean))]
+        if (codes.length) {
+          const { data: definitions } = await sb.from('activities').select('code,uom,minutes,definition').in('code', codes)
+          if (alive) setActivityDefinitions(Object.fromEntries((definitions || []).map((a: any) => [String(a.code), a])))
+        } else if (alive) setActivityDefinitions({})
         const paths: Record<string, string> = {}
         const ids = list.map((r: any) => r.id)
         for (let i = 0; i < ids.length; i += 200) {
@@ -209,6 +215,11 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
           : <ul className="space-y-2">{shown.map(r => {
             const st = STATUS[r.status] || { label: r.status, cls: 'bg-stone-100 text-stone-700 border-stone-200' }
             const form = open && open.id === r.id ? open : null
+            const definition = activityDefinitions[String(r.activity_code)]
+            const baseMinutes = Number(definition?.minutes ?? r.minutes ?? 0)
+            const positionName = person?.position || personRow?.position || r.position || ''
+            const positionRate = Number((positions || []).find((p: any) => String(p.name || '').trim() === String(positionName).trim())?.rate ?? r.rate ?? 0)
+            const pointsPerUnit = baseMinutes * positionRate
             return <li key={r.id} className="rounded-xl border border-stone-200 p-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -220,6 +231,12 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
                   <div className="mt-1 text-xs text-stone-600">แต้ม <b className="text-stone-900">{num(r.counted_points ?? r.points)}</b></div>
                 </div>
               </div>
+              <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg border border-teal-100 bg-teal-50/60 p-2 text-xs">
+                <div><div className="text-stone-500">หน่วยนับ</div><b className="text-stone-900">{definition?.uom || r.uom || '—'}</b></div>
+                <div><div className="text-stone-500">เวลาพื้นฐาน</div><b className="text-stone-900">{num(baseMinutes)} นาที/หน่วย</b></div>
+                <div><div className="text-stone-500">คะแนนปรับต่อหน่วย</div><b className="text-teal-900">{positionRate ? num(pointsPerUnit) : '—'} คะแนน</b></div>
+              </div>
+              {definition?.definition && <p className="mt-1 whitespace-pre-wrap rounded-lg bg-stone-50 p-2 text-xs text-stone-600">คำนิยาม/หลักฐาน: {definition.definition}</p>}
               {r.evidence && <p className="mt-2 whitespace-pre-wrap rounded-lg bg-stone-50 p-2 text-xs text-stone-700">หลักฐาน: {r.evidence}</p>}
               {r.reject_reason && r.status !== 'approved' && <p className="mt-2 text-xs text-red-800">เหตุผล: {r.reject_reason}</p>}
               {(r.status === 'approved' || (evidencePaths[String(r.id)] && openEvidence)) && <div className="mt-2 flex flex-wrap gap-2">
