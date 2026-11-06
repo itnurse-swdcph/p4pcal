@@ -131,7 +131,25 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       (profile?.role === 'admin' && String(profile?.username || '') === '11450')
   const alreadySubmitted = !!submission && ['submitted', 'resubmitted', 'reviewed'].includes(String(submission.status))
   const ready = !loading && !error && pending === 0 && missingNotes.length === 0 && staff.length > 0
-  const statusLabel: Record<string, string> = { submitted: 'ส่งผลงานแล้ว', returned: 'มีรายการส่งกลับแก้ไข', resubmitted: 'ส่งผลงานซ้ำแล้ว', reviewed: 'ตรวจสอบแล้ว' }
+  const statusLabel: Record<string, string> = { submitted: 'ส่งผลงานแล้ว', returned: 'มีรายการส่งกลับแก้ไข', resubmitted: 'ส่งผลงานซ้ำแล้ว', reviewed: 'ตรวจสอบแล้ว', reopened: 'ยังไม่พร้อมตรวจ' }
+
+  async function cancelSubmissionForEdit() {
+    if (!submission || !['submitted', 'resubmitted', 'reviewed'].includes(String(submission.status))) return
+    if (!(await appConfirm('ยืนยันยกเลิกส่งผลงานประจำเดือนนี้? สถานะหน่วยงานจะเปลี่ยนเป็น “ยังไม่พร้อมตรวจ” และปลดล็อกเฉพาะการแก้ไขการรับรองกิจกรรมในหน่วยงานนี้ เมื่อแก้ไขเสร็จต้องส่งผลงานใหม่ทั้งหน่วยงาน', 'ยกเลิกส่งผลงาน'))) return
+    setBusy(true); setError(''); setMessage('')
+    try {
+      const { data, error: e } = await sb.rpc('p4p_cancel_submission_for_activity_edit', {
+        p_month: monthDate, p_unit_id: scopeType === 'unit' ? unitId : null, p_group_name: groupName
+      })
+      if (e) throw e
+      if (data?.ok === false) throw new Error(data?.reason || 'ไม่สามารถยกเลิกส่งผลงานได้')
+      setSubmission({ ...submission, status: 'reopened', updated_at: new Date().toISOString() })
+      setPreview(false)
+      setMessage('ยกเลิกส่งผลงานแล้ว ขณะนี้ยังไม่พร้อมตรวจ สามารถแก้ไขการรับรองกิจกรรมรายรายการได้')
+      setReloadTick(t => t + 1)
+    } catch (e: any) { setError(e?.message || 'ยกเลิกส่งผลงานไม่สำเร็จ') }
+    finally { setBusy(false) }
+  }
 
   async function send() {
     if (!ready || !canSubmitRole || !canSubmitScope || alreadySubmitted) return
