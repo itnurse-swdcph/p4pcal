@@ -153,7 +153,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
 
   async function send() {
     if (!ready || !canSubmitRole || !canSubmitScope || alreadySubmitted) return
-    if (!(await appConfirm('ยืนยันส่งผลงานประจำเดือน' + monthLabel(month) + ' ใช่หรือไม่? หลังยืนยัน บุคลากรในขอบเขตนี้จะไม่สามารถเพิ่มหรือแก้ไขกิจกรรมได้ เว้นแต่คณะกรรมการส่งกลับรายบุคคล', 'ยืนยันส่งผลงาน'))) return
+    if (!(await appConfirm('ยืนยันส่งผลงานประจำเดือน' + monthLabel(month) + ' ใช่หรือไม่? หลังยืนยัน บุคลากรในขอบเขตนี้จะไม่สามารถเพิ่มหรือแก้ไขกิจกรรมได้ หากต้องแก้ไขการรับรอง ให้กดยกเลิกส่งผลงานก่อน แล้วแก้ไขเป็นรายกิจกรรม จากนั้นส่งผลงานใหม่ทั้งหน่วยงาน', 'ยืนยันส่งผลงาน'))) return
     setBusy(true); setError(''); setMessage('')
     try {
       const { data, error: e } = await sb.rpc(submission?.status === 'reopened' ? 'p4p_resubmit_reopened_month' : 'p4p_submit_month_v2', {
