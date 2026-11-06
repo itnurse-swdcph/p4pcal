@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, BellRing, CheckCircle2, Paperclip, Printer, RotateCcw, X, XCircle } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, BellRing, CheckCircle2, ChevronDown, Moon, Paperclip, Printer, RotateCcw, Sun, Sunset, X, XCircle } from 'lucide-react'
 import { appConfirm } from '../AppDialog'
 import { num } from './utils'
 
@@ -9,7 +9,24 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   rejected: { label: 'ไม่อนุมัติ', cls: 'bg-red-50 text-red-800 border-red-200' },
   draft: { label: 'ร่าง', cls: 'bg-stone-100 text-stone-700 border-stone-200' }
 }
-const FILTERS: [string, string][] = [['all', 'ทั้งหมด'], ['approved', 'อนุมัติแล้ว'], ['pending', 'รอรับรอง'], ['rejected', 'ไม่อนุมัติ']]
+const FILTERS: [string, string][] = [['all', 'ทั้งหมด'], ['approved', 'อนุมัติแล้ว'], ['pending', 'รอรับรอง'], ['rejected', 'ไม่อนุมัติ/ส่งกลับ']]
+const SHIFT_ORDER = ['เช้า', 'บ่าย', 'ดึก']
+const SHIFT_STYLE: Record<string, { cls: string; Icon: any }> = {
+  'เช้า': { cls: 'border-amber-300 bg-amber-100 text-amber-900', Icon: Sun },
+  'บ่าย': { cls: 'border-orange-300 bg-orange-100 text-orange-900', Icon: Sunset },
+  'ดึก': { cls: 'border-indigo-300 bg-indigo-100 text-indigo-900', Icon: Moon }
+}
+// ฉบับร่างที่มีเหตุผลติดมา = กิจกรรมที่ถูกส่งกลับให้เจ้าของแก้ไข / ไม่อนุมัติ (ระบบเปลี่ยนเป็นฉบับร่างให้เจ้าของแก้ไขต่อ)
+const isReturned = (r: any) => r.status === 'rejected' || (r.status === 'draft' && !!r.reject_reason)
+const statusKey = (r: any) => (isReturned(r) ? 'rejected' : r.status)
+const statusInfo = (r: any) => (r.status === 'draft' && r.reject_reason
+  ? { label: 'ส่งกลับให้แก้ไข', cls: 'bg-red-50 text-red-800 border-red-200' }
+  : STATUS[r.status] || { label: r.status, cls: 'bg-stone-100 text-stone-700 border-stone-200' })
+const pt = (v: any) => Number(v || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const dateParts = (d: string) => {
+  const dt = new Date(String(d).slice(0, 10) + 'T00:00:00')
+  return { day: dt.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }), sub: `${dt.toLocaleDateString('th-TH', { weekday: 'short' })} · ${dt.toLocaleDateString('th-TH', { year: 'numeric' })}` }
+}
 
 type Props = {
   sb: any
@@ -40,6 +57,7 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
   const [notice, setNotice] = useState('')
   const [filter, setFilter] = useState('all')
   const [open, setOpen] = useState<{ id: number; type: 'return_for_correction' | 'reject' } | null>(null)
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({})
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const personId = person && !String(person.id).startsWith('dir:') ? person.id : null
@@ -105,8 +123,12 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
     return () => { alive = false }
   }, [sb, monthDate, personId, randomUnitId])
 
-  const counts = useMemo(() => rows.reduce((a: any, r: any) => { a[r.status] = (a[r.status] || 0) + 1; return a }, {}), [rows])
-  const shown = filter === 'all' ? rows : rows.filter(r => r.status === filter)
+  const counts = useMemo(() => rows.reduce((a: any, r: any) => { const k = statusKey(r); a[k] = (a[k] || 0) + 1; return a }, {}), [rows])
+  // เรียงตามวันที่ → เวร (เช้า/บ่าย/ดึก) → ลำดับบันทึก
+  const sorted = useMemo(() => [...rows].sort((a, b) => String(a.work_date).localeCompare(String(b.work_date))
+    || (SHIFT_ORDER.indexOf(a.shift) + 1 || 9) - (SHIFT_ORDER.indexOf(b.shift) + 1 || 9) || Number(a.id) - Number(b.id)), [rows])
+  const shown = filter === 'all' ? sorted : sorted.filter(r => statusKey(r) === filter)
+  const shownApprovedTotal = shown.filter(r => r.status === 'approved').reduce((s, r) => s + Number(r.counted_points ?? r.points ?? 0), 0)
   const totalCounted = rows.filter(r => r.status === 'approved').reduce((s, r) => s + Number(r.counted_points ?? r.points ?? 0), 0)
 
   const approvedCount = counts.approved || 0
@@ -172,7 +194,7 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
   }
 
   return <div className="fixed inset-0 z-[120] flex justify-end bg-slate-950/45" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-    <section role="dialog" aria-modal="true" aria-label="กิจกรรมรายบุคคล" className="flex h-full w-full max-w-3xl flex-col bg-white shadow-2xl">
+    <section role="dialog" aria-modal="true" aria-label="กิจกรรมรายบุคคล" className="flex h-full w-full max-w-5xl flex-col bg-white shadow-2xl">
       <header className="flex items-start justify-between gap-3 border-b border-stone-200 p-4">
         <div className="min-w-0">
           <div className="text-xs font-semibold text-teal-800">{randomUnitId != null ? 'สุ่มตรวจกิจกรรมที่อนุมัติแล้ว 5 รายการ' : 'ตรวจกิจกรรมรายบุคคล'}</div>
@@ -212,50 +234,113 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
         {loading ? <p className="py-8 text-center text-sm text-stone-500">กำลังโหลดกิจกรรม…</p>
           : !personId && randomUnitId == null ? <p className="py-8 text-center text-sm text-stone-500">บุคลากรคนนี้ยังไม่มีบัญชีบันทึกกิจกรรมในระบบ</p>
           : !shown.length ? <p className="py-8 text-center text-sm text-stone-500">ไม่พบกิจกรรมตามเงื่อนไขที่เลือก</p>
-          : <ul className="space-y-2">{shown.map(r => {
-            const st = STATUS[r.status] || { label: r.status, cls: 'bg-stone-100 text-stone-700 border-stone-200' }
-            const form = open && open.id === r.id ? open : null
-            const definition = activityDefinitions[String(r.activity_code)]
-            const baseMinutes = Number(definition?.minutes ?? r.minutes ?? 0)
-            const positionName = person?.position || personRow?.position || r.position || ''
-            const positionRate = Number((positions || []).find((p: any) => String(p.name || '').trim() === String(positionName).trim())?.rate ?? r.rate ?? 0)
-            const pointsPerUnit = baseMinutes * positionRate
-            return <li key={r.id} className="rounded-xl border border-stone-200 p-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-semibold text-stone-900">{r.title || r.activity_code}</div>
-                  <div className="text-xs text-stone-600">{randomUnitId != null && <b>{r.person_name} · </b>}{new Date(r.work_date + 'T00:00:00').toLocaleDateString('th-TH', { dateStyle: 'medium' })}{r.shift ? ` · เวร${r.shift}` : ''} · จำนวน {num(r.qty)}</div>
-                </div>
-                <div className="text-right">
-                  <span className={'inline-block rounded-full border px-2.5 py-0.5 text-xs font-semibold ' + st.cls}>{st.label}</span>
-                  <div className="mt-1 text-xs text-stone-600">แต้ม <b className="text-stone-900">{num(r.counted_points ?? r.points)}</b></div>
-                </div>
-              </div>
-              <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg border border-teal-100 bg-teal-50/60 p-2 text-xs">
-                <div><div className="text-stone-500">หน่วยนับ</div><b className="text-stone-900">{definition?.uom || r.uom || '—'}</b></div>
-                <div><div className="text-stone-500">เวลาพื้นฐาน</div><b className="text-stone-900">{num(baseMinutes)} นาที/หน่วย</b></div>
-                <div><div className="text-stone-500">คะแนนปรับต่อหน่วย</div><b className="text-teal-900">{positionRate ? num(pointsPerUnit) : '—'} คะแนน</b></div>
-              </div>
-              {definition?.definition && <p className="mt-1 whitespace-pre-wrap rounded-lg bg-stone-50 p-2 text-xs text-stone-600">คำนิยาม/หลักฐาน: {definition.definition}</p>}
-              {r.evidence && <p className="mt-2 whitespace-pre-wrap rounded-lg bg-stone-50 p-2 text-xs text-stone-700">หลักฐาน: {r.evidence}</p>}
-              {r.reject_reason && r.status !== 'approved' && <p className="mt-2 text-xs text-red-800">เหตุผล: {r.reject_reason}</p>}
-              {(r.status === 'approved' || (evidencePaths[String(r.id)] && openEvidence)) && <div className="mt-2 flex flex-wrap gap-2">
-                {evidencePaths[String(r.id)] && openEvidence && <button type="button" className="btn sec !py-1" onClick={() => openEvidence(sb, evidencePaths[String(r.id)])}><Paperclip size={14} />ดูหลักฐาน</button>}
-                {r.status === 'approved' && <>
-                <button type="button" className="btn sec !py-1" disabled={!canAudit || busy} onClick={() => { setOpen({ id: r.id, type: 'return_for_correction' }); setReason(''); setError('') }}><RotateCcw size={14} />ส่งกลับให้แก้ไข</button>
-                <button type="button" className="btn sec !py-1 !border-red-200 !text-red-700" disabled={!canAudit || busy} onClick={() => { setOpen({ id: r.id, type: 'reject' }); setReason(''); setError('') }}><XCircle size={14} />ไม่อนุมัติ</button>
-                </>}
-              </div>}
-              {form && <div className="mt-2 space-y-2 rounded-lg border border-teal-200 bg-teal-50/60 p-3">
-                <label className="block text-xs font-semibold text-stone-800">{form.type === 'return_for_correction' ? 'สิ่งที่ต้องแก้ไข (เจ้าของกิจกรรมจะเห็นข้อความนี้)' : 'เหตุผลที่ไม่อนุมัติ (เจ้าของกิจกรรมจะเห็นข้อความนี้)'}
-                  <textarea autoFocus className="inp mt-1 min-h-16 w-full !cursor-text" value={reason} onChange={e => setReason(e.target.value)} placeholder="อย่างน้อย 5 ตัวอักษร" /></label>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" className={'btn !py-1 ' + (form.type === 'reject' ? 'red' : '')} disabled={busy} onClick={submit}><CheckCircle2 size={14} />{busy ? 'กำลังบันทึก…' : form.type === 'return_for_correction' ? 'ยืนยันส่งกลับและแจ้งเตือน' : 'ยืนยันไม่อนุมัติและแจ้งเตือน'}</button>
-                  <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => { setOpen(null); setReason('') }}>ยกเลิก</button>
-                </div>
-              </div>}
-            </li>
-          })}</ul>}
+          : <div className="overflow-x-auto rounded-xl border border-stone-200">
+            <table className="w-full min-w-[860px] border-separate border-spacing-0 text-sm" aria-label="รายการกิจกรรม">
+              <thead>
+                <tr className="text-left text-xs font-bold text-stone-700">
+                  <th className="sticky top-0 z-10 w-[104px] border-b-2 border-stone-300 bg-stone-100 px-3 py-2">วันที่</th>
+                  <th className="sticky top-0 z-10 w-[84px] border-b-2 border-stone-300 bg-stone-100 px-3 py-2 text-center">เวร</th>
+                  <th className="sticky top-0 z-10 border-b-2 border-stone-300 bg-stone-100 px-3 py-2">กิจกรรม</th>
+                  <th className="sticky top-0 z-10 w-[96px] border-b-2 border-stone-300 bg-stone-100 px-3 py-2 text-right">จำนวน</th>
+                  <th className="sticky top-0 z-10 w-[112px] border-b-2 border-stone-300 bg-teal-50 px-3 py-2 text-right text-teal-900">แต้มที่ได้</th>
+                  <th className="sticky top-0 z-10 w-[112px] border-b-2 border-stone-300 bg-stone-100 px-3 py-2 text-center">สถานะ</th>
+                  <th className="sticky top-0 z-10 w-[150px] border-b-2 border-stone-300 bg-stone-100 px-3 py-2 text-center">ตรวจสอบ</th>
+                </tr>
+              </thead>
+              <tbody>{(() => {
+                let prevDate = ''; let dayIndex = -1
+                return shown.map((r, i) => {
+                  const dateKey = String(r.work_date).slice(0, 10)
+                  if (dateKey !== prevDate) { dayIndex += 1; prevDate = dateKey }
+                  const band = dayIndex % 2 === 0 ? 'bg-white' : 'bg-stone-50'
+                  const dateTop = i > 0 && String(shown[i - 1].work_date).slice(0, 10) !== dateKey ? 'border-t-2 border-t-stone-300' : 'border-t border-t-stone-200'
+                  const dp = dateParts(r.work_date)
+                  const shiftStyle = SHIFT_STYLE[r.shift] || { cls: 'border-stone-300 bg-stone-100 text-stone-800', Icon: null }
+                  const ShiftIcon = shiftStyle.Icon
+                  const st = statusInfo(r)
+                  const form = open && open.id === r.id ? open : null
+                  const isOpen = !!expanded[r.id] || !!form
+                  const definition = activityDefinitions[String(r.activity_code)]
+                  const baseMinutes = Number(definition?.minutes ?? r.minutes ?? 0)
+                  const positionName = person?.position || personRow?.position || r.position || ''
+                  const positionRate = Number((positions || []).find((p: any) => String(p.name || '').trim() === String(positionName).trim())?.rate ?? r.rate ?? 0)
+                  const pointsPerUnit = baseMinutes * positionRate
+                  const counted = Number(r.counted_points ?? r.points ?? 0)
+                  const raw = Number(r.points ?? counted)
+                  const cut = raw - counted
+                  const ptsCls = r.status === 'approved' ? 'text-teal-800' : r.status === 'pending' ? 'text-amber-700' : 'text-stone-400 line-through'
+                  const cell = `${band} ${dateTop} px-3 py-2 align-top`
+                  return <Fragment key={r.id}>
+                    <tr>
+                      <td className={cell}>
+                        <div className="text-base font-bold leading-tight text-stone-900">{dp.day}</div>
+                        <div className="text-[11px] leading-tight text-stone-500">{dp.sub}</div>
+                      </td>
+                      <td className={cell + ' text-center'}>
+                        {r.shift ? <span className={'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold ' + shiftStyle.cls}>{ShiftIcon && <ShiftIcon size={13} aria-hidden="true" />}{r.shift}</span> : <span className="text-stone-400">—</span>}
+                      </td>
+                      <td className={cell}>
+                        {randomUnitId != null && <div className="text-xs font-bold text-stone-700">{r.person_name}</div>}
+                        <div className="font-semibold leading-snug text-stone-900">{r.title || r.activity_code}</div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-stone-500">
+                          {r.activity_code && <span className="rounded bg-stone-100 px-1.5 py-px font-mono text-stone-600">{r.activity_code}</span>}
+                          <button type="button" className="inline-flex items-center gap-0.5 font-semibold text-teal-800 hover:underline" aria-expanded={isOpen}
+                            onClick={() => setExpanded(v => ({ ...v, [r.id]: !v[r.id] }))}><ChevronDown size={12} className={isOpen ? 'rotate-180 transition' : 'transition'} />{isOpen ? 'ซ่อนรายละเอียด' : 'รายละเอียด'}</button>
+                        </div>
+                        {r.reject_reason && r.status !== 'approved' && <p className="mt-1 text-xs font-semibold text-red-800">เหตุผล: {r.reject_reason}</p>}
+                      </td>
+                      <td className={cell + ' text-right tabular-nums'}>
+                        <div className="font-semibold text-stone-900">{num(r.qty)}</div>
+                        <div className="text-[11px] text-stone-500">{definition?.uom || r.uom || ''}</div>
+                      </td>
+                      <td className={cell + ' bg-teal-50/60 text-right'}>
+                        <div className={'text-lg font-bold leading-tight tabular-nums ' + ptsCls}>{pt(counted)}</div>
+                        {cut > 0.005 && r.status !== 'rejected' && <div className="text-[11px] leading-tight text-amber-700">ตัดเพดาน −{pt(cut)}<br />(เดิม {pt(raw)})</div>}
+                      </td>
+                      <td className={cell + ' text-center'}><span className={'inline-block rounded-full border px-2.5 py-0.5 text-xs font-semibold ' + st.cls}>{st.label}</span></td>
+                      <td className={cell + ' text-center'}>
+                        <div className="flex flex-col items-stretch gap-1">
+                          {evidencePaths[String(r.id)] && openEvidence && <button type="button" className="btn sec !py-1 !text-xs" onClick={() => openEvidence(sb, evidencePaths[String(r.id)])}><Paperclip size={13} />ดูหลักฐาน</button>}
+                          {r.status === 'approved' && <>
+                            <button type="button" className="btn sec !py-1 !text-xs" disabled={!canAudit || busy} onClick={() => { setOpen({ id: r.id, type: 'return_for_correction' }); setReason(''); setError('') }}><RotateCcw size={13} />ส่งกลับให้แก้ไข</button>
+                            <button type="button" className="btn sec !py-1 !text-xs !border-red-200 !text-red-700" disabled={!canAudit || busy} onClick={() => { setOpen({ id: r.id, type: 'reject' }); setReason(''); setError('') }}><XCircle size={13} />ไม่อนุมัติ</button>
+                          </>}
+                        </div>
+                      </td>
+                    </tr>
+                    {isOpen && <tr>
+                      <td colSpan={7} className={band + ' border-t border-t-stone-100 px-3 pb-3 pt-1'}>
+                        <div className="sticky left-0 w-[min(100%,calc(100vw-4.5rem))]">
+                        <div className="grid grid-cols-3 gap-2 rounded-lg border border-teal-100 bg-teal-50/60 p-2 text-xs">
+                          <div><div className="text-stone-500">หน่วยนับ</div><b className="text-stone-900">{definition?.uom || r.uom || '—'}</b></div>
+                          <div><div className="text-stone-500">เวลาพื้นฐาน</div><b className="text-stone-900">{num(baseMinutes)} นาที/หน่วย</b></div>
+                          <div><div className="text-stone-500">คะแนนปรับต่อหน่วย</div><b className="text-teal-900">{positionRate ? num(pointsPerUnit) : '—'} คะแนน</b></div>
+                        </div>
+                        {definition?.definition && <p className="mt-1 whitespace-pre-wrap rounded-lg bg-stone-100 p-2 text-xs text-stone-600">คำนิยาม/หลักฐาน: {definition.definition}</p>}
+                        {r.evidence && <p className="mt-2 whitespace-pre-wrap rounded-lg bg-stone-100 p-2 text-xs text-stone-700">หลักฐาน: {r.evidence}</p>}
+                        {form && <div className="mt-2 space-y-2 rounded-lg border border-teal-200 bg-teal-50/60 p-3">
+                          <label className="block text-xs font-semibold text-stone-800">{form.type === 'return_for_correction' ? 'สิ่งที่ต้องแก้ไข (เจ้าของกิจกรรมจะเห็นข้อความนี้)' : 'เหตุผลที่ไม่อนุมัติ (เจ้าของกิจกรรมจะเห็นข้อความนี้)'}
+                            <textarea autoFocus className="inp mt-1 min-h-16 w-full !cursor-text" value={reason} onChange={e => setReason(e.target.value)} placeholder="อย่างน้อย 5 ตัวอักษร" /></label>
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" className={'btn !py-1 ' + (form.type === 'reject' ? 'red' : '')} disabled={busy} onClick={submit}><CheckCircle2 size={14} />{busy ? 'กำลังบันทึก…' : form.type === 'return_for_correction' ? 'ยืนยันส่งกลับและแจ้งเตือน' : 'ยืนยันไม่อนุมัติและแจ้งเตือน'}</button>
+                            <button type="button" className="btn sec !py-1" disabled={busy} onClick={() => { setOpen(null); setReason('') }}>ยกเลิก</button>
+                          </div>
+                        </div>}
+                        </div>
+                      </td>
+                    </tr>}
+                  </Fragment>
+                })
+              })()}</tbody>
+              <tfoot>
+                <tr className="text-sm font-bold">
+                  <td colSpan={4} className="border-t-2 border-stone-300 bg-stone-100 px-3 py-2 text-right text-stone-700">รวมแต้มที่นับได้ (อนุมัติแล้ว) จาก {num(shown.length, 0)} รายการที่แสดง</td>
+                  <td className="border-t-2 border-stone-300 bg-teal-50 px-3 py-2 text-right text-lg tabular-nums text-teal-900">{pt(shownApprovedTotal)}</td>
+                  <td colSpan={2} className="border-t-2 border-stone-300 bg-stone-100" />
+                </tr>
+              </tfoot>
+            </table>
+          </div>}
       </div>
     </section>
     {printData && PrintSheet && <PrintSheet sb={sb} person={printData.person} rows={rows} month={monthDate.slice(0, 7)} units={units || []} positions={positions || []}
