@@ -238,6 +238,14 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       sb.rpc('p4p_return_submission_person', { p_submission_id: selectedSubmission.id, p_staff_directory_id: staffId, p_reason: reason.trim() }))
   };
 
+  const allowAdditionalActivity = async (line: any, reason: string) => {
+    const staffId = Number(line.staff_directory_id ?? line.directory_source_row)
+    if (!selectedSubmission?.id || !staffId) { setError('ไม่พบรหัสบุคลากรหรือรายการส่งผลงาน'); return }
+    if (reason.trim().length < 5) { setError('กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร'); return }
+    await runAction('เปิดสิทธิ์ให้ ' + (line.name || 'บุคลากร') + ' บันทึกกิจกรรมเพิ่มเติมแล้ว', () =>
+      sb.rpc('p4p_open_person_additional_activity', { p_submission_id: selectedSubmission.id, p_staff_directory_id: staffId, p_reason: reason.trim() }))
+  }
+
   const reviewUnit = async () => {
     if (!selectedSubmission?.id) { setError('ไม่พบรายการส่งผลงานของหน่วยงานนี้'); return }
     await runAction('ทำเครื่องหมายตรวจแล้วเรียบร้อย', () => sb.rpc('p4p_review_unit', { p_submission_id: selectedSubmission.id }))
@@ -292,7 +300,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
 
     {loading ? <div className="card text-sm text-stone-500">กำลังโหลดข้อมูล…</div> : <>
       {tab === 'overview' && (unit
-        ? <UnitDetail unit={overviewUnits.find((u: any) => u.key === unit.key) || unit} groups={groups} siblings={overviewUnits} submission={selectedSubmission} returnedPeople={returnedPeopleByUnit.get(unit.key) || []} onReturnPerson={canReturnSubmission ? returnSubmissionPerson : undefined} canAudit={canAudit} reviewEnabled={reviewOk} canReview={canAudit && !busy} onReviewUnit={reviewUnit} onUnreviewUnit={unreviewUnit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
+        ? <UnitDetail unit={overviewUnits.find((u: any) => u.key === unit.key) || unit} groups={groups} siblings={overviewUnits} submission={selectedSubmission} returnedPeople={returnedPeopleByUnit.get(unit.key) || []} onReturnPerson={canReturnSubmission ? returnSubmissionPerson : undefined} onAllowAdditional={canReturnSubmission ? allowAdditionalActivity : undefined} canAudit={canAudit} reviewEnabled={reviewOk} canReview={canAudit && !busy} onReviewUnit={reviewUnit} onUnreviewUnit={unreviewUnit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
           onViewPerson={line => setPanel({ person: line })} onRandomAudit={() => setPanel({ person: null, randomUnitId: unit.key })} />
         : <UnitOverview units={overviewUnits} onOpen={openUnit} showReview={reviewOk} />)}
       {tab === 'close' && <ClosePanel review={review} votes={votes} roster={roster} currentUserId={currentUserId} isMember={isMember} activeCount={activeMembers.length}
