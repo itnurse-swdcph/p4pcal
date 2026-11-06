@@ -1766,14 +1766,18 @@ body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row)
 /* เรียน: ไม่ใช้ตัวหนา */
 .memo-paper .memo-to { margin: 1.5mm 0 0 !important; }
 .memo-paper .memo-to b { font-weight: 400; font-size: inherit; }
-/* เนื้อความ: ห่างจากบรรทัดก่อนหน้า 6pt และจัดชิดขอบทั้งสองข้าง */
-.memo-paper .memo-body { margin-top: 6pt !important; white-space: pre-line !important; text-align: justify !important; text-align-last: left !important; text-justify: inter-character !important; }
+/* เนื้อความ: ห่างจากบรรทัดก่อนหน้า 6pt จัดชิดขอบทั้งสองข้าง และบรรทัดที่ผู้ใช้ตัดเองจัดชิดขอบขวาด้วย */
+.memo-paper .memo-body { margin-top: 6pt !important; white-space: normal !important; text-indent: 0 !important; }
+.memo-paper .memo-body-line { display: block; text-align: justify; text-align-last: left; text-justify: inter-character; }
+.memo-paper .memo-body-line:first-child { text-indent: 24mm; }
+.memo-paper .memo-body-line-flush { text-align-last: justify; }
 /* จึงเรียนมาเพื่อโปรดพิจารณา: ติดกัน ไม่ถ่างช่องไฟ */
 .memo-paper .memo-closing { display: block; text-align: left !important; text-align-last: left !important; text-justify: none !important; letter-spacing: 0 !important; word-spacing: 0 !important; white-space: nowrap !important; }
 /* ผู้ลงชื่อขอเบิก 2 คน: ซ้าย = หัวหน้างาน, ขวา = หัวหน้ากลุ่มงาน */
 .memo-paper .memo-signers { display: grid; grid-template-columns: 1fr 1fr; column-gap: 4mm; align-items: start; margin: 1mm 0 1.3mm; }
 .memo-paper .memo-signers .memo-sign { width: auto; margin: 0; }
-/* ไม่อนุมัติ: ต่อด้วยเส้นประจนสุดหน้า */
-.memo-paper .memo-decision-options { justify-content: flex-start; gap: 8mm; }
-.memo-paper .memo-decision-leader { flex: 1 1 auto; min-width: 10mm; align-self: flex-end; height: 0; margin: 0 0 1.4mm 1mm; border-bottom: 1.5px dotted #111; }
-.memo-paper .memo-decision-options > .memo-decision-leader { display: block; gap: 0; }
+/* อนุมัติ / ไม่อนุมัติ และผู้อนุมัติ: อยู่แถวเดียวกับผู้ตรวจสอบเอกสาร (ฝั่งขวา) */
+.memo-paper .memo-approval-row { display: grid; grid-template-columns: 1fr 1fr; column-gap: 4mm; align-items: start; }
+.memo-paper .memo-approval-row .memo-sign, .memo-paper .memo-approval-aside .memo-sign { width: auto !important; margin: .2mm 0 .4mm !important; white-space: normal !important; }
+.memo-paper .memo-approval-aside .memo-decision-options { justify-content: center; margin: 0 0 .5mm; }
+body.print-payment-memo .memo-paper .memo-approval-row .memo-sign { margin: .2mm 0 .4mm !important; }

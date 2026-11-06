@@ -45,19 +45,19 @@ function ThaiText({ text: rawText }: { text: string }) {
       ? <Fragment key={index}><span className="memo-word">{segment}</span><wbr /></Fragment>
     : <Fragment key={index}>{renderSegment(segment, String(index))}</Fragment>)}</>
 }
-// บีบข้อความให้พอดีหนึ่งบรรทัด: ลดขนาดตัวอักษรลงถึงขั้นต่ำก่อน แล้วค่อยบีบความกว้าง (กรณีชื่อหน่วยงานยาว)
+// บีบข้อความให้พอดีหนึ่งบรรทัด (กรณีชื่อหน่วยงานยาว): ไม่ลดขนาดตัวอักษร บีบเฉพาะความกว้าง
+// ใช้ข้อความล้วนไม่ใส่ <wbr> เพราะ <wbr> เปิดช่องตัดบรรทัดได้แม้ตั้ง nowrap
 function FitLine({ text }: { text: string }) {
   const wrapRef = useRef<HTMLSpanElement>(null)
   const innerRef = useRef<HTMLSpanElement>(null)
   const fit = useCallback(() => {
     const wrap = wrapRef.current; const inner = innerRef.current
     if (!wrap || !inner) return
-    inner.style.fontSize = ''; inner.style.transform = ''
-    const avail = wrap.clientWidth; const natural = inner.scrollWidth
-    if (!avail || natural <= avail) return
-    inner.style.fontSize = `${Math.max(16 * (avail / natural), 13)}pt`
-    const after = inner.scrollWidth
-    if (after > avail) { inner.style.transform = `scaleX(${(avail / after).toFixed(4)})`; inner.style.transformOrigin = 'left center' }
+    inner.style.transform = ''
+    const avail = wrap.clientWidth; const natural = inner.getBoundingClientRect().width
+    if (!avail || !natural || natural <= avail) return
+    inner.style.transformOrigin = 'left center'
+    inner.style.transform = `scaleX(${(avail / natural).toFixed(4)})`
   }, [])
   useLayoutEffect(() => { fit() }, [text, fit])
   useEffect(() => {
@@ -66,14 +66,16 @@ function FitLine({ text }: { text: string }) {
     window.addEventListener('resize', again); window.addEventListener('beforeprint', again)
     return () => { window.removeEventListener('resize', again); window.removeEventListener('beforeprint', again) }
   }, [fit])
-  return <span ref={wrapRef} className="memo-fit-wrap"><span ref={innerRef} className="memo-fit-inner"><ThaiText text={text} /></span></span>
+  return <span ref={wrapRef} className="memo-fit-wrap"><span ref={innerRef} className="memo-fit-inner">{toThaiDigits(text)}</span></span>
 }
+// บรรทัดที่ผู้ใช้ตัดเองและยาวอย่างน้อยเท่านี้จะจัดให้ชิดขอบขวา (บรรทัดสั้นมากจะไม่ถ่างตัวอักษร)
+const BODY_JUSTIFY_MIN_CHARS = 45
 const officeUnitName = (value: string, prefix: 'งาน' | 'กลุ่มงาน') => {
   const name = String(value || '').trim().replace(/^(?:(?:กลุ่มงาน|งาน)\s*)+/u, '').trim()
   return name ? `${prefix}${name}` : ''
 }
 const fixedSigners = {
-  authorName: '', authorPosition: '', authorRole: '', groupHeadName: '', groupHeadPosition: '', groupHeadRole: '', committeeName: '', committeePosition: '',
+  authorName: '', authorPosition: '', authorRole: '', groupHeadName: '', groupHeadPosition: '', groupHeadRole: '', committeeName: '', committeePosition: '', committeeRole: '',
   directorName: 'นายสิทธิพงษ์ ดำรงค์พิวัฒน์', directorPosition: 'นายแพทย์ชำนาญการพิเศษ',
   deputyName: 'นางสาววิยะดา สุวรรณเพชร', deputyPosition: 'นักวิชาการเงินและบัญชีปฏิบัติการ',
   adminName: 'นายจักร์พงษ์ ศุภษร', adminPosition: 'นักจัดการงานทั่วไปชำนาญการพิเศษ',
@@ -107,7 +109,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     const groupHead = people.find((d: any) => String(d.org_role || '').includes('หัวหน้ากลุ่มงาน') && (String(d.nursing_group || '').trim() === groupName || includesName(d.extra_nursing_group_names, groupName)))
     // บันทึกข้อความของหน่วยงาน: ซ้าย = หัวหน้างาน, ขวา = หัวหน้ากลุ่มงาน; ของกลุ่มงาน: ลงชื่อเฉพาะหัวหน้ากลุ่มงาน (ใช้ช่อง author เดิมเพื่อให้ประวัติเก่าเปิดได้)
     const author = unitName ? unitHead : groupHead
-    const groupRole = `หัวหน้า${officeUnitName(groupName, 'กลุ่มงาน')}`
+    const groupRole = `หัวหน้า${/^กลุ่มการ/u.test(String(groupName || '').trim()) ? String(groupName).trim() : officeUnitName(groupName, 'กลุ่มงาน')}`
     const authorRole = unitName ? `หัวหน้า${officeUnitName(unitName, 'งาน')}` : groupRole
     const chiefs = people.filter((d: any) => /หัวหน้าพยาบาล|หัวหน้าภารกิจด้านการพยาบาล/.test(String(d.org_role || '')))
     const committee = chiefs.find((d: any) => /รักษาการ/.test(String(d.org_role || ''))) || chiefs.find((d: any) => !/รักษาการ/.test(String(d.org_role || '')))
@@ -120,7 +122,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const newMemo = async () => {
     const n = Number(amount || 0)
     const signers = await loadSignerDefaults()
-    setForm({ docNo: prefixData?.prefix || '', date: '', phone: prefixData?.phone || '', work: unitName || profile?.staff_group || '', group: groupName || profile?.nursing_group || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: defaultBodyText, ...fixedSigners, ...signers, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ' })
+    setForm({ docNo: prefixData?.prefix || '', date: '', phone: prefixData?.phone || '', work: unitName || profile?.staff_group || '', group: groupName || profile?.nursing_group || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: defaultBodyText, ...fixedSigners, ...signers, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ', committeeRole: 'หัวหน้ากลุ่มการพยาบาล' })
     setAmountTextTouched(false); setError('')
   }
   const field = (key: string, value: any) => setForm((v: any) => ({ ...v, [key]: value }))
@@ -175,7 +177,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
               {textInput('จำนวนเงินตัวอักษร', 'amountText')}
             </div><button type="button" className="memo-link" onClick={() => { setAmount(String(Number(amount || 0).toFixed(2))); setAmountTextTouched(false); field('amountText', moneyText(Number(amount || 0))) }}>ดึงยอดรวมล่าสุดจากรายงาน: {Number(amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</button>
               <label className="memo-field memo-body-editor"><span>เนื้อความในบันทึกข้อความ (แก้ไขและขึ้นบรรทัดใหม่ได้)</span><textarea rows={7} value={form?.bodyText ?? defaultBodyText} onChange={e => field('bodyText', e.target.value)} placeholder="พิมพ์เนื้อความที่ต้องการแสดงในบันทึกข้อความ" /></label></section>
-            <section className="memo-section"><h3>ผู้จัดทำและผู้ตรวจสอบ</h3>{unitName ? <>{signEdit('หัวหน้างาน (ลงชื่อฝั่งซ้าย)', 'authorName', 'authorPosition', 'authorRole')}{signEdit('หัวหน้ากลุ่มงาน (ลงชื่อฝั่งขวา)', 'groupHeadName', 'groupHeadPosition', 'groupHeadRole')}</> : signEdit('หัวหน้ากลุ่มงาน (ผู้เสนอขออนุมัติ)', 'authorName', 'authorPosition', 'authorRole')}{signEdit('คณะกรรมการตรวจสอบค่าคะแนน', 'committeeName', 'committeePosition')}{signEdit('ผู้อำนวยการ · ตรวจสอบและเห็นควรอนุมัติ', 'directorName', 'directorPosition')}{signEdit('รองผู้อำนวยการฝ่ายบริหาร', 'deputyName', 'deputyPosition')}{signEdit('ผู้ตรวจสอบเอกสาร', 'adminName', 'adminPosition')}{signEdit('ผู้อนุมัติ', 'approverName', 'approverPosition')}</section>
+            <section className="memo-section"><h3>ผู้จัดทำและผู้ตรวจสอบ</h3>{unitName ? <>{signEdit('หัวหน้างาน (ลงชื่อฝั่งซ้าย)', 'authorName', 'authorPosition', 'authorRole')}{signEdit('หัวหน้ากลุ่มงาน (ลงชื่อฝั่งขวา)', 'groupHeadName', 'groupHeadPosition', 'groupHeadRole')}</> : signEdit('หัวหน้ากลุ่มงาน (ผู้เสนอขออนุมัติ)', 'authorName', 'authorPosition', 'authorRole')}{signEdit('คณะกรรมการตรวจสอบค่าคะแนน', 'committeeName', 'committeePosition', 'committeeRole')}{signEdit('ผู้อำนวยการ · ตรวจสอบและเห็นควรอนุมัติ', 'directorName', 'directorPosition')}{signEdit('รองผู้อำนวยการฝ่ายบริหาร', 'deputyName', 'deputyPosition')}{signEdit('ผู้ตรวจสอบเอกสาร', 'adminName', 'adminPosition')}{signEdit('ผู้อนุมัติ', 'approverName', 'approverPosition')}</section>
             <section className="memo-section"><h3><Clock3 size={15} className="inline mr-1" />ประวัติเอกสารของเดือนนี้</h3>{history.length ? <div className="memo-history">{history.map(row => <button key={row.id} type="button" className={'memo-history-item ' + (form?.id === row.id ? 'selected' : '')} onClick={() => openHistory(row)}><b>{row.doc_no || 'ไม่ระบุเลขที่'}</b><span>{row.memo_date ? dateThai(row.memo_date) : ''} · แก้ไขล่าสุด {row.updated_at ? new Date(row.updated_at).toLocaleString('th-TH') : ''}{Number(row.revision || 1) > 1 ? ` · รุ่น ${row.revision}` : ''}</span><span>{Number(row.amount ?? row.payload?.amount ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</span></button>)}</div> : <p className="text-xs text-stone-500">ยังไม่มีประวัติที่บันทึกไว้ในเดือนนี้</p>}</section>
           </aside>
           {form && <div className="memo-preview-wrap"><div className="memo-paper" lang="th">
@@ -187,17 +189,16 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             </div>
             <div className="memo-line memo-subject"><b>เรื่อง</b><span className="memo-line-value"><ThaiText text="ขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน (ฉ.12)" /></span></div>
             <p className="memo-to"><b>เรียน</b> <ThaiText text="ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" /></p>
-            <p className="memo-body">{toThaiDigits(form.bodyText ?? defaultBodyText)}</p>
+            <div className="memo-body">{String(toThaiDigits(form.bodyText ?? defaultBodyText)).split('\n').map((line: string, i: number, all: string[]) => <span key={i} className={'memo-body-line' + (i < all.length - 1 && line.trim().length >= BODY_JUSTIFY_MIN_CHARS ? ' memo-body-line-flush' : '')}>{line || '\u00a0'}</span>)}</div>
             <p className="memo-closing">จึงเรียนมาเพื่อโปรดพิจารณา</p>
             <div className="memo-signers">
               <div>{unitName ? <MemoSign name={form.authorName} position={form.authorPosition} role={form.authorRole} /> : null}</div>
               <div><MemoSign name={unitName ? form.groupHeadName : form.authorName} position={unitName ? form.groupHeadPosition : form.authorPosition} role={unitName ? form.groupHeadRole : form.authorRole} /></div>
             </div>
-            <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.committeeName} position={form.committeePosition} />
+            <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.committeeName} position={form.committeePosition} role={form.committeeRole} />
             <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.directorName} position={form.directorPosition} />
             <ApprovalBlock heading="เรียน รองผู้อำนวยการฝ่ายบริหาร" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.deputyName} position={form.deputyPosition} />
-            <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณาอนุมัติ" name={form.adminName} position={form.adminPosition} />
-            <div className="memo-final-approval"><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ</span><span className="memo-decision-leader" aria-hidden="true" /></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" /></div>
+            <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณาอนุมัติ" name={form.adminName} position={form.adminPosition} aside={<><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ</span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" /></>} />
           </div></div>}
         </div>
       </div>
@@ -205,5 +206,5 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   </>
 }
 function MemoSign({ name, position, role = '', className = '' }: any) { return <div className={`memo-sign ${className}`}><div className="memo-sign-space" aria-hidden="true" /><div>(<ThaiText text={name || '................................................'} />)</div><div><ThaiText text={position || 'ตำแหน่ง................................................'} /></div>{role && <div><ThaiText text={role} /></div>}</div> }
-function ApprovalBlock({ heading, note, name, position }: any) { return <section className="memo-approval"><p><ThaiText text={heading} /></p><p>– <ThaiText text={note} /></p><MemoSign name={name} position={position} /></section> }
+function ApprovalBlock({ heading, note, name, position, role = '', aside = null }: any) { return <section className="memo-approval"><p><ThaiText text={heading} /></p><p>– <ThaiText text={note} /></p>{aside ? <div className="memo-approval-row"><div><MemoSign name={name} position={position} role={role} /></div><div className="memo-approval-aside">{aside}</div></div> : <MemoSign name={name} position={position} role={role} />}</section> }
 
