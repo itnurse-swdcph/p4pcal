@@ -64,7 +64,7 @@ begin
   if tg_op='INSERT' then return new; end if;
   if tg_op='DELETE' and old.status in ('draft','rejected') then return old; end if;
   if tg_op='UPDATE' and old.status in ('draft','rejected') then return new; end if;
-  if tg_op='UPDATE' and old.status='pending' and new.status in ('approved','draft')
+  if tg_op='UPDATE' and old.status='pending' and new.status in ('approved','draft','rejected')
    and (new.person_id,new.work_date,new.activity_code,new.qty,new.role,new.evidence,new.evidence_image_path,new.sub_activity,new.shift,new.parent_log_id,new.supplemental_reason)
     is not distinct from (old.person_id,old.work_date,old.activity_code,old.qty,old.role,old.evidence,old.evidence_image_path,old.sub_activity,old.shift,old.parent_log_id,old.supplemental_reason) then return new; end if;
  end if;
