@@ -12,6 +12,7 @@ type Props = {
   onRandomAudit: () => void
   canAudit: boolean
   submission?: any
+  returnedPeople?: any[]
   onReturnPerson?: (line: any, reason: string) => void
   reviewEnabled?: boolean
   canReview?: boolean
@@ -21,7 +22,7 @@ type Props = {
 
 type Sort = 'name' | 'score' | 'pay'
 
-export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUnit, onViewPerson, onRandomAudit, canAudit, submission, onReturnPerson, reviewEnabled = false, canReview = false, onReviewUnit, onUnreviewUnit }: Props) {
+export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUnit, onViewPerson, onRandomAudit, canAudit, submission, returnedPeople = [], onReturnPerson, reviewEnabled = false, canReview = false, onReviewUnit, onUnreviewUnit }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
   const [sort, setSort] = useState<Sort>('name')
   const [reason, setReason] = useState('')
@@ -102,6 +103,16 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
           </>}
       </div>}
     </section>
+
+    {returnedPeople.length > 0 && <section className="card space-y-3 border-red-200" aria-label="บุคลากรรอแก้ไข">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-red-800">บุคลากรที่รอแก้ไขรายการจากคณะกรรมการ</h3><span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">{num(returnedPeople.length, 0)} คน</span></div>
+      <div className="divide-y divide-red-100">{returnedPeople.map((p: any) => <div key={p.return_id || p.staff_directory_id} className="flex flex-wrap items-start justify-between gap-3 py-2 first:pt-0 last:pb-0">
+        <div className="min-w-0 flex-1"><div className="font-semibold text-stone-900">{p.name || 'ไม่พบชื่อบุคลากร'}</div><div className="text-xs text-stone-600">{p.position || '—'} · รหัสทะเบียน {p.staff_directory_id}</div>
+          <div className="mt-1 whitespace-pre-wrap rounded-lg bg-red-50 p-2 text-xs text-red-800"><b>เหตุผลที่ส่งกลับ:</b> {p.reason || 'ไม่ได้ระบุเหตุผล'}</div>
+        </div>
+        {p.id && <button type="button" className="btn sec !py-1" onClick={() => onViewPerson(p)}>เปิดกิจกรรมรายบุคคล</button>}
+      </div>)}</div>
+    </section>}
 
     <section aria-label="สรุปบุคลากร (กดเพื่อดูรายชื่อ)" className="space-y-2">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">{cards.map(([k, label, n, color]) =>
