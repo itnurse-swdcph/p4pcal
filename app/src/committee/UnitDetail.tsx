@@ -81,11 +81,12 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
 
     <section className="card space-y-2">
       <div className="text-xs font-semibold text-teal-800">{unit.group}</div>
-      {submission && <p className="text-xs font-semibold text-emerald-800">สถานะส่งผลงาน: {submission.status === 'returned' ? 'ส่งกลับแก้ไขรายบุคคล' : submission.status === 'resubmitted' ? 'ส่งผลงานซ้ำแล้ว' : 'ส่งผลงานแล้ว'}</p>}
+      {submission && <p className={'text-xs font-semibold ' + (submission.status === 'returned' || returnedPeople.length ? 'text-red-800' : 'text-emerald-800')}>สถานะส่งผลงาน: {submission.status === 'returned' || returnedPeople.length ? 'รอแก้ไข' : submission.status === 'resubmitted' ? 'ส่งผลงานซ้ำแล้ว' : 'ส่งผลงานแล้ว'}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-bold text-stone-900">{unit.name}</h2>
         {unit.ready
           ? <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800"><CheckCircle2 size={16} />พร้อมตรวจ 100%</span>
+          : unit.returnCount > 0 ? <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-semibold text-red-800"><Clock3 size={16} />รอแก้ไข {num(unit.returnCount, 0)} คน</span>
           : <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800"><Clock3 size={16} />ยังไม่พร้อม · ค้างรับรอง {num(unit.pending, 0)} รายการ ({num(unit.peoplePending, 0)} คน)</span>}
       </div>
       {!unit.ready && <p className="text-xs text-stone-600">หัวหน้างานต้องรับรองกิจกรรมที่ค้างให้ครบก่อน จึงจะเริ่มกระบวนการรับรองผลประจำเดือนได้ (กรองดูรายชื่อที่ค้างได้ที่ตัวกรอง "มีรายการรอรับรอง")</p>}
