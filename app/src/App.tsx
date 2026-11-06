@@ -1456,10 +1456,10 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
     return true
   }
   const reopenOwnApproval = async (r: any) => {
-    if (!r || String(r.reviewed_by || '') !== String(me || '')) { appAlert('ยกเลิกการรับรองได้เฉพาะผู้ที่รับรองรายการนี้'); return false }
-    if (!(await appConfirm('ยืนยันยกเลิกการรับรองกิจกรรมนี้? รายการจะกลับไปสถานะรอรับรอง โดยไม่ปลดล็อกกิจกรรมอื่นหรือปลดล็อกทั้งหน่วยงาน'))) return false
-    const { data, error } = await sb.rpc('p4p_reopen_own_activity_approval', { p_log_id: Number(r.id), p_reason: 'ผู้รับรองยกเลิกการรับรองเพื่อทบทวนรายการอีกครั้ง' })
-    if (error || !data?.ok) { appAlert('ยกเลิกการรับรองไม่สำเร็จ: ' + (error?.message || data?.error || 'ไม่สามารถเปลี่ยนสถานะได้')); return false }
+    if (!r) return false
+    if (!(await appConfirm('ยืนยันแก้ไขการรับรองกิจกรรมนี้? เฉพาะรายการนี้จะกลับไปสถานะรอรับรอง รายการอื่นจะไม่เปลี่ยนแปลง'))) return false
+    const { data, error } = await sb.rpc('p4p_reopen_own_activity_approval', { p_log_id: Number(r.id), p_reason: 'ผู้มีสิทธิ์ในหน่วยงานยกเลิกการรับรองเพื่อทบทวนรายการอีกครั้ง' })
+    if (error || !data?.ok) { appAlert('แก้ไขการรับรองไม่สำเร็จ: ' + (error?.message || data?.error || 'ไม่สามารถเปลี่ยนสถานะได้')); return false }
     reload()
     appAlert('ยกเลิกการรับรองแล้ว รายการนี้กลับไปสถานะรอรับรอง โดยรายการอื่นยังคงสถานะเดิม')
     return true
