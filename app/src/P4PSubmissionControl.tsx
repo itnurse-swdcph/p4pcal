@@ -190,10 +190,11 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       {submission?.status === 'returned' && <p className="text-sm text-amber-800">คณะกรรมการส่งกลับแก้ไขรายบุคคลแล้ว เมื่อแก้ไขและรับรองครบ ให้ตรวจทานและส่งผลงานทั้งหน่วยงานอีกครั้ง</p>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {message && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
-      {submission?.status === 'submitted' || submission?.status === 'resubmitted' || submission?.status === 'reviewed'
-        ? <p className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><CheckCircle2 size={17}/>ส่งผลงานแล้ว · ล็อกการบันทึกกิจกรรมในขอบเขตนี้</p>
+      {['submitted', 'resubmitted', 'reviewed'].includes(String(submission?.status || ''))
+        ? <div className="flex flex-wrap items-center gap-2"><p className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><CheckCircle2 size={17}/>ส่งผลงานแล้ว · ล็อกการบันทึกกิจกรรมในขอบเขตนี้</p><button type="button" className="btn sec !border-amber-300 !text-amber-800" disabled={busy} onClick={cancelSubmissionForEdit}>ยกเลิกส่งผลงาน</button></div>
         : <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn blue" disabled={!ready || busy || !canSubmitScope} onClick={() => setPreview(true)}><Send size={16}/>ตรวจทานและส่งผลงาน</button>
+          {submission?.status === 'reopened' && <p className="w-full text-sm font-semibold text-amber-800">ยังไม่พร้อมตรวจ · เปิดให้แก้ไขการรับรองกิจกรรมรายรายการแล้ว เมื่อแก้ไขเสร็จให้ส่งผลงานทั้งหน่วยงานใหม่</p>}
+          <button type="button" className="btn blue" disabled={!ready || busy || !canSubmitScope} onClick={() => setPreview(true)}><Send size={16}/>{submission?.status === 'reopened' ? 'ตรวจทานและส่งผลงานใหม่' : 'ตรวจทานและส่งผลงาน'}</button>
           {submission?.status === 'returned' && <span className="self-center text-xs text-stone-600">หลังแก้ไข ต้องส่งผลงานทั้งหน่วยงานอีกครั้ง</span>}
         </div>}
     </>}
