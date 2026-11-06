@@ -1305,8 +1305,9 @@ function Totals({ rows, people, positions }: any) {
   const rg = roleGuaranteeForPosition(people[0].position, positions, people[0].org_role)
   const t = rows.reduce((s: number, r: any) => s + Number(r.counted_points), 0)
   const score = scoreBreakdown(people[0].position, positions, people[0].org_role, t, month)
+  const excessCap = String(month || '').slice(0, 7) === '2026-10' ? 10 : g * 0.5
   return <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
-    {[['แต้มกิจกรรมเดือนนี้', score.activityPoints], ['แต้มประกัน', g], ['แต้มการันตี', rg], ['แต้มผลงานรวม', score.performance], ['แต้มส่วนเกิน (สูงสุด 600)', score.excess]].map(([l, v]: any) => <div key={l} className="card"><div className="text-xs text-stone-600">{l}</div><div className="text-2xl font-bold">{nf(v)}</div></div>)}
+    {[['แต้มกิจกรรมเดือนนี้', score.activityPoints], ['แต้มประกัน', g], ['แต้มการันตี', rg], ['แต้มผลงานรวม', score.performance], [`แต้มส่วนเกิน (สูงสุด ${nf(excessCap, 0)})`, score.excess]].map(([l, v]: any) => <div key={l} className="card"><div className="text-xs text-stone-600">{l}</div><div className="text-2xl font-bold">{nf(v)}</div></div>)}
   </div>
 }
 
