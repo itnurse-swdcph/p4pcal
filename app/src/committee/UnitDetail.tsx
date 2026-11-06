@@ -89,7 +89,7 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
           : unit.returnCount > 0 ? <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-semibold text-red-800"><Clock3 size={16} />รอแก้ไข {num(unit.returnCount, 0)} คน</span>
           : <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800"><Clock3 size={16} />ยังไม่พร้อม · ค้างรับรอง {num(unit.pending, 0)} รายการ ({num(unit.peoplePending, 0)} คน)</span>}
       </div>
-      {!unit.ready && <p className="text-xs text-stone-600">หัวหน้างานต้องรับรองกิจกรรมที่ค้างให้ครบก่อน จึงจะเริ่มกระบวนการรับรองผลประจำเดือนได้ (กรองดูรายชื่อที่ค้างได้ที่ตัวกรอง "มีรายการรอรับรอง")</p>}
+      {!unit.ready && <p className="text-xs text-stone-600">{unit.returnCount > 0 ? 'ต้องแก้ไขกิจกรรมที่คณะกรรมการส่งกลับ และให้หัวหน้างานรับรองรายการที่แก้ไขแล้วให้ครบก่อน จึงจะส่งกลับเข้าคิวตรวจได้' : 'หัวหน้างานต้องรับรองกิจกรรมที่ค้างให้ครบก่อน จึงจะเริ่มกระบวนการรับรองผลประจำเดือนได้ (กรองดูรายชื่อที่ค้างได้ที่ตัวกรอง "มีรายการรอรับรอง")'}</p>}
       {!reviewEnabled && <p className="border-t border-stone-100 pt-3 text-xs text-stone-500">ไม่สามารถอ่านสถานะตรวจจากฐานข้อมูลได้ จึงปิดการกดตรวจและเริ่มรับรองไว้ก่อน กรุณาแจ้งผู้ดูแลระบบ</p>}
       {reviewEnabled && <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
         {unit.reviewed
