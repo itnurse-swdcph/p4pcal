@@ -183,7 +183,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   }), [units, submissions, returnedPeopleByUnit, statusOk, correctionQueueOk, unitReviews, reviewOk])
   const selectedSubmission = unit ? submissionForUnit(unit) : null
 
-  const readyCount = submittedUnits.filter(u => statusOk && u.ready).length
+  const readyCount = overviewUnits.filter((u: any) => u.submitted && u.ready).length
   const pendingTotal = units.reduce((s, u) => s + u.pending, 0)
   const reviewedCount = overviewUnits.filter((u: any) => u.reviewed).length
   const allChecked = reviewOk && overviewUnits.length > 0 && reviewedCount === overviewUnits.length
