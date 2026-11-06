@@ -1747,3 +1747,33 @@ body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row)
     background: #fff !important;
   }
 }
+/* ===== บันทึกข้อความขออนุมัติจ่ายเงิน: จัดหน้าตามแบบหนังสือราชการ ===== */
+/* หัวเรื่อง "บันทึกข้อความ" ให้ส่วนล่างบรรทัดเสมอส่วนล่างตราครุฑ */
+.memo-paper .memo-letterhead { align-items: flex-end; }
+.memo-paper .memo-garuda { top: auto; bottom: 2.5mm; transform: none; }
+.memo-paper .memo-letterhead h1 { line-height: 1; margin: 0 0 3mm; }
+/* บรรทัดส่วนราชการ / ที่ / วันที่ / เรื่อง: ขีดเส้นใต้ต่อจากคำนำหน้าไปจนสุดหน้า */
+.memo-paper .memo-line { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 1.5mm; align-items: end; margin: 0 0 1mm; min-height: 8mm; }
+.memo-paper .memo-official-line { grid-template-columns: 25mm minmax(0, 1fr); column-gap: 1mm; }
+.memo-paper .memo-line > b { font-size: 20pt; line-height: 1; font-weight: 700; white-space: nowrap; padding-bottom: .4mm; }
+.memo-paper .memo-line-value { min-width: 0; overflow: hidden; white-space: nowrap; font-size: 16pt; line-height: 1.05; padding: 0 0 .5mm 1mm; border-bottom: 1px solid #111; }
+.memo-paper .memo-fit-wrap { display: block; overflow: hidden; }
+.memo-paper .memo-fit-inner { display: inline-block; white-space: nowrap; }
+/* ที่ (ซ้าย) / วันที่ (เริ่มที่กึ่งกลางหน้ากระดาษ A4 = 105 มม. จากขอบ = 75 มม. จากขอบซ้ายของเนื้อหา) */
+.memo-paper .memo-number { display: grid; grid-template-columns: 75mm minmax(0, 1fr); gap: 0; min-height: 0; margin: 0 0 1mm; }
+.memo-paper .memo-number .memo-line { margin: 0; }
+.memo-paper .memo-subject { margin: 0 0 1.5mm !important; }
+/* เรียน: ไม่ใช้ตัวหนา */
+.memo-paper .memo-to { margin: 1.5mm 0 0 !important; }
+.memo-paper .memo-to b { font-weight: 400; font-size: inherit; }
+/* เนื้อความ: ห่างจากบรรทัดก่อนหน้า 6pt และจัดชิดขอบทั้งสองข้าง */
+.memo-paper .memo-body { margin-top: 6pt !important; white-space: pre-line !important; text-align: justify !important; text-align-last: left !important; text-justify: inter-character !important; }
+/* จึงเรียนมาเพื่อโปรดพิจารณา: ติดกัน ไม่ถ่างช่องไฟ */
+.memo-paper .memo-closing { display: block; text-align: left !important; text-align-last: left !important; text-justify: none !important; letter-spacing: 0 !important; word-spacing: 0 !important; white-space: nowrap !important; }
+/* ผู้ลงชื่อขอเบิก 2 คน: ซ้าย = หัวหน้างาน, ขวา = หัวหน้ากลุ่มงาน */
+.memo-paper .memo-signers { display: grid; grid-template-columns: 1fr 1fr; column-gap: 4mm; align-items: start; margin: 1mm 0 1.3mm; }
+.memo-paper .memo-signers .memo-sign { width: auto; margin: 0; }
+/* ไม่อนุมัติ: ต่อด้วยเส้นประจนสุดหน้า */
+.memo-paper .memo-decision-options { justify-content: flex-start; gap: 8mm; }
+.memo-paper .memo-decision-leader { flex: 1 1 auto; min-width: 10mm; align-self: flex-end; height: 0; margin: 0 0 1.4mm 1mm; border-bottom: 1.5px dotted #111; }
+.memo-paper .memo-decision-options > .memo-decision-leader { display: block; gap: 0; }
