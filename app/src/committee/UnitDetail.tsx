@@ -14,6 +14,7 @@ type Props = {
   submission?: any
   returnedPeople?: any[]
   onReturnPerson?: (line: any, reason: string) => void
+  onAllowAdditional?: (line: any, reason: string) => void
   reviewEnabled?: boolean
   canReview?: boolean
   onReviewUnit?: () => void
@@ -22,12 +23,14 @@ type Props = {
 
 type Sort = 'name' | 'score' | 'pay'
 
-export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUnit, onViewPerson, onRandomAudit, canAudit, submission, returnedPeople = [], onReturnPerson, reviewEnabled = false, canReview = false, onReviewUnit, onUnreviewUnit }: Props) {
+export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUnit, onViewPerson, onRandomAudit, canAudit, submission, returnedPeople = [], onReturnPerson, onAllowAdditional, reviewEnabled = false, canReview = false, onReviewUnit, onUnreviewUnit }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
   const [sort, setSort] = useState<Sort>('name')
   const [reason, setReason] = useState('')
   const [returnTarget, setReturnTarget] = useState<string | null>(null)
   const [returnReason, setReturnReason] = useState('')
+  const [additionalTarget, setAdditionalTarget] = useState<string | null>(null)
+  const [additionalReason, setAdditionalReason] = useState('คะแนนต่ำกว่าแต้มประกัน จึงขออนุญาตบันทึกกิจกรรมเพิ่มเติม')
 
   const groupName = (pg: any) => groups.find(g => Number(g.pay_group) === Number(pg))?.name || `กลุ่ม ${pg ?? '—'}`
   const cards: [Filter, string, number, string][] = [
@@ -177,6 +180,12 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
                 <textarea className="inp min-h-16 w-full text-xs" value={returnReason} onChange={e => setReturnReason(e.target.value)} placeholder="ระบุสิ่งที่ต้องแก้ไข อย่างน้อย 5 ตัวอักษร" />
                 <div className="flex justify-end gap-1"><button type="button" className="btn sec !py-1" onClick={() => { setReturnTarget(null); setReturnReason('') }}>ยกเลิก</button><button type="button" className="btn !py-1" disabled={returnReason.trim().length < 5} onClick={() => { onReturnPerson(l, returnReason); setReturnTarget(null); setReturnReason('') }}>ยืนยันส่งกลับ</button></div>
               </div> : <button type="button" className="btn sec !py-1 !text-amber-800" onClick={() => { setReturnTarget(String(l.staff_directory_id ?? l.directory_source_row)); setReturnReason('') }}>ส่งกลับรายบุคคล</button>}
+            </div>}
+            {submission && onAllowAdditional && l.below && <div>
+              {additionalTarget === String(l.staff_directory_id ?? l.directory_source_row) ? <div className="w-56 space-y-1">
+                <textarea className="inp min-h-16 w-full text-xs" value={additionalReason} onChange={e => setAdditionalReason(e.target.value)} placeholder="เหตุผลที่อนุญาตให้บันทึกเพิ่ม" />
+                <div className="flex justify-end gap-1"><button type="button" className="btn sec !py-1" onClick={() => setAdditionalTarget(null)}>ยกเลิก</button><button type="button" className="btn !py-1" disabled={additionalReason.trim().length < 5} onClick={() => { onAllowAdditional(l, additionalReason); setAdditionalTarget(null) }}>เปิดให้บันทึกเพิ่ม</button></div>
+              </div> : <button type="button" className="btn sec !py-1 !text-teal-800" onClick={() => { setAdditionalTarget(String(l.staff_directory_id ?? l.directory_source_row)); setAdditionalReason('คะแนนต่ำกว่าแต้มประกัน จึงขออนุญาตบันทึกกิจกรรมเพิ่มเติม') }}>เปิดให้บันทึกเพิ่ม</button>}
             </div>}
           </td>
         </tr>)}
