@@ -1494,15 +1494,11 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
   body.print-payment-memo .memo-preview-wrap { display: block !important; width: auto !important; height: auto !important; max-height: none !important; overflow: visible !important; padding: 0 !important; margin: 0 !important; background: #fff !important; border: 0 !important; box-shadow: none !important; }
   body.print-payment-memo .memo-head,
   body.print-payment-memo .memo-editor { display: none !important; }
-  body.print-payment-memo .memo-paper { width: auto !important; height: 282mm !important; min-height: 282mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; box-shadow: none !important; font-size: 16pt !important; line-height: 1 !important; }
+  body.print-payment-memo .memo-paper { width: auto !important; height: 282mm !important; min-height: 282mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; box-shadow: none !important; font-size: 16pt !important; line-height: 1.04 !important; }
   body.print-payment-memo .memo-letterhead { height: 24mm !important; }
   body.print-payment-memo .memo-letterhead h1 { font-size: 26pt !important; }
   body.print-payment-memo .memo-garuda { width: 30mm !important; height: 30mm !important; }
   body.print-payment-memo .memo-sign-space { height: 8mm !important; }
-  body.print-payment-memo .memo-paper p { margin-bottom: 1mm !important; }
-  body.print-payment-memo .memo-meta { gap: 2mm !important; }
-  body.print-payment-memo .memo-sign { margin-top: .5mm !important; margin-bottom: .5mm !important; }
-  body.print-payment-memo .memo-approval { margin-top: .5mm !important; }
   body.print-payment-memo .memo-approval .memo-sign { margin-left: 5% !important; }
   @page memoPage { size: A4 portrait !important; margin: 10mm 15mm 5mm 30mm; }
 }
@@ -1747,3 +1743,40 @@ body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row)
     background: #fff !important;
   }
 }
+/* ===== บันทึกข้อความขออนุมัติจ่ายเงิน: จัดหน้าตามแบบหนังสือราชการ ===== */
+/* ตัวอย่างบนจอและงานพิมพ์ใช้กฎระยะห่างชุดเดียวกัน และใช้ metrics ตัวอักษรแบบเส้นตรงเหมือนกัน เพื่อให้ตัดบรรทัดตรงกัน */
+.memo-paper, .memo-paper * { text-rendering: geometricPrecision; font-kerning: normal; }
+/* หัวเรื่อง "บันทึกข้อความ" ให้ส่วนล่างบรรทัดเสมอส่วนล่างตราครุฑ */
+.memo-paper .memo-letterhead { align-items: flex-end; }
+.memo-paper .memo-garuda { top: auto; bottom: 2.5mm; transform: none; }
+.memo-paper .memo-letterhead h1 { line-height: 1; margin: 0 0 3mm; }
+/* บรรทัดส่วนราชการ / ที่ / วันที่ / เรื่อง: ขีดเส้นใต้ต่อจากคำนำหน้าไปจนสุดหน้า */
+.memo-paper .memo-line { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 1.5mm; align-items: end; margin: 0 0 1mm; min-height: 8mm; }
+.memo-paper .memo-official-line { grid-template-columns: 25mm minmax(0, 1fr); column-gap: 1mm; }
+.memo-paper .memo-line > b { font-size: 20pt; line-height: 1; font-weight: 700; white-space: nowrap; padding-bottom: .4mm; }
+.memo-paper .memo-line-value { min-width: 0; overflow: hidden; white-space: nowrap; font-size: 16pt; line-height: 1.05; padding: 0 0 .5mm 1mm; border-bottom: 1px solid #111; }
+.memo-paper .memo-fit-wrap { display: block; overflow: hidden; }
+.memo-paper .memo-fit-inner { display: inline-block; white-space: nowrap; }
+/* ที่ (ซ้าย) / วันที่ (เริ่มที่กึ่งกลางหน้ากระดาษ A4 = 105 มม. จากขอบ = 75 มม. จากขอบซ้ายของเนื้อหา) */
+.memo-paper .memo-number { display: grid; grid-template-columns: 75mm minmax(0, 1fr); gap: 0; min-height: 0; margin: 0 0 1mm; }
+.memo-paper .memo-number .memo-line { margin: 0; }
+.memo-paper .memo-subject { margin: 0 0 1.5mm !important; }
+/* เรียน: ไม่ใช้ตัวหนา */
+.memo-paper .memo-to { margin: 1.5mm 0 0 !important; }
+.memo-paper .memo-to b { font-weight: 400; font-size: inherit; }
+/* เนื้อความ: ห่างจากบรรทัดก่อนหน้า 6pt จัดชิดขอบทั้งสองข้าง และบรรทัดที่ผู้ใช้ตัดเองจัดชิดขอบขวาด้วย */
+.memo-paper .memo-body { margin-top: 6pt !important; white-space: normal !important; text-indent: 0 !important; }
+.memo-paper .memo-body-line { display: block; text-align: justify; text-align-last: left; text-justify: inter-character; }
+.memo-paper .memo-body-line:first-child { text-indent: 24mm; }
+.memo-paper .memo-body-line-flush { text-align-last: justify; }
+/* จึงเรียนมาเพื่อโปรดพิจารณา: ติดกัน ไม่ถ่างช่องไฟ */
+.memo-paper .memo-closing { display: block; text-align: left !important; text-align-last: left !important; text-justify: none !important; letter-spacing: 0 !important; word-spacing: 0 !important; white-space: nowrap !important; }
+/* ผู้ลงชื่อขอเบิก 2 คน: ซ้าย = หัวหน้างาน, ขวา = หัวหน้ากลุ่มงาน */
+.memo-paper .memo-signers { display: grid; grid-template-columns: 1fr 1fr; column-gap: 4mm; align-items: start; margin: 1mm 0 1.3mm; }
+.memo-paper .memo-signers .memo-sign { width: auto; margin: 0; }
+/* อนุมัติ / ไม่อนุมัติ และผู้อนุมัติ: อยู่แถวเดียวกับผู้ตรวจสอบเอกสาร (ฝั่งขวา) */
+.memo-paper .memo-approval-row { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); column-gap: 4mm; align-items: start; }
+.memo-paper .memo-approval-row .memo-sign, .memo-paper .memo-approval-aside .memo-sign { width: auto !important; margin: .2mm 0 .4mm !important; white-space: normal !important; }
+.memo-paper .memo-approval-aside .memo-decision-options { justify-content: center; margin: 0 0 .5mm; }
+body.print-payment-memo .memo-paper .memo-approval-row .memo-sign { margin: .2mm 0 .4mm !important; }
+.memo-paper .memo-approver-sign .memo-fit-wrap { text-align: center; }
