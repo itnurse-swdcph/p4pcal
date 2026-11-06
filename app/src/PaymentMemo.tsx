@@ -122,7 +122,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const newMemo = async () => {
     const n = Number(amount || 0)
     const signers = await loadSignerDefaults()
-    setForm({ docNo: prefixData?.prefix || '', date: '', phone: prefixData?.phone || '', work: unitName || profile?.staff_group || '', group: groupName || profile?.nursing_group || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: defaultBodyText, ...fixedSigners, ...signers, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ', committeeRole: 'หัวหน้ากลุ่มการพยาบาล' })
+    setForm({ docNo: prefixData?.prefix || '', date: '', phone: prefixData?.phone || '', work: unitName || profile?.staff_group || '', group: groupName || profile?.nursing_group || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: defaultBodyText, ...fixedSigners, ...signers, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ', committeeRole: 'รักษาการหัวหน้าภารกิจด้านการพยาบาล' })
     setAmountTextTouched(false); setError('')
   }
   const field = (key: string, value: any) => setForm((v: any) => ({ ...v, [key]: value }))
@@ -204,13 +204,13 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.committeeName} position={form.committeePosition} role={form.committeeRole} />
             <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="ตรวจสอบความถูกต้องตามระเบียนแล้ว เห็นควรพิจารณาอนุมัติ" name={form.directorName} position={form.directorPosition} />
             <ApprovalBlock heading="เรียน รองผู้อำนวยการฝ่ายบริหาร" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.deputyName} position={form.deputyPosition} />
-            <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณาอนุมัติ" name={form.adminName} position={form.adminPosition} aside={<><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ</span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" /></>} />
+            <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณาอนุมัติ" name={form.adminName} position={form.adminPosition} aside={<><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ</span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" fitPosition /></>} />
           </div></div>}
         </div>
       </div>
     </div>, document.body)}
   </>
 }
-function MemoSign({ name, position, role = '', className = '' }: any) { return <div className={`memo-sign ${className}`}><div className="memo-sign-space" aria-hidden="true" /><div>(<ThaiText text={name || '................................................'} />)</div><div><ThaiText text={position || 'ตำแหน่ง................................................'} /></div>{role && <div><ThaiText text={role} /></div>}</div> }
+function MemoSign({ name, position, role = '', className = '', fitPosition = false }: any) { return <div className={`memo-sign ${className}`}><div className="memo-sign-space" aria-hidden="true" /><div>(<ThaiText text={name || '................................................'} />)</div><div>{fitPosition ? <FitLine text={position || 'ตำแหน่ง................................................'} /> : <ThaiText text={position || 'ตำแหน่ง................................................'} />}</div>{role && <div><ThaiText text={role} /></div>}</div> }
 function ApprovalBlock({ heading, note, name, position, role = '', aside = null }: any) { return <section className="memo-approval"><p><ThaiText text={heading} /></p><p>– <ThaiText text={note} /></p>{aside ? <div className="memo-approval-row"><div><MemoSign name={name} position={position} role={role} /></div><div className="memo-approval-aside">{aside}</div></div> : <MemoSign name={name} position={position} role={role} />}</section> }
 
