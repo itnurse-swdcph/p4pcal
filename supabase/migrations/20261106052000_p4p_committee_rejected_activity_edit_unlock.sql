@@ -54,7 +54,7 @@ begin
          and new.status in ('draft', 'pending')
        )
      ) then
-    return case when tg_op = 'DELETE' then old else new end;
+    if tg_op = 'DELETE' then return old; else return new; end if;
   end if;
 
   if tg_op in ('UPDATE', 'DELETE') and old.status = 'pending'
@@ -68,7 +68,7 @@ begin
          and date_trunc('month', old.work_date)::date is not distinct from date_trunc('month', new.work_date)::date
        )
      ) then
-    return case when tg_op = 'DELETE' then old else new end;
+    if tg_op = 'DELETE' then return old; else return new; end if;
   end if;
 
   if tg_op = 'UPDATE'
