@@ -586,7 +586,7 @@ function Main({ sb, session }: any) {
   const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { void checkForUpdate(); if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
-  return <MeCtx.Provider value={session.user.id}><AppDialogHost/><ApproverCtx.Provider value={{ role, level: myLevel, staffDirectoryId: profile?.staff_directory_id, position: profile?.position, orgRole: profile?.org_role, myUnits, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personUnit: Object.fromEntries(people.map((p: any) => [p.id, p.unit_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
+  return <MeCtx.Provider value={session.user.id}><AppDialogHost/><ApproverCtx.Provider value={{ role, level: myLevel, username: profile?.username, staffDirectoryId: profile?.staff_directory_id, position: profile?.position, orgRole: profile?.org_role, myUnits, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personUnit: Object.fromEntries(people.map((p: any) => [p.id, p.unit_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
     {mobileNav && <button aria-label="ปิดเมนู" className="sidebar-scrim" onClick={() => setMobileNav(false)}/>}
     <aside className={'app-sidebar ' + (mobileNav ? 'mobile-open' : '')}>
       <div className="sidebar-brand"><img src="https://raw.githubusercontent.com/itnurse-swdcph/p4pcal/main/icon.png" alt="P4P" /><div className="sidebar-brand-copy"><strong>P4P Nursing</strong><span>SMART WORKFLOW</span></div><button className="sidebar-icon mobile-close" aria-label="ปิดเมนู" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
@@ -1321,7 +1321,7 @@ function Totals({ rows, people, positions }: any) {
 const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', 'bg-stone-200'], pending: ['ส่งแล้ว รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { appAlert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); appAlert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, showAllDrafts = false, ownerPersonId = null, draftsReadOnly = false, centralAdminDelegate = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
+function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, showAllDrafts = false, ownerPersonId = null, draftsReadOnly = false, centralAdminDelegate = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {}, allowReopenApproved = false }: any) {
   const me = useContext(MeCtx); const ap = useContext(ApproverCtx)
   const [nextApproverNames, setNextApproverNames] = useState<Record<string, string>>({})
   const pendingRows = (allRows || []).filter((r: any) => r.status === 'pending')
@@ -1455,6 +1455,15 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
     appAlert(status === 'approved' ? 'รับรองกิจกรรมเรียบร้อยแล้ว' : status === 'rejected' ? 'บันทึกผลไม่รับรองเรียบร้อยแล้ว' : 'เปลี่ยนสถานะรายการเรียบร้อยแล้ว')
     return true
   }
+  const reopenOwnApproval = async (r: any) => {
+    if (!r) return false
+    if (!(await appConfirm('ยืนยันแก้ไขการรับรองกิจกรรมนี้? เฉพาะรายการนี้จะกลับไปสถานะรอรับรอง รายการอื่นจะไม่เปลี่ยนแปลง'))) return false
+    const { data, error } = await sb.rpc('p4p_reopen_own_activity_approval', { p_log_id: Number(r.id), p_reason: 'ผู้มีสิทธิ์ในหน่วยงานยกเลิกการรับรองเพื่อทบทวนรายการอีกครั้ง' })
+    if (error || !data?.ok) { appAlert('แก้ไขการรับรองไม่สำเร็จ: ' + (error?.message || data?.error || 'ไม่สามารถเปลี่ยนสถานะได้')); return false }
+    reload()
+    appAlert('ยกเลิกการรับรองแล้ว รายการนี้กลับไปสถานะรอรับรอง โดยรายการอื่นยังคงสถานะเดิม')
+    return true
+  }
   const del = async (id: number): Promise<boolean> => {
     const target = rows.find((r: any) => Number(r.id) === Number(id))
     const returnedPending = !!target && isReturnedPending(target)
@@ -1546,7 +1555,11 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
             (r.entered_by === me || (ownerPersonId && String(ownerPersonId) === String(r.person_id))) &&
             <button className="btn sec !py-0.5 !border-amber-300 !text-amber-800" onClick={e => { e.stopPropagation(); beginEdit(r) }}>แก้ไขตามที่ส่งกลับ</button>}
           {isReturnedPending(r) && <button type="button" className="text-xs underline text-red-700" onClick={e => { e.stopPropagation(); void del(r.id) }}>ลบ</button>}
-          {(r.status !== 'pending' || canDecideRow(ap, me, r)) && <button className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); setEditing(null); setDetailRow(r) }}>{r.status === 'pending' && canDecideRow(ap, me, r) && !readOnly ? 'รายละเอียด / รับรอง' : 'ดูรายละเอียด'}</button>}
+          {(r.status !== 'pending' || canDecideRow(ap, me, r)) && <div className="flex flex-col items-start gap-1">
+            <button className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); setEditing(null); setDetailRow(r) }}>{r.status === 'pending' && canDecideRow(ap, me, r) && !readOnly ? 'รายละเอียด / รับรอง' : 'ดูรายละเอียด'}</button>
+            {allowReopenApproved && r.status === 'approved' && canDecideRow(ap, me, r) && (ap.role !== 'admin' || String(ap.username || '').trim() === '11450') && !readOnly &&
+              <button type="button" className="btn sec !py-0.5 !border-amber-300 !text-amber-800 hover:!bg-amber-50" onClick={async e => { e.stopPropagation(); await reopenOwnApproval(r) }}>แก้ไขการรับรอง</button>}
+          </div>}
           {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}</td>
       </tr>})}{!displayedRows.length && <tr><td colSpan={canApprove && !readOnly ? 10 : 9} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
     {detailRow && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="activity-detail-title" onClick={() => setDetailRow(null)}><div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
@@ -1578,6 +1591,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
       {detailRow.evidence_image_path && <button type="button" className="btn sec" onClick={() => openEvidence(sb, detailRow.evidence_image_path)}>เปิดดูรูปหลักฐาน</button>}
       {canEditReturnedRow(detailRow) && ['draft', 'rejected'].includes(String(detailRow.status)) && <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><button type="button" className="btn" onClick={async () => { await submitRows([detailRow.id]); setDetailRow(null) }}>{detailRow.status === 'rejected' || String(detailRow.reject_reason || '').trim() ? 'ส่งใหม่' : 'ส่ง'}</button><button type="button" className="btn sec" onClick={() => beginEdit(detailRow)}>แก้ไข</button><button type="button" className="btn sec !text-red-700" onClick={() => void del(detailRow.id)}>ลบ</button></div>}
       {detailRow.status === 'pending' && canDecideRow(ap, me, detailRow) && !readOnly && <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><button type="button" className="btn red" onClick={() => { setRejecting(detailRow); setReason(''); setDetailRow(null) }}>ไม่รับรอง</button><button type="button" className="btn !bg-emerald-600 !text-white hover:!bg-emerald-700" onClick={async () => { const ok = await set(Number(detailRow.id), 'approved'); if (ok) setDetailRow(null) }}>รับรองกิจกรรม</button></div>}
+
     </div></div>}
     {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="reject-title"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-3">
       <h3 id="reject-title" className="text-lg font-bold">ไม่รับรองรายการ</h3>
@@ -2467,7 +2481,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       <h2 className="font-bold">{sel ? 'รายการของ ' + roster.find((p: any) => p.id === sel)?.name + ' (คลิกแถวอีกครั้งเพื่อดูทั้งหมด)' : 'รายการทั้งหมดของหน่วยงาน'}</h2>
       <LogTable sb={sb} rows={shown} reload={reload} canApprove={!audit} readOnly={audit} acts={acts} />
     </>}
-    {detailFor && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-2 sm:p-5" role="dialog" aria-modal="true" aria-label={`รายการกิจกรรมของ ${detailFor.name}`}><div className="w-full max-w-[96rem] max-h-[94vh] overflow-y-auto rounded-2xl bg-white p-3 shadow-2xl sm:p-5 space-y-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">รายการกิจกรรมรายบุคคล</h2><p className="text-sm text-stone-600">{detailFor.name} · ประจำเดือน {monthText} · แสดงทุกสถานะ ยกเว้นฉบับร่าง</p></div><div className="flex flex-wrap gap-2">{canPrint && <button type="button" className="btn" onClick={() => setPrintingPerson(detailFor)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปรายบุคคล</button>}<button type="button" className="btn sec" onClick={() => setDetailFor(null)}>ปิด</button></div></div><LogTable sb={sb} rows={rows.filter((r: any) => r.status !== 'draft' && String(r.person_id) === String(detailFor.id))} reload={reload} canApprove={!audit} readOnly={!!audit} acts={acts} month={month} showName={false} /></div></div>}
+    {detailFor && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-2 sm:p-5" role="dialog" aria-modal="true" aria-label={`รายการกิจกรรมของ ${detailFor.name}`}><div className="w-full max-w-[96rem] max-h-[94vh] overflow-y-auto rounded-2xl bg-white p-3 shadow-2xl sm:p-5 space-y-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">รายการกิจกรรมรายบุคคล</h2><p className="text-sm text-stone-600">{detailFor.name} · ประจำเดือน {monthText} · แสดงทุกสถานะ ยกเว้นฉบับร่าง</p></div><div className="flex flex-wrap gap-2">{canPrint && <button type="button" className="btn" onClick={() => setPrintingPerson(detailFor)}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์ใบสรุปรายบุคคล</button>}<button type="button" className="btn sec" onClick={() => setDetailFor(null)}>ปิด</button></div></div><LogTable sb={sb} rows={rows.filter((r: any) => r.status !== 'draft' && String(r.person_id) === String(detailFor.id))} reload={reload} canApprove={!audit} readOnly={!!audit} acts={acts} month={month} showName={false} allowReopenApproved={reportOnly && !audit} /></div></div>}
     {printingPerson && <PrintSheet sb={sb} person={printingPerson} rows={rows.filter((r: any) => String(r.person_id) === String(printingPerson.id))} month={month} units={units} positions={positions} onClose={() => setPrintingPerson(null)} />}
   </div>
 }

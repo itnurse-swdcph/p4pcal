@@ -129,16 +129,34 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
     ? !isGroupHeadWithoutUnit
     : ((profile?.role === 'group_head' || profile?.role === 'head') && isGroupHeadWithoutUnit) ||
       (profile?.role === 'admin' && String(profile?.username || '') === '11450')
-  const alreadySubmitted = submission && submission.status !== 'returned'
+  const alreadySubmitted = !!submission && ['submitted', 'resubmitted', 'reviewed'].includes(String(submission.status))
   const ready = !loading && !error && pending === 0 && missingNotes.length === 0 && staff.length > 0
-  const statusLabel: Record<string, string> = { submitted: 'ส่งผลงานแล้ว', returned: 'มีรายการส่งกลับแก้ไข', resubmitted: 'ส่งผลงานซ้ำแล้ว', reviewed: 'ตรวจสอบแล้ว' }
+  const statusLabel: Record<string, string> = { submitted: 'ส่งผลงานแล้ว', returned: 'มีรายการส่งกลับแก้ไข', resubmitted: 'ส่งผลงานซ้ำแล้ว', reviewed: 'ตรวจสอบแล้ว', reopened: 'ยังไม่พร้อมตรวจ' }
+
+  async function cancelSubmissionForEdit() {
+    if (!submission || !['submitted', 'resubmitted', 'reviewed'].includes(String(submission.status))) return
+    if (!(await appConfirm('ยืนยันยกเลิกส่งผลงานประจำเดือนนี้? สถานะหน่วยงานจะเปลี่ยนเป็น “ยังไม่พร้อมตรวจ” และบุคลากรทุกคนในหน่วยงานจะสามารถบันทึกกิจกรรมใหม่ได้ รวมถึงผู้มีสิทธิ์สามารถแก้ไขการรับรองรายกิจกรรม เมื่อดำเนินการเสร็จต้องส่งผลงานใหม่ทั้งหน่วยงาน', 'ยกเลิกส่งผลงาน'))) return
+    setBusy(true); setError(''); setMessage('')
+    try {
+      const { data, error: e } = await sb.rpc('p4p_cancel_submission_for_activity_edit', {
+        p_month: monthDate, p_unit_id: scopeType === 'unit' ? unitId : null, p_group_name: groupName
+      })
+      if (e) throw e
+      if (data?.ok === false) throw new Error(data?.reason || 'ไม่สามารถยกเลิกส่งผลงานได้')
+      setSubmission({ ...submission, status: 'reopened', updated_at: new Date().toISOString() })
+      setPreview(false)
+      setMessage('ยกเลิกส่งผลงานแล้ว ขณะนี้ยังไม่พร้อมตรวจ บุคลากรทุกคนในหน่วยงานสามารถบันทึกกิจกรรมใหม่ และผู้มีสิทธิ์สามารถแก้ไขการรับรองรายกิจกรรมได้')
+      setReloadTick(t => t + 1)
+    } catch (e: any) { setError(e?.message || 'ยกเลิกส่งผลงานไม่สำเร็จ') }
+    finally { setBusy(false) }
+  }
 
   async function send() {
     if (!ready || !canSubmitRole || !canSubmitScope || alreadySubmitted) return
-    if (!(await appConfirm('ยืนยันส่งผลงานประจำเดือน' + monthLabel(month) + ' ใช่หรือไม่? หลังยืนยัน บุคลากรในขอบเขตนี้จะไม่สามารถเพิ่มหรือแก้ไขกิจกรรมได้ เว้นแต่คณะกรรมการส่งกลับรายบุคคล', 'ยืนยันส่งผลงาน'))) return
+    if (!(await appConfirm('ยืนยันส่งผลงานประจำเดือน' + monthLabel(month) + ' ใช่หรือไม่? หลังยืนยัน บุคลากรในขอบเขตนี้จะไม่สามารถเพิ่มหรือแก้ไขกิจกรรมได้ หากต้องแก้ไขการรับรอง ให้กดยกเลิกส่งผลงานก่อน แล้วแก้ไขเป็นรายกิจกรรม จากนั้นส่งผลงานใหม่ทั้งหน่วยงาน', 'ยืนยันส่งผลงาน'))) return
     setBusy(true); setError(''); setMessage('')
     try {
-      const { data, error: e } = await sb.rpc('p4p_submit_month_v2', {
+      const { data, error: e } = await sb.rpc(submission?.status === 'reopened' ? 'p4p_resubmit_reopened_month' : 'p4p_submit_month_v2', {
         p_month: monthDate, p_unit_id: scopeType === 'unit' ? unitId : null, p_group_name: groupName
       })
       if (e) throw e
@@ -172,10 +190,11 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       {submission?.status === 'returned' && <p className="text-sm text-amber-800">คณะกรรมการส่งกลับแก้ไขรายบุคคลแล้ว เมื่อแก้ไขและรับรองครบ ให้ตรวจทานและส่งผลงานทั้งหน่วยงานอีกครั้ง</p>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {message && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
-      {submission?.status === 'submitted' || submission?.status === 'resubmitted' || submission?.status === 'reviewed'
-        ? <p className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><CheckCircle2 size={17}/>ส่งผลงานแล้ว · ล็อกการบันทึกกิจกรรมในขอบเขตนี้</p>
+      {['submitted', 'resubmitted', 'reviewed'].includes(String(submission?.status || ''))
+        ? <div className="flex flex-wrap items-center gap-2"><p className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><CheckCircle2 size={17}/>ส่งผลงานแล้ว · ล็อกการบันทึกกิจกรรมในขอบเขตนี้</p><button type="button" className="btn sec !border-amber-300 !text-amber-800" disabled={busy} onClick={cancelSubmissionForEdit}>ยกเลิกส่งผลงาน</button></div>
         : <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn blue" disabled={!ready || busy || !canSubmitScope} onClick={() => setPreview(true)}><Send size={16}/>ตรวจทานและส่งผลงาน</button>
+          {submission?.status === 'reopened' && <p className="w-full text-sm font-semibold text-amber-800">ยังไม่พร้อมตรวจ · เปิดให้บุคลากรทุกคนบันทึกกิจกรรมใหม่ และผู้มีสิทธิ์แก้ไขการรับรองรายกิจกรรมได้ เมื่อดำเนินการเสร็จให้ส่งผลงานทั้งหน่วยงานใหม่</p>}
+          <button type="button" className="btn blue" disabled={!ready || busy || !canSubmitScope} onClick={() => setPreview(true)}><Send size={16}/>{submission?.status === 'reopened' ? 'ตรวจทานและส่งผลงานใหม่' : 'ตรวจทานและส่งผลงาน'}</button>
           {submission?.status === 'returned' && <span className="self-center text-xs text-stone-600">หลังแก้ไข ต้องส่งผลงานทั้งหน่วยงานอีกครั้ง</span>}
         </div>}
     </>}
