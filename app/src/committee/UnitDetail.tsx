@@ -109,7 +109,8 @@ export default function UnitDetail({ unit, groups, siblings, onBack, onSelectUni
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-red-800">บุคลากรที่รอแก้ไขรายการจากคณะกรรมการ</h3><span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">{num(returnedPeople.length, 0)} คน</span></div>
       <div className="divide-y divide-red-100">{returnedPeople.map((p: any) => <div key={p.return_id || p.staff_directory_id} className="flex flex-wrap items-start justify-between gap-3 py-2 first:pt-0 last:pb-0">
         <div className="min-w-0 flex-1"><div className="font-semibold text-stone-900">{p.name || 'ไม่พบชื่อบุคลากร'}</div><div className="text-xs text-stone-600">{p.position || '—'} · รหัสทะเบียน {p.staff_directory_id}</div>
-          <div className="mt-1 whitespace-pre-wrap rounded-lg bg-red-50 p-2 text-xs text-red-800"><b>เหตุผลที่ส่งกลับ:</b> {p.reason || 'ไม่ได้ระบุเหตุผล'}</div>
+          {p.reason && <div className="mt-1 whitespace-pre-wrap rounded-lg bg-red-50 p-2 text-xs text-red-800"><b>เหตุผลที่ส่งกลับ:</b> {p.reason}</div>}
+          {p.activities?.length > 0 && <div className="mt-2 space-y-1">{p.activities.map((a: any) => <div key={a.id} className="rounded-lg border border-red-100 bg-red-50/60 p-2 text-xs text-red-900"><b>{a.code} · {a.title || 'กิจกรรม'}</b><div>{a.action === 'reject' ? 'คณะกรรมการไม่อนุมัติ' : 'คณะกรรมการส่งกลับให้แก้ไข'} · {a.reason || 'ไม่ได้ระบุเหตุผล'}</div></div>)}</div>}
         </div>
         {p.id && <button type="button" className="btn sec !py-1" onClick={() => onViewPerson(p)}>เปิดกิจกรรมรายบุคคล</button>}
       </div>)}</div>
