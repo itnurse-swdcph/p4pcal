@@ -1367,6 +1367,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const detailCountedPoints = detailRow ? Number(detailRow.counted_points ?? detailEarnedPoints) : 0
   const detailEligible = detailActivity && detailPosition ? (Array.isArray(detailActivity.eligible) ? detailActivity.eligible.includes(detailPosition.grp) : true) : null
   const canEditReturnedRow = (r: any) => !readOnly && !!me && (centralAdminDelegate ? (!!ownerPersonId && String(ownerPersonId) === String(r.person_id) && ['pending', 'draft', 'rejected'].includes(String(r.status)) && !!String(r.reject_reason || '').trim()) : (!draftsReadOnly && (r.entered_by === me || (!!ownerPersonId && String(ownerPersonId) === String(r.person_id))) && ['draft', 'rejected'].includes(String(r.status))));
+  const isReturnedPending = (r: any) => !readOnly && !!me && r?.status === 'pending' && !!String(r.reject_reason || '').trim() && (r.entered_by === me || (!!ownerPersonId && String(ownerPersonId) === String(r.person_id)))
   const submitRows = async (ids: number[]) => {
     if (!ids.length) return
     const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', ids)
@@ -1442,7 +1443,16 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
     appAlert(status === 'approved' ? 'รับรองกิจกรรมเรียบร้อยแล้ว' : status === 'rejected' ? 'บันทึกผลไม่รับรองเรียบร้อยแล้ว' : 'เปลี่ยนสถานะรายการเรียบร้อยแล้ว')
     return true
   }
-  const del = async (id: number) => { const target = rows.find((r: any) => Number(r.id) === Number(id)); if (!target || !canEditReturnedRow(target)) { appAlert('ไม่มีสิทธิ์ลบรายการนี้ หรือรายการไม่อยู่ในสถานะแบบร่าง'); return } if (await appConfirm('ลบรายการนี้?')) { const { error } = await sb.from('logs').delete().eq('id', id).in('status', ['draft', 'rejected']); if (error) appAlert('ลบรายการไม่สำเร็จ: ' + error.message); else reload() } }
+  const del = async (id: number): Promise<boolean> => {
+    const target = rows.find((r: any) => Number(r.id) === Number(id))
+    const returnedPending = !!target && isReturnedPending(target)
+    if (!target || !(canEditReturnedRow(target) || returnedPending)) { appAlert('ไม่มีสิทธิ์ลบรายการนี้ หรือรายการไม่อยู่ในสถานะที่ลบได้'); return false }
+    const msg = returnedPending ? 'ลบรายการที่ถูกส่งกลับนี้?\nรายการจะถูกลบออกจากระบบและไม่นับแต้ม' : 'ลบรายการนี้?'
+    if (!(await appConfirm(msg))) return false
+    const { error } = await sb.from('logs').delete().eq('id', id).in('status', ['draft', 'rejected', 'pending'])
+    if (error) { appAlert('ลบรายการไม่สำเร็จ: ' + error.message); return false }
+    reload(); return true
+  }
   const saveEdit = async () => {
     setEditError('')
     if (!form.work_date || !form.activity_code || !form.qty || !Number.isInteger(Number(form.qty)) || Number(form.qty) <= 0) { setEditError('กรุณาระบุวันที่ กิจกรรม และจำนวนเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป (ไม่รับทศนิยม)'); return }
@@ -1523,6 +1533,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
           {!readOnly && r.status === 'pending' && Boolean(String(r.reject_reason || '').trim()) &&
             (r.entered_by === me || (ownerPersonId && String(ownerPersonId) === String(r.person_id))) &&
             <button className="btn sec !py-0.5 !border-amber-300 !text-amber-800" onClick={e => { e.stopPropagation(); beginEdit(r) }}>แก้ไขตามที่ส่งกลับ</button>}
+          {isReturnedPending(r) && <button type="button" className="text-xs underline text-red-700" onClick={e => { e.stopPropagation(); void del(r.id) }}>ลบ</button>}
           {(r.status !== 'pending' || canDecideRow(ap, me, r)) && <button className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); setEditing(null); setDetailRow(r) }}>{r.status === 'pending' && canDecideRow(ap, me, r) && !readOnly ? 'รายละเอียด / รับรอง' : 'ดูรายละเอียด'}</button>}
           {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}</td>
       </tr>})}{!displayedRows.length && <tr><td colSpan={canApprove && !readOnly ? 10 : 9} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
@@ -1590,7 +1601,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
       </div>
       {editing.evidence_image_path && <p className="text-xs text-stone-600">มีรูปหลักฐานเดิม: <button className="underline text-teal-800" onClick={() => openEvidence(sb, editing.evidence_image_path)}>ดูรูปหลักฐานเดิม</button>{editEvidenceFile ? ' · เมื่อบันทึก รูปใหม่จะถูกใช้แทนรูปเดิมในรายการ' : ' · หากไม่เลือกรูปใหม่ รูปเดิมจะคงอยู่'}</p>}
       <div className="rounded-lg bg-slate-50 p-3 text-sm">แต้มจะคำนวณใหม่ตามกิจกรรม จำนวน และบทบาทที่แก้ไข</div>
-      <div className="flex flex-wrap gap-2"><button className="btn" disabled={saving} onClick={saveEdit}>{saving ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button><button className="btn sec" disabled={saving} onClick={() => { setEditing(null); setEditEvidenceFile(null) }}>ยกเลิก</button></div>
+      <div className="flex flex-wrap gap-2"><button className="btn" disabled={saving} onClick={saveEdit}>{saving ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button><button className="btn sec" disabled={saving} onClick={() => { setEditing(null); setEditEvidenceFile(null) }}>ยกเลิก</button>{isReturnedPending(editing) && <button type="button" className="btn sec !text-red-700 sm:ml-auto" disabled={saving} onClick={async () => { if (await del(editing.id)) { setEditing(null); setEditEvidenceFile(null) } }}>ลบรายการนี้</button>}</div>
     </div></div>}
   </div>
 }
