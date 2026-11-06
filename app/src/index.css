@@ -1706,3 +1706,29 @@ body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row)
 .sidebar-build .build-ok{color:#047857}.sidebar-build .build-old{color:#b45309;font-weight:700}.sidebar-build .build-unknown{color:#b91c1c}
 .sidebar-build-force{margin-top:.3rem;padding:.2rem .55rem;border:1px solid #d6d3d1;border-radius:.5rem;background:#fff;font-size:.68rem;font-weight:600;color:#44403c;cursor:pointer}
 .sidebar-build-force:hover{border-color:#0d8976;color:#0d8976}
+
+
+/* Unit report print refinements: wider position column and a hard 20-person page limit. */
+.unit-report-table .unit-col-order { width: 3% !important; }
+.unit-report-table .unit-col-name { width: 11% !important; }
+.unit-report-table .unit-col-position { width: 18% !important; }
+.unit-report-table .unit-col-guarantee { width: 5% !important; }
+.unit-report-table .unit-col-days { width: 4% !important; }
+.unit-report-table .unit-col-role-guarantee { width: 5% !important; }
+.unit-report-table .unit-col-work { width: 6% !important; }
+.unit-report-table .unit-col-performance-total { width: 6% !important; }
+.unit-report-table .unit-col-excess { width: 8% !important; }
+.unit-report-table .unit-col-rate { width: 6% !important; }
+.unit-report-table .unit-col-base-pay { width: 6% !important; }
+.unit-report-table .unit-col-payout { width: 7% !important; }
+.unit-report-table .unit-col-signature { width: 5% !important; }
+.unit-report-table .unit-col-date { width: 10% !important; }
+
+@media print {
+  /* Repeat the column headings and start a fresh page before personnel row 21, 41, 61, ... */
+  body.print-unit-report .unit-report-table tbody tr:nth-child(20n + 1):not(:first-child):not(.unit-report-total) {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+  body.print-unit-report .unit-report-table .unit-col-position { width: 18% !important; }
+}
