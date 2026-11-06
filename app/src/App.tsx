@@ -1555,7 +1555,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
             <button type="button" className="text-xs underline text-red-700" onClick={e => { e.stopPropagation(); void del(r.id) }}>ลบ</button></>}
           {!readOnly && r.status === 'pending' && Boolean(String(r.reject_reason || '').trim()) &&
             (r.entered_by === me || (ownerPersonId && String(ownerPersonId) === String(r.person_id))) &&
-            <button className="btn sec !py-0.5 !border-amber-300 !text-amber-800" onClick={e => { e.stopPropagation(); beginEdit(r) }}>แก้ไขตามที่ส่งกลับ</button>}
+            <button className={`btn sec !py-0.5 ${String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? '!border-teal-300 !text-teal-800 !bg-teal-50' : '!border-amber-300 !text-amber-800'}`} onClick={e => { e.stopPropagation(); beginEdit(r) }}>{String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? 'แก้ไขแล้ว รอตรวจ' : 'แก้ไขตามที่ส่งกลับ'}</button>}
           {isReturnedPending(r) && <button type="button" className="text-xs underline text-red-700" onClick={e => { e.stopPropagation(); void del(r.id) }}>ลบ</button>}
           {(r.status !== 'pending' || canDecideRow(ap, me, r)) && <div className="flex flex-col items-start gap-1">
             <button className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); setEditing(null); setDetailRow(r) }}>{r.status === 'pending' && canDecideRow(ap, me, r) && !readOnly ? 'รายละเอียด / รับรอง' : 'ดูรายละเอียด'}</button>
