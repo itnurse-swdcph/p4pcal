@@ -29,6 +29,8 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   const [statusRows, setStatusRows] = useState<any[]>([])
   const [submissions, setSubmissions] = useState<any[]>([])
   const [submissionReturns, setSubmissionReturns] = useState<any[]>([])
+  const [activityReturns, setActivityReturns] = useState<any[]>([])
+  const [correctionQueueOk, setCorrectionQueueOk] = useState(false)
   const [unitReviews, setUnitReviews] = useState<any[]>([])
   const [reviewOk, setReviewOk] = useState(false)
   const [statusOk, setStatusOk] = useState(true)
@@ -65,15 +67,33 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         returnedRows = returned.data || []
         returnedRowsError = returned.error
       }
+      // ดึงประวัติการส่งกลับ/ไม่อนุมัติรายกิจกรรมจากกรรมการ แล้วเทียบกับสถานะปัจจุบัน
+      const [auditResult, returnedActivityResult] = await Promise.all([
+        sb.from('p4p_activity_audit_events').select('id,log_id,person_id,action,reason,old_status,new_status,created_at')
+          .eq('month', monthDate).in('action', ['return_for_correction', 'reject']).order('created_at', { ascending: false }),
+        sb.from('v_logs').select('id,person_id,person_name,position,unit_id,activity_code,title,status,reject_reason')
+          .eq('month', monthDate).in('status', ['pending', 'draft', 'rejected']).not('reject_reason', 'is', null).range(0, 1999)
+      ])
+      const latestAudit = new Map<string, any>()
+      for (const event of auditResult.data || []) if (!latestAudit.has(String(event.log_id))) latestAudit.set(String(event.log_id), event)
+      const activityReturns = (returnedActivityResult.data || []).flatMap((row: any) => {
+        const event = latestAudit.get(String(row.id))
+        const expectedStatus = event?.action === 'return_for_correction' ? 'pending' : 'draft'
+        return event && event.old_status === 'approved' && row.status === expectedStatus && String(row.reject_reason || '').trim()
+          ? [{ ...row, committee_action: event.action, committee_reason: event.reason || row.reject_reason, committee_returned_at: event.created_at }]
+          : []
+      })
+      const activityReturnsError = auditResult.error || returnedActivityResult.error
       if (!alive) return
       const errs = [c.error && (c.error.message || 'ไม่สามารถโหลดผลคำนวณ P4P ได้'), r.error && 'ไม่สามารถโหลดสถานะการรับรองได้', m.error && 'ไม่สามารถโหลดรายชื่อกรรมการได้',
         v.error && 'ไม่สามารถโหลดผลลงมติได้', ro.error && 'ไม่สามารถโหลดทะเบียนกรรมการได้', st.error && 'ไม่สามารถตรวจสอบสถานะกิจกรรมรายหน่วยงานได้ จึงยังไม่ถือว่าหน่วยงานใดพร้อมตรวจ',
         un.error && 'ไม่สามารถโหลดรายชื่อหน่วยงานได้', sd.error && 'ไม่สามารถโหลดข้อมูลกลุ่มงานของบุคลากรได้', ss.error && 'ไม่สามารถโหลดรายการส่งผลงานของหน่วยงานได้',
-        returnedRowsError && 'ไม่สามารถโหลดรายชื่อบุคลากรที่รอแก้ไขได้', ur.error && 'ไม่สามารถโหลดสถานะตรวจรายหน่วยงานได้ จึงปิดการเริ่มรับรองไว้ก่อน'].filter(Boolean)
+        returnedRowsError && 'ไม่สามารถโหลดรายชื่อบุคลากรที่รอแก้ไขได้', activityReturnsError && 'ไม่สามารถตรวจสอบรายการกิจกรรมที่คณะกรรมการส่งกลับได้', ur.error && 'ไม่สามารถโหลดสถานะตรวจรายหน่วยงานได้ จึงปิดการเริ่มรับรองไว้ก่อน'].filter(Boolean)
       if (errs.length) setError(errs.join(' · '))
       setCalc(c.error ? null : c.data); setReview(r.error ? null : r.data); setMembers(m.data || []); setVotes(v.data || [])
       setRoster(ro.data || []); setStatusRows(st.data || []); setStatusOk(!st.error)
       setUnitsMeta(un.data || []); setStaffMeta(sd.data || []); setSubmissions(ss.data || []); setSubmissionReturns(returnedRows)
+      setActivityReturns(activityReturns); setCorrectionQueueOk(!returnedRowsError && !activityReturnsError)
       // สถานะตรวจแล้วเป็นเงื่อนไขบังคับ: หากฐานข้อมูลยังไม่พร้อมหรืออ่านสถานะไม่ได้ ต้องไม่อนุญาตให้เริ่มรับรอง
       setUnitReviews(ur.error ? [] : ur.data || []); setReviewOk(!ur.error)
       setLoadedFor(monthDate)
@@ -100,9 +120,21 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
     const isGroupHead = String(staff?.org_role || '').includes('หัวหน้ากลุ่มงาน')
     return { ...line, nursing_group: staff?.nursing_group || '', isGroupHeadWithoutUnit: isGroupHead && !staff?.unit_name }
   }), [lines, staffMeta])
-  const units = useMemo(() => buildUnitStats(linesWithOrg, unitsMeta, statusRows).map(u => ({ ...u, ready: statusOk && u.ready })), [linesWithOrg, unitsMeta, statusRows, statusOk])
+  const units = useMemo(() => buildUnitStats(linesWithOrg, unitsMeta, statusRows).map(u => ({ ...u, ready: statusOk && correctionQueueOk && u.ready })), [linesWithOrg, unitsMeta, statusRows, statusOk, correctionQueueOk])
   const returnedPeopleByUnit = useMemo(() => {
     const grouped = new Map<number, any[]>()
+    const addPerson = (key: number | undefined, person: any, activity?: any) => {
+      if (key == null || !Number.isFinite(Number(key))) return
+      const list = grouped.get(Number(key)) || []
+      const personKey = String(person.staff_directory_id ?? person.id ?? '')
+      const existing = list.find((x: any) => String(x.staff_directory_id ?? x.id ?? '') === personKey)
+      if (existing) {
+        if (activity) existing.activities = [...(existing.activities || []), activity]
+        if (!existing.reason && person.reason) existing.reason = person.reason
+        return
+      }
+      grouped.set(Number(key), [...list, { ...person, activities: activity ? [activity] : [] }])
+    }
     for (const returned of submissionReturns) {
       const submission = submissions.find((s: any) => String(s.id) === String(returned.submission_id))
       if (!submission) continue
@@ -111,17 +143,25 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       const key = submission.scope_type === 'unit'
         ? Number(submission.unit_id)
         : units.find(u => Number(u.key) < 0 && String(u.group) === String(submission.group_name))?.key
-      if (key == null || !Number.isFinite(Number(key))) continue
-      const person = {
+      addPerson(key, {
         ...(line || {}), id: returned.person_id || line?.id || null,
         staff_directory_id: returned.staff_directory_id,
         name: line?.name || line?.person_name || `บุคลากรรหัส ${returned.staff_directory_id}`,
         reason: returned.reason, returned_at: returned.returned_at, return_id: returned.id
-      }
-      grouped.set(Number(key), [...(grouped.get(Number(key)) || []), person])
+      })
+    }
+    for (const returned of activityReturns) {
+      const line = linesWithOrg.find((l: any) => String(l.id) === String(returned.person_id))
+      const unitId = returned.unit_id ?? line?.unit_id
+      const key = unitId != null ? Number(unitId) : units.find(u => Number(u.key) < 0 && String(u.group) === String(line?.nursing_group))?.key
+      addPerson(key, {
+        ...(line || {}), id: returned.person_id, staff_directory_id: line?.staff_directory_id,
+        name: returned.person_name || line?.name || 'ไม่พบชื่อบุคลากร',
+        reason: returned.committee_reason, returned_at: returned.committee_returned_at
+      }, { id: returned.id, code: returned.activity_code, title: returned.title, action: returned.committee_action, reason: returned.committee_reason, status: returned.status })
     }
     return grouped
-  }, [submissionReturns, submissions, linesWithOrg, units])
+  }, [submissionReturns, activityReturns, submissions, linesWithOrg, units])
   const unit = unitKey == null ? null : units.find(u => u.key === unitKey) || null
   // หน้าตรวจสอบจะแสดงเฉพาะหน่วยงาน/กลุ่มงานที่กดส่งผลงานแล้ว
   const submissionForUnit = (u: any) => submissions.find(s =>
@@ -135,12 +175,12 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
     const submitted = ['submitted', 'resubmitted', 'reviewed'].includes(String(submission?.status || ''))
     const returnedPeople = returnedPeopleByUnit.get(u.key) || []
     const correctionPending = submission?.status === 'returned' || returnedPeople.length > 0
-    const ready = statusOk && submitted && u.ready && !correctionPending
+    const ready = statusOk && correctionQueueOk && submitted && u.ready && !correctionPending
     const rv = submission && ['submitted', 'resubmitted'].includes(String(submission.status)) ? unitReviews.find((x: any) => x.submission_id === submission.id) : null
     return { ...u, submitted, returnedPeople, returnCount: returnedPeople.length,
       submissionStatus: correctionPending ? 'returned' : String(submission?.status || ''), ready, progress: submitted ? u.progress : 0,
       reviewed: reviewOk && ready && !!rv, reviewedByName: rv?.reviewed_by_name || '', reviewedAt: rv?.reviewed_at || null }
-  }), [units, submissions, returnedPeopleByUnit, statusOk, unitReviews, reviewOk])
+  }), [units, submissions, returnedPeopleByUnit, statusOk, correctionQueueOk, unitReviews, reviewOk])
   const selectedSubmission = unit ? submissionForUnit(unit) : null
 
   const readyCount = submittedUnits.filter(u => statusOk && u.ready).length
