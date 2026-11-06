@@ -865,7 +865,7 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   const shown = effectivePid ? rows.filter((r: any) => String(r.person_id) === String(effectivePid)) : rows
   // หน้า "บันทึกกิจกรรม" ให้เจ้าของ person_id จัดการแบบร่างของตนเองได้โดยตรง
   // ไม่พึ่ง entered_by เพียงอย่างเดียว เพราะบางรายการเดิมอาจไม่มี entered_by ในข้อมูลที่อ่านจาก view
-  const editableDraftPersonId = !isCentralAdminAccount && effectivePid && (!picker || entryMode === 'self') ? effectivePid : null
+  const editableDraftPersonId = isCentralAdminAccount ? (effectivePid || null) : (effectivePid && (!picker || entryMode === 'self') ? effectivePid : null)
   // ใช้ข้อมูลบุคลากรและชุดรายการแบบเดียวกับหน้าสรุปรายบุคคลก่อนเปิดใบพิมพ์
   const printPerson = person ? (() => {
     const canonical = personRecords.find((p: any) => p.id === person.id || (person.person_id && p.id === person.person_id))
@@ -884,8 +884,8 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
   ) : []
   // ในโหมดของตนเอง person_id ที่ผูกกับบัญชีเป็นขอบเขตข้อมูลสำหรับแสดงฉบับร่าง
   const myDrafts = shown.filter((r: any) => r.status === 'draft' && (r.entered_by === me || (picker && entryMode === 'self' && String(r.person_id) === String(ownPerson?.id))))
-  const myRejected = shown.filter((r: any) => r.status === 'draft' && String(r.reject_reason || '').trim() && (r.entered_by === me || (ownPerson?.id && String(r.person_id) === String(ownPerson.id))))
-  const returnedRows = shown.filter((r: any) => r.status === 'draft' && String(r.reject_reason || '').trim() && (r.entered_by === me || (ownPerson?.id && String(r.person_id) === String(ownPerson.id))))
+  const returnedRows = shown.filter((r: any) => ['pending', 'draft', 'rejected'].includes(String(r.status)) && String(r.reject_reason || '').trim() && (isCentralAdminAccount ? String(r.person_id) === String(effectivePid) : (r.entered_by === me || (ownPerson?.id && String(r.person_id) === String(ownPerson.id)))))
+  const myRejected = returnedRows
   // เพดานคะแนนต่อเวรและต่อวัน (คำนวณตัดส่วนเกินที่ฐานข้อมูล ตรงนี้แสดงโควตาที่ใช้ไปแล้ว)
   const capS = Math.min(90, Number(caps.cap_shift_points) || 90), capD = Number(caps.cap_day_points) || 180
   const dayRows = rows.filter((r: any) => r.person_id === pid && r.work_date === date && r.status !== 'rejected')
@@ -1064,8 +1064,8 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     </div>
     <div className="space-y-3">
       {notice && <p role="status" className="rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>}
-      {myRejected.length > 0 && <button type="button" role="alert" aria-expanded={showReturnedOnly} aria-controls="saved-activity-table" onClick={() => setShowReturnedOnly(v => !v)} className="w-full rounded-lg border-2 border-red-400 bg-red-50 p-3 text-left text-sm text-red-900 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500"><span className="flex items-center justify-between gap-3"><span><b>มีรายการกิจกรรมไม่รับรอง/ส่งกลับให้แก้ไขจำนวน {myRejected.length} รายการ</b><span className="mt-1 block">กรุณาตรวจสอบ กดที่แถบนี้เพื่อ{showReturnedOnly ? 'แสดงรายการทั้งหมด' : 'ดูรายการที่ต้องแก้ไข'}</span></span><span className="shrink-0 rounded-full bg-red-700 px-3 py-1 font-bold text-white">{showReturnedOnly ? 'ดูทั้งหมด' : 'ดูรายการ'}</span></span></button>}
-      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={showReturnedOnly ? returnedRows : shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!effectivePid && people.length > 1} showAllDrafts={isCentralAdminAccount} ownerPersonId={editableDraftPersonId} draftsReadOnly={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
+      {myRejected.length > 0 && <button type="button" role="alert" aria-expanded={showReturnedOnly} aria-controls="saved-activity-table" onClick={() => setShowReturnedOnly(v => !v)} className="w-full rounded-lg border-2 border-red-400 bg-red-50 p-3 text-left text-sm text-red-900 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500"><span className="flex items-center justify-between gap-3"><span><b>มีรายการกิจกรรมไม่อนุมัติ/ส่งกลับให้แก้ไขจำนวน {myRejected.length} รายการ</b><span className="mt-1 block">{returnedRows.some((r: any) => String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ')) ? 'มีรายการที่แก้ไขแล้วและรอหัวหน้าตรวจซ้ำด้วย' : 'กรุณาตรวจสอบเหตุผลและแก้ไขรายการที่แจ้ง' } กดที่แถบนี้เพื่อ{showReturnedOnly ? 'แสดงรายการทั้งหมด' : 'ดูรายการที่ต้องดำเนินการ'}</span></span><span className="shrink-0 rounded-full bg-red-700 px-3 py-1 font-bold text-white">{showReturnedOnly ? 'ดูทั้งหมด' : 'ดูรายการ'}</span></span></button>}
+      <div id="saved-activity-table" className="scroll-mt-6"><LogTable sb={sb} rows={showReturnedOnly ? returnedRows : shown} reload={reload} onActivitySaved={onActivitySaved} canApprove={canApprove} showName={!effectivePid && people.length > 1} showAllDrafts={isCentralAdminAccount} ownerPersonId={editableDraftPersonId} draftsReadOnly={!isCentralAdminAccount} centralAdminDelegate={isCentralAdminAccount} acts={acts} positions={positions} people={personRecords} month={month} setMonth={setMonth} editTargetRow={editTargetRow} clearEditTarget={() => setEditTargetRow(null)} /></div>
     </div>
   </div>
 }
@@ -1321,7 +1321,7 @@ function Totals({ rows, people, positions }: any) {
 const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', 'bg-stone-200'], pending: ['ส่งแล้ว รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { appAlert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); appAlert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, showAllDrafts = false, ownerPersonId = null, draftsReadOnly = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
+function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, showAllDrafts = false, ownerPersonId = null, draftsReadOnly = false, centralAdminDelegate = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {} }: any) {
   const me = useContext(MeCtx); const ap = useContext(ApproverCtx)
   const [nextApproverNames, setNextApproverNames] = useState<Record<string, string>>({})
   const pendingRows = (allRows || []).filter((r: any) => r.status === 'pending')
@@ -1366,7 +1366,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const detailEarnedPoints = detailRow ? Number(detailRow.points ?? (Number(detailRow.qty || 0) * detailWorkpoint)) : 0
   const detailCountedPoints = detailRow ? Number(detailRow.counted_points ?? detailEarnedPoints) : 0
   const detailEligible = detailActivity && detailPosition ? (Array.isArray(detailActivity.eligible) ? detailActivity.eligible.includes(detailPosition.grp) : true) : null
-  const canEditReturnedRow = (r: any) => !readOnly && !draftsReadOnly && !!me && (r.entered_by === me || (!!ownerPersonId && String(ownerPersonId) === String(r.person_id))) && ['draft', 'rejected'].includes(String(r.status));
+  const canEditReturnedRow = (r: any) => !readOnly && !!me && (centralAdminDelegate ? (!!ownerPersonId && String(ownerPersonId) === String(r.person_id) && ['pending', 'draft', 'rejected'].includes(String(r.status)) && !!String(r.reject_reason || '').trim()) : (!draftsReadOnly && (r.entered_by === me || (!!ownerPersonId && String(ownerPersonId) === String(r.person_id))) && ['draft', 'rejected'].includes(String(r.status))));
   const submitRows = async (ids: number[]) => {
     if (!ids.length) return
     const { error } = await sb.from('logs').update({ status: 'pending' }).in('id', ids)
@@ -1453,6 +1453,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
     if (editEvidenceFile && (!editEvidenceFile.type.startsWith('image/') || editEvidenceFile.size > 5 * 1024 * 1024)) { setEditError('กรุณาเลือกไฟล์รูปภาพ ขนาดไม่เกิน 5 MB'); return }
     setSaving(true)
     const payload = {
+      ...(editing.status === 'pending' && String(editing.reject_reason || '').trim() ? { reject_reason: 'แก้ไขแล้ว รอตรวจซ้ำ: ' + String(editing.reject_reason).replace(/^แก้ไขแล้ว รอตรวจซ้ำ:\s*/, '').trim() } : {}),
       work_date: form.work_date,
       activity_code: form.activity_code,
       qty: Number(form.qty),
