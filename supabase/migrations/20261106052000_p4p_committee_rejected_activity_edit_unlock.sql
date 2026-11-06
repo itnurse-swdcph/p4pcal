@@ -105,7 +105,7 @@ begin
   ) into v_locked;
 
   if not v_locked then
-    return case when tg_op = 'DELETE' then old else new end;
+    if tg_op = 'DELETE' then return old; else return new; end if;
   end if;
 
   select exists (
