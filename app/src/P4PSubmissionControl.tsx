@@ -129,7 +129,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
     ? !isGroupHeadWithoutUnit
     : ((profile?.role === 'group_head' || profile?.role === 'head') && isGroupHeadWithoutUnit) ||
       (profile?.role === 'admin' && String(profile?.username || '') === '11450')
-  const alreadySubmitted = submission && submission.status !== 'returned'
+  const alreadySubmitted = !!submission && ['submitted', 'resubmitted', 'reviewed'].includes(String(submission.status))
   const ready = !loading && !error && pending === 0 && missingNotes.length === 0 && staff.length > 0
   const statusLabel: Record<string, string> = { submitted: 'ส่งผลงานแล้ว', returned: 'มีรายการส่งกลับแก้ไข', resubmitted: 'ส่งผลงานซ้ำแล้ว', reviewed: 'ตรวจสอบแล้ว' }
 
