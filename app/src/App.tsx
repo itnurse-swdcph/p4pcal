@@ -1455,6 +1455,15 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
     appAlert(status === 'approved' ? 'รับรองกิจกรรมเรียบร้อยแล้ว' : status === 'rejected' ? 'บันทึกผลไม่รับรองเรียบร้อยแล้ว' : 'เปลี่ยนสถานะรายการเรียบร้อยแล้ว')
     return true
   }
+  const reopenOwnApproval = async (r: any) => {
+    if (!r || String(r.reviewed_by || '') !== String(me || '')) { appAlert('ยกเลิกการรับรองได้เฉพาะผู้ที่รับรองรายการนี้'); return false }
+    if (!(await appConfirm('ยืนยันยกเลิกการรับรองกิจกรรมนี้? รายการจะกลับไปสถานะรอรับรอง โดยไม่ปลดล็อกกิจกรรมอื่นหรือปลดล็อกทั้งหน่วยงาน'))) return false
+    const { data, error } = await sb.rpc('p4p_reopen_own_activity_approval', { p_log_id: Number(r.id), p_reason: 'ผู้รับรองยกเลิกการรับรองเพื่อทบทวนรายการอีกครั้ง' })
+    if (error || !data?.ok) { appAlert('ยกเลิกการรับรองไม่สำเร็จ: ' + (error?.message || data?.error || 'ไม่สามารถเปลี่ยนสถานะได้')); return false }
+    reload()
+    appAlert('ยกเลิกการรับรองแล้ว รายการนี้กลับไปสถานะรอรับรอง โดยรายการอื่นยังคงสถานะเดิม')
+    return true
+  }
   const del = async (id: number): Promise<boolean> => {
     const target = rows.find((r: any) => Number(r.id) === Number(id))
     const returnedPending = !!target && isReturnedPending(target)
@@ -1578,6 +1587,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
       {detailRow.evidence_image_path && <button type="button" className="btn sec" onClick={() => openEvidence(sb, detailRow.evidence_image_path)}>เปิดดูรูปหลักฐาน</button>}
       {canEditReturnedRow(detailRow) && ['draft', 'rejected'].includes(String(detailRow.status)) && <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><button type="button" className="btn" onClick={async () => { await submitRows([detailRow.id]); setDetailRow(null) }}>{detailRow.status === 'rejected' || String(detailRow.reject_reason || '').trim() ? 'ส่งใหม่' : 'ส่ง'}</button><button type="button" className="btn sec" onClick={() => beginEdit(detailRow)}>แก้ไข</button><button type="button" className="btn sec !text-red-700" onClick={() => void del(detailRow.id)}>ลบ</button></div>}
       {detailRow.status === 'pending' && canDecideRow(ap, me, detailRow) && !readOnly && <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><button type="button" className="btn red" onClick={() => { setRejecting(detailRow); setReason(''); setDetailRow(null) }}>ไม่รับรอง</button><button type="button" className="btn !bg-emerald-600 !text-white hover:!bg-emerald-700" onClick={async () => { const ok = await set(Number(detailRow.id), 'approved'); if (ok) setDetailRow(null) }}>รับรองกิจกรรม</button></div>}
+      {detailRow.status === 'approved' && canDecideRow(ap, me, detailRow) && String(detailRow.reviewed_by || '') === String(me || '') && !readOnly && <div className="flex justify-end border-t pt-3"><button type="button" className="btn sec !border-amber-300 !text-amber-800 hover:!bg-amber-50" onClick={async () => { const ok = await reopenOwnApproval(detailRow); if (ok) setDetailRow(null) }}>ยกเลิกการรับรองรายการนี้</button></div>}
     </div></div>}
     {rejecting && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="reject-title"><div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-3">
       <h3 id="reject-title" className="text-lg font-bold">ไม่รับรองรายการ</h3>
