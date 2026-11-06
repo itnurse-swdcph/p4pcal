@@ -1732,3 +1732,18 @@ body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row)
   }
   body.print-unit-report .unit-report-table .unit-col-position { width: 18% !important; }
 }
+
+
+/* Keep printed P4P report column headings unshaded in both individual and unit reports. */
+.ps-individual-table thead th,
+.unit-report-table thead th {
+  background: #fff !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+@media print {
+  body.print-individual-report .ps-individual-table thead th,
+  body.print-unit-report .unit-report-table thead th {
+    background: #fff !important;
+  }
+}
