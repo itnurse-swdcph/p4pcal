@@ -119,8 +119,8 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
     return a
   }, { allocation: 0, reserve: 0, carry: 0, below: 0, pool: 0, excess: 0 }), [groups])
 
-  const canAudit = isMember && !['reviewing', 'approved', 'closed'].includes(rstatus)
-  const lockedReason = !isMember ? 'เฉพาะกรรมการที่ปฏิบัติหน้าที่เท่านั้นที่ส่งกลับหรือไม่อนุมัติกิจกรรมได้'
+  const canAudit = (isMember || isCentralAdminAccount) && !['reviewing', 'approved', 'closed'].includes(rstatus)
+  const lockedReason = !(isMember || isCentralAdminAccount) ? 'เฉพาะกรรมการ P4P หรือแอดมินกลางบัญชี 11450 เท่านั้นที่ส่งกลับหรือไม่อนุมัติกิจกรรมได้'
     : rstatus === 'closed' ? 'งวดนี้ปิดแล้ว แก้ไขผลกิจกรรมไม่ได้'
       : 'ขณะนี้อยู่ระหว่างรอบรับรองผล จึงแก้ผลกิจกรรมไม่ได้ หากพบข้อผิดพลาดให้ลงมติ "ไม่เห็นชอบ" เพื่อยกเลิกรอบนี้ก่อน'
 
