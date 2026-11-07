@@ -1780,3 +1780,12 @@ body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row)
 .memo-paper .memo-approval-aside .memo-decision-options { justify-content: center; margin: 0 0 .5mm; }
 body.print-payment-memo .memo-paper .memo-approval-row .memo-sign { margin: .2mm 0 .4mm !important; }
 .memo-paper .memo-approver-sign .memo-fit-wrap { text-align: center; }
+
+/* ===== ตารางกิจกรรมแบบใหม่ (บันทึก / รับรอง / รายบุคคล / ตรวจสอบของกรรมการ) ===== */
+table.activity-table { table-layout: auto; width: 100%; border-collapse: separate; border-spacing: 0; }
+table.activity-table th, table.activity-table td { padding: .5rem .75rem !important; overflow-wrap: anywhere; word-break: normal; }
+table.activity-table th { font-size: .75rem !important; line-height: 1.3 !important; white-space: normal !important; }
+table.activity-table td { font-size: .875rem !important; line-height: 1.35 !important; border-bottom: 0 !important; }
+table.activity-table td.text-xs { font-size: .75rem !important; }
+table.activity-table tr:last-child td { border-bottom: 0; }
+

@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, BellRing, CheckCircle2, ChevronDown, Moon, Paperclip, Printer, RotateCcw, Sun, Sunset, X, XCircle } from 'lucide-react'
+import { AlertTriangle, BellRing, CheckCircle2, ChevronDown, Paperclip, Printer, RotateCcw, X, XCircle } from 'lucide-react'
 import { appConfirm } from '../AppDialog'
 import { num } from './utils'
+import { DateCell, ShiftBadge, SHIFT_ORDER, SubActivityEvidence } from '../ActivityRows'
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   approved: { label: 'อนุมัติแล้ว', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
@@ -10,12 +11,6 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   draft: { label: 'ร่าง', cls: 'bg-stone-100 text-stone-700 border-stone-200' }
 }
 const FILTERS: [string, string][] = [['all', 'ทั้งหมด'], ['approved', 'อนุมัติแล้ว'], ['pending', 'รอรับรอง'], ['rejected', 'ไม่อนุมัติ/ส่งกลับ']]
-const SHIFT_ORDER = ['เช้า', 'บ่าย', 'ดึก']
-const SHIFT_STYLE: Record<string, { cls: string; Icon: any }> = {
-  'เช้า': { cls: 'border-amber-300 bg-amber-100 text-amber-900', Icon: Sun },
-  'บ่าย': { cls: 'border-orange-300 bg-orange-100 text-orange-900', Icon: Sunset },
-  'ดึก': { cls: 'border-indigo-300 bg-indigo-100 text-indigo-900', Icon: Moon }
-}
 // ฉบับร่างที่มีเหตุผลติดมา = กิจกรรมที่ถูกส่งกลับให้เจ้าของแก้ไข / ไม่อนุมัติ (ระบบเปลี่ยนเป็นฉบับร่างให้เจ้าของแก้ไขต่อ)
 const isReturned = (r: any) => r.status === 'rejected' || (r.status === 'draft' && !!r.reject_reason)
 const statusKey = (r: any) => (isReturned(r) ? 'rejected' : r.status)
@@ -23,10 +18,6 @@ const statusInfo = (r: any) => (r.status === 'draft' && r.reject_reason
   ? { label: 'ส่งกลับให้แก้ไข', cls: 'bg-red-50 text-red-800 border-red-200' }
   : STATUS[r.status] || { label: r.status, cls: 'bg-stone-100 text-stone-700 border-stone-200' })
 const pt = (v: any) => Number(v || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const dateParts = (d: string) => {
-  const dt = new Date(String(d).slice(0, 10) + 'T00:00:00')
-  return { day: dt.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }), sub: `${dt.toLocaleDateString('th-TH', { weekday: 'short' })} · ${dt.toLocaleDateString('th-TH', { year: 'numeric' })}` }
-}
 
 type Props = {
   sb: any
@@ -65,6 +56,8 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
   const [preparingPrint, setPreparingPrint] = useState(false)
   const [personRow, setPersonRow] = useState<any>(null)
   const [evidencePaths, setEvidencePaths] = useState<Record<string, string>>({})
+  const [subActivities, setSubActivities] = useState<Record<string, string>>({})
+  const [extrasLoading, setExtrasLoading] = useState(true)
   const [activityDefinitions, setActivityDefinitions] = useState<Record<string, any>>({})
 
   // กด Esc เพื่อปิดหน้าต่าง (ไม่ปิดขณะเปิดตัวอย่างพิมพ์อยู่)
@@ -77,7 +70,7 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
   useEffect(() => {
     let alive = true
     const load = async () => {
-      setLoading(true); setError('')
+      setLoading(true); setExtrasLoading(true); setError('')
       const select = 'id,person_id,person_name,position,unit_id,work_date,shift,activity_code,title,uom,minutes,rate,domain,qty,points,counted_points,status,evidence,reject_reason'
       let q = sb.from('v_logs').select(select).eq('month', monthDate)
       if (randomUnitId != null) q = q.eq('unit_id', randomUnitId).eq('status', 'approved').limit(300)
@@ -92,21 +85,25 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
         setRows(list)
       }
       setLoading(false)
-      if (e) return
+      if (e) { setExtrasLoading(false); return }
       // โหลดข้อมูลเสริมแยกจากรายการหลัก เพื่อให้รายการแสดงทันที และไม่ล้มทั้งแผงหากส่วนนี้โหลดไม่ได้
       try {
         const codes = [...new Set(list.map((r: any) => String(r.activity_code || '')).filter(Boolean))]
         if (codes.length) {
-          const { data: definitions } = await sb.from('activities').select('code,uom,minutes,definition').in('code', codes)
+          const { data: definitions } = await sb.from('activities').select('code,uom,minutes,definition,need_evidence').in('code', codes)
           if (alive) setActivityDefinitions(Object.fromEntries((definitions || []).map((a: any) => [String(a.code), a])))
         } else if (alive) setActivityDefinitions({})
         const paths: Record<string, string> = {}
+        const subs: Record<string, string> = {}
         const ids = list.map((r: any) => r.id)
         for (let i = 0; i < ids.length; i += 200) {
-          const { data: ev } = await sb.from('logs').select('id,evidence_image_path').in('id', ids.slice(i, i + 200)).not('evidence_image_path', 'is', null)
-          ;(ev || []).forEach((x: any) => { if (x.evidence_image_path) paths[String(x.id)] = x.evidence_image_path })
+          const { data: ev } = await sb.from('logs').select('id,evidence_image_path,sub_activity').in('id', ids.slice(i, i + 200))
+          ;(ev || []).forEach((x: any) => {
+            if (x.evidence_image_path) paths[String(x.id)] = x.evidence_image_path
+            if (String(x.sub_activity || '').trim()) subs[String(x.id)] = String(x.sub_activity)
+          })
         }
-        if (alive) setEvidencePaths(paths)
+        if (alive) { setEvidencePaths(paths); setSubActivities(subs) }
         if (personId) {
           // people ไม่มีคอลัมน์ org_role (อยู่ที่ staff_directory) จึงดึงแยก เพื่อไม่ให้เกิด 400
           const { data: pr } = await sb.from('people').select('position,unit_id,staff_directory_id').eq('id', personId).maybeSingle()
@@ -118,6 +115,7 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
           if (alive) setPersonRow(pr ? { ...pr, org_role: orgRole } : null)
         }
       } catch { /* ไม่แสดงปุ่มหลักฐาน/ใช้ค่าเริ่มต้นของการ์ดแต้ม */ }
+      finally { if (alive) setExtrasLoading(false) }
     }
     load()
     return () => { alive = false }
@@ -235,7 +233,7 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
           : !personId && randomUnitId == null ? <p className="py-8 text-center text-sm text-stone-500">บุคลากรคนนี้ยังไม่มีบัญชีบันทึกกิจกรรมในระบบ</p>
           : !shown.length ? <p className="py-8 text-center text-sm text-stone-500">ไม่พบกิจกรรมตามเงื่อนไขที่เลือก</p>
           : <div className="overflow-x-auto rounded-xl border border-stone-200">
-            <table className="w-full min-w-[860px] border-separate border-spacing-0 text-sm" aria-label="รายการกิจกรรม">
+            <table className="activity-table w-full min-w-[860px] border-separate border-spacing-0 text-sm" aria-label="รายการกิจกรรม">
               <thead>
                 <tr className="text-left text-xs font-bold text-stone-700">
                   <th className="sticky top-0 z-10 w-[104px] border-b-2 border-stone-300 bg-stone-100 px-3 py-2">วันที่</th>
@@ -254,9 +252,6 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
                   if (dateKey !== prevDate) { dayIndex += 1; prevDate = dateKey }
                   const band = dayIndex % 2 === 0 ? 'bg-white' : 'bg-stone-50'
                   const dateTop = i > 0 && String(shown[i - 1].work_date).slice(0, 10) !== dateKey ? 'border-t-2 border-t-stone-300' : 'border-t border-t-stone-200'
-                  const dp = dateParts(r.work_date)
-                  const shiftStyle = SHIFT_STYLE[r.shift] || { cls: 'border-stone-300 bg-stone-100 text-stone-800', Icon: null }
-                  const ShiftIcon = shiftStyle.Icon
                   const st = statusInfo(r)
                   const form = open && open.id === r.id ? open : null
                   const isOpen = !!expanded[r.id] || !!form
@@ -272,13 +267,8 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
                   const cell = `${band} ${dateTop} px-3 py-2 align-top`
                   return <Fragment key={r.id}>
                     <tr>
-                      <td className={cell}>
-                        <div className="text-base font-bold leading-tight text-stone-900">{dp.day}</div>
-                        <div className="text-[11px] leading-tight text-stone-500">{dp.sub}</div>
-                      </td>
-                      <td className={cell + ' text-center'}>
-                        {r.shift ? <span className={'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold ' + shiftStyle.cls}>{ShiftIcon && <ShiftIcon size={13} aria-hidden="true" />}{r.shift}</span> : <span className="text-stone-400">—</span>}
-                      </td>
+                      <td className={cell}><DateCell date={r.work_date} /></td>
+                      <td className={cell + ' text-center'}><ShiftBadge shift={r.shift} /></td>
                       <td className={cell}>
                         {randomUnitId != null && <div className="text-xs font-bold text-stone-700">{r.person_name}</div>}
                         <div className="font-semibold leading-snug text-stone-900">{r.title || r.activity_code}</div>
@@ -311,13 +301,14 @@ export default function ActivityPanel({ sb, monthDate, person, randomUnitId, can
                     {isOpen && <tr>
                       <td colSpan={7} className={band + ' border-t border-t-stone-100 px-3 pb-3 pt-1'}>
                         <div className="sticky left-0 w-[min(100%,calc(100vw-4.5rem))]">
-                        <div className="grid grid-cols-3 gap-2 rounded-lg border border-teal-100 bg-teal-50/60 p-2 text-xs">
+                        <SubActivityEvidence subActivity={subActivities[String(r.id)]} evidence={r.evidence} hasImage={!!evidencePaths[String(r.id)]} needEvidence={definition?.need_evidence} loading={extrasLoading}
+                          onOpenImage={openEvidence ? () => openEvidence(sb, evidencePaths[String(r.id)]) : undefined} />
+                        <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg border border-teal-100 bg-teal-50/60 p-2 text-xs">
                           <div><div className="text-stone-500">หน่วยนับ</div><b className="text-stone-900">{definition?.uom || r.uom || '—'}</b></div>
                           <div><div className="text-stone-500">เวลาพื้นฐาน</div><b className="text-stone-900">{num(baseMinutes)} นาที/หน่วย</b></div>
                           <div><div className="text-stone-500">คะแนนปรับต่อหน่วย</div><b className="text-teal-900">{positionRate ? num(pointsPerUnit) : '—'} คะแนน</b></div>
                         </div>
                         {definition?.definition && <p className="mt-1 whitespace-pre-wrap rounded-lg bg-stone-100 p-2 text-xs text-stone-600">คำนิยาม/หลักฐาน: {definition.definition}</p>}
-                        {r.evidence && <p className="mt-2 whitespace-pre-wrap rounded-lg bg-stone-100 p-2 text-xs text-stone-700">หลักฐาน: {r.evidence}</p>}
                         {form && <div className="mt-2 space-y-2 rounded-lg border border-teal-200 bg-teal-50/60 p-3">
                           <label className="block text-xs font-semibold text-stone-800">{form.type === 'return_for_correction' ? 'สิ่งที่ต้องแก้ไข (เจ้าของกิจกรรมจะเห็นข้อความนี้)' : 'เหตุผลที่ไม่อนุมัติ (เจ้าของกิจกรรมจะเห็นข้อความนี้)'}
                             <textarea autoFocus className="inp mt-1 min-h-16 w-full !cursor-text" value={reason} onChange={e => setReason(e.target.value)} placeholder="อย่างน้อย 5 ตัวอักษร" /></label>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { Fragment, createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import PersonnelPage from './PersonnelPage'
 import PaymentMemo from './PaymentMemo'
@@ -7,7 +7,8 @@ import P4PSubmissionControl from './P4PSubmissionControl'
 import NotificationBell from './NotificationBell'
 import AppDialogHost, { appAlert, appConfirm } from './AppDialog'
 import { createPortal } from 'react-dom'
-import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardList, LibraryBig, ClipboardCheck, Users, Settings, LogOut, ChevronLeft, CalendarDays, Building2, Shield } from 'lucide-react'
+import { DateCell, ShiftBadge, SubActivityEvidence } from './ActivityRows'
+import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardList, LibraryBig, ClipboardCheck, Users, Settings, LogOut, ChevronLeft, CalendarDays, Building2, Shield, ChevronDown, Paperclip } from 'lucide-react'
 
 declare const __P4P_BUILD_ID__: string
 const CURRENT_BUILD_ID = typeof __P4P_BUILD_ID__ !== 'undefined' ? __P4P_BUILD_ID__ : 'unknown-build'
@@ -1324,7 +1325,7 @@ function Totals({ rows, people, positions }: any) {
 const ST: any = { draft: ['แบบร่าง ยังไม่ส่ง', 'bg-stone-200'], pending: ['ส่งแล้ว รอรับรอง', 'bg-amber-100'], approved: ['รับรองแล้ว', 'bg-emerald-100'], rejected: ['ไม่รับรอง', 'bg-red-100'] }
 async function openEvidence(sb: any, path: string) { const tab = window.open('about:blank', '_blank'); if (!tab) { appAlert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง'); return } const { data, error } = await sb.storage.from('p4p-evidence').createSignedUrl(path, 300); if (error || !data?.signedUrl) { tab.close(); appAlert('เปิดรูปหลักฐานไม่สำเร็จ กรุณาตรวจสอบสิทธิ์หรือการตั้งค่า Storage'); return } tab.location.href = data.signedUrl }
 
-function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, showAllDrafts = false, ownerPersonId = null, draftsReadOnly = false, centralAdminDelegate = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {}, allowReopenApproved = false }: any) {
+export function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, showName = true, readOnly = false, showAllDrafts = false, ownerPersonId = null, draftsReadOnly = false, centralAdminDelegate = false, acts = [], positions = [], people = [], month, setMonth, editTargetRow = null, clearEditTarget = () => {}, allowReopenApproved = false }: any) {
   const me = useContext(MeCtx); const ap = useContext(ApproverCtx)
   const [nextApproverNames, setNextApproverNames] = useState<Record<string, string>>({})
   const pendingRows = (allRows || []).filter((r: any) => r.status === 'pending')
@@ -1367,6 +1368,7 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
   const isCommitteeRejected = (r: any) => ['draft', 'rejected'].includes(String(r?.status)) && committeeRejectedIds.has(String(r?.id))
   const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
   const [detailRow, setDetailRow] = useState<any>(null)
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
   const detailActivity = detailRow ? (acts || []).find((a: any) => String(a.code) === String(detailRow.activity_code)) : null
   const detailPerson = detailRow ? (people || []).find((p: any) => String(p.id) === String(detailRow.person_id)) : null
   // v_logs/v_logs_base ส่งตำแหน่งและอัตราคะแนนที่ใช้คำนวณมาพร้อมรายการอยู่แล้ว
@@ -1532,8 +1534,24 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
       <button type="button" className="btn" disabled={!selectedApprovableIds.length || bulkApproving} onClick={approveSelected}>{bulkApproving ? 'กำลังรับรอง…' : 'รับรองรายการที่เลือก (' + selectedApprovableIds.length.toLocaleString('th-TH') + ')'}</button>
       <button type="button" className="btn sec" disabled={!selectedApprovalIds.length || bulkApproving} onClick={() => setSelectedApprovalIds([])}>ล้างที่เลือก</button>
     </div>}
-    <table className={`w-full log-table ${showName ? 'log-table-with-name' : ''}`}><thead><tr>{canApprove && !readOnly && <th className="log-col-select"><input aria-label="เลือกกิจกรรมที่รับรองได้ทั้งหมด" type="checkbox" checked={allApprovableSelected} onChange={e => toggleAllApprovals(e.target.checked)} disabled={!approvableDisplayedRows.length} /></th>}<th className="log-col-date">วันที่</th>{showName && <th className="log-col-name">ชื่อ</th>}<th className="log-col-activity">กิจกรรม</th><th className="log-col-qty">จำนวน</th><th className="log-col-points">แต้ม</th><th className="log-col-check">ผลตรวจ</th><th className="log-col-status">สถานะ</th><th className="log-col-reason">เหตุผลที่ไม่รับรอง</th><th className="log-col-actions"></th></tr></thead>
-      <tbody>{displayedRows.map((r: any) => {
+    {(() => {
+      const hasSelect = !!(canApprove && !readOnly)
+      const colCount = 8 + (hasSelect ? 1 : 0) + (showName ? 1 : 0)
+      const th = 'border-b-2 border-stone-300 bg-stone-100 px-3 py-2 text-left text-xs font-bold text-stone-700'
+      return <table className="activity-table w-full min-w-[980px] border-separate border-spacing-0 text-sm" aria-label="รายการกิจกรรม">
+      <thead><tr>
+        {hasSelect && <th className={th + ' w-[40px] text-center'}><input aria-label="เลือกกิจกรรมที่รับรองได้ทั้งหมด" type="checkbox" checked={allApprovableSelected} onChange={e => toggleAllApprovals(e.target.checked)} disabled={!approvableDisplayedRows.length} /></th>}
+        <th className={th + ' w-[104px]'}>วันที่</th>
+        <th className={th + ' w-[96px] text-center'}>เวร</th>
+        {showName && <th className={th + ' w-[130px]'}>ชื่อ</th>}
+        <th className={th + ' min-w-[280px]'}>กิจกรรม</th>
+        <th className={th + ' w-[90px] text-right'}>จำนวน</th>
+        <th className="w-[120px] border-b-2 border-stone-300 bg-teal-50 px-3 py-2 text-right text-xs font-bold text-teal-900">แต้มที่ได้</th>
+        <th className={th + ' w-[110px]'}>ผลตรวจ</th>
+        <th className={th + ' w-[130px] text-center'}>สถานะ</th>
+        <th className={th + ' w-[150px] text-center'}>ดำเนินการ</th>
+      </tr></thead>
+      <tbody>{displayedRows.map((r: any, rowIndex: number) => {
         // ตรวจซ้ำที่หน้าจอด้วย เพื่อไม่ให้แสดง "ผ่าน" หากข้อมูล validation จาก view ขาดหายหรือยังไม่อัปเดต
         const checkErrors = Array.isArray(r.errors) ? [...r.errors] : []
         const checkWarnings = Array.isArray(r.warnings) ? [...r.warnings] : []
@@ -1544,14 +1562,47 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
         const sameActivityRows = rows.filter((x: any) => x.person_id === r.person_id && x.activity_code === r.activity_code)
         if (Number(r.max_day) > 0 && sameActivityRows.filter((x: any) => x.work_date === r.work_date).reduce((sum: number, x: any) => sum + Number(x.qty || 0), 0) > Number(r.max_day)) addOnce(checkWarnings, `เกินเพดาน/วัน (${r.max_day})`)
         if (Number(r.max_month) > 0 && sameActivityRows.filter((x: any) => String(x.work_date || '').slice(0, 7) === String(r.work_date || '').slice(0, 7)).reduce((sum: number, x: any) => sum + Number(x.qty || 0), 0) > Number(r.max_month)) addOnce(checkWarnings, `เกินเพดาน/เดือน (${r.max_month})`)
-        return <tr key={r.id} onClick={() => setDetailRow(r)} className="cursor-pointer hover:bg-teal-50/60" title="คลิกเพื่อดูรายละเอียดและพิจารณารับรอง">
-        {canApprove && !readOnly && <td className="log-col-select text-center">{r.status === 'pending' && canDecideRow(ap, me, r) ? <input aria-label={'เลือกกิจกรรม ' + r.activity_code} type="checkbox" checked={selectedApprovableIds.includes(Number(r.id))} onChange={e => toggleApprovalSelection(Number(r.id), e.target.checked)} /> : null}</td>}
-        <td className="log-col-date whitespace-nowrap">{formatThaiShortDate(r.work_date)}<div className="text-xs text-stone-500">{r.shift === 'เช้า' || r.shift === 'บ่าย' || r.shift === 'ดึก' ? 'เวร' + r.shift : 'แสตนด์เช้า'}</div></td>{showName && <td className="log-col-name">{r.person_name}</td>}
-        <td className="log-col-activity whitespace-normal break-words"><div><b>{r.activity_code}</b> — {r.title}</div>{r.parent_log_id && <div className="mt-1 inline-flex rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">คำขอเพิ่มจำนวน · อ้างอิงรายการ #{r.parent_log_id}</div>}{r.supplemental_reason && <div className="mt-1 rounded-md bg-amber-50 p-2 text-xs text-amber-900">เหตุผลที่ขอเพิ่ม: {r.supplemental_reason}</div>}{r.sub_activity?.trim() && <div className="text-sm mt-1 whitespace-pre-wrap break-words">กิจกรรมย่อย: {r.sub_activity}</div>}{r.evidence_image_path && <div className="mt-1"><button type="button" className="inline-flex items-center gap-1 rounded-md border border-teal-300 bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-100" onClick={() => openEvidence(sb, r.evidence_image_path)} aria-label={`ดูรูปหลักฐานของกิจกรรม ${r.activity_code}`}>ดูหลักฐานแนบ</button></div>}</td>
-        <td className="log-col-qty">{r.qty} {r.uom}</td><td className="log-col-points whitespace-nowrap">{nf(r.counted_points)}{Number(r.cap_cut) > 0 && Number(r.points_before_cap) > 0 ? <span className="text-xs text-amber-700"> (ตัดเพดาน −{nf(r.cap_cut)})</span> : Number(r.counted_points) !== Number(r.points) && <span className="text-xs text-red-700"> (ไม่นับ)</span>}</td>
-        <td className="log-col-check text-xs">{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="text-emerald-700">✓ ผ่าน</span>}</td>
-        <td className="log-col-status"><span className={`px-1.5 py-0.5 text-xs ${isCommitteeRejected(r) ? 'bg-red-100 font-semibold text-red-800' : ST[r.status][1]}`}>{isCommitteeRejected(r) ? 'คณะกรรมการไม่อนุมัติ' : r.status === 'pending' && String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? 'แก้ไขแล้ว รอตรวจซ้ำ' : ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-1 text-xs text-stone-600">ผู้รับรอง: <b className="text-stone-800">{nextApproverNames[String(r.person_id)] || 'ไม่พบชื่อผู้รับรองในระบบ'}</b></div>}</td><td className="log-col-reason whitespace-pre-wrap break-words text-xs">{(r.status === 'rejected' || (r.status === 'draft' && String(r.reject_reason || '').trim())) ? <div className="rounded-md border border-red-200 bg-red-50 p-2 text-red-800">{isCommitteeRejected(r) && <div className="mb-1 font-semibold">คณะกรรมการไม่อนุมัติ</div>}{String(r.reject_reason || '').trim() || 'ไม่พบเหตุผลที่บันทึกไว้ กรุณาติดต่อหัวหน้าผู้พิจารณา'}</div> : r.status === 'pending' && String(r.reject_reason || '').trim() ? <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-900">{String(r.reject_reason).startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? 'แก้ไขแล้ว รอตรวจซ้ำ · เหตุผลเดิม: ' + String(r.reject_reason).replace(/^แก้ไขแล้ว รอตรวจซ้ำ:\s*/, '') : 'ส่งกลับแก้ไข: ' + String(r.reject_reason).trim()}</div> : <span className="text-stone-400">—</span>}</td>
-        <td className="log-col-actions whitespace-nowrap space-x-1">
+        // แถบสลับสีรายวัน และเส้นหนาคั่นเมื่อขึ้นวันใหม่
+        const dateKey = String(r.work_date || '').slice(0, 10)
+        let dayIndex = 0
+        for (let k = 1; k <= rowIndex; k++) if (String(displayedRows[k].work_date || '').slice(0, 10) !== String(displayedRows[k - 1].work_date || '').slice(0, 10)) dayIndex++
+        const band = dayIndex % 2 === 0 ? 'bg-white' : 'bg-stone-50'
+        const newDay = rowIndex > 0 && String(displayedRows[rowIndex - 1].work_date || '').slice(0, 10) !== dateKey
+        const cell = `${band} ${newDay ? 'border-t-2 border-t-stone-300' : 'border-t border-t-stone-200'} px-3 py-2 align-top`
+        const isOpen = !!expandedRows[String(r.id)]
+        const counted = Number(r.counted_points ?? 0)
+        const ptsCls = r.status === 'approved' ? 'text-teal-800' : r.status === 'pending' ? 'text-amber-700' : 'text-stone-500'
+        const returnedReason = (r.status === 'rejected' || (r.status === 'draft' && String(r.reject_reason || '').trim()))
+          ? <div className="mt-1 whitespace-pre-wrap break-words rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{isCommitteeRejected(r) && <div className="mb-1 font-semibold">คณะกรรมการไม่อนุมัติ</div>}<b>เหตุผลที่ไม่รับรอง:</b> {String(r.reject_reason || '').trim() || 'ไม่พบเหตุผลที่บันทึกไว้ กรุณาติดต่อหัวหน้าผู้พิจารณา'}</div>
+          : r.status === 'pending' && String(r.reject_reason || '').trim()
+            ? <div className="mt-1 whitespace-pre-wrap break-words rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">{String(r.reject_reason).startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? 'แก้ไขแล้ว รอตรวจซ้ำ · เหตุผลเดิม: ' + String(r.reject_reason).replace(/^แก้ไขแล้ว รอตรวจซ้ำ:\s*/, '') : 'ส่งกลับแก้ไข: ' + String(r.reject_reason).trim()}</div>
+            : null
+        return <Fragment key={r.id}>
+        <tr onClick={() => setDetailRow(r)} className="cursor-pointer hover:bg-teal-50/60" title="คลิกเพื่อดูรายละเอียดและพิจารณารับรอง">
+        {hasSelect && <td className={cell + ' text-center'}>{r.status === 'pending' && canDecideRow(ap, me, r) ? <input aria-label={'เลือกกิจกรรม ' + r.activity_code} type="checkbox" checked={selectedApprovableIds.includes(Number(r.id))} onClick={e => e.stopPropagation()} onChange={e => toggleApprovalSelection(Number(r.id), e.target.checked)} /> : null}</td>}
+        <td className={cell}><DateCell date={r.work_date} /></td>
+        <td className={cell + ' text-center'}><ShiftBadge shift={r.shift} /></td>
+        {showName && <td className={cell + ' font-semibold text-stone-900'}>{r.person_name}</td>}
+        <td className={cell + ' whitespace-normal break-words'}>
+          <div className="font-semibold leading-snug text-stone-900">{r.title}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-stone-500">
+            <span className="rounded bg-stone-100 px-1.5 py-px font-mono text-stone-600">{r.activity_code}</span>
+            {r.evidence_image_path && <span className="inline-flex items-center gap-0.5 text-teal-800"><Paperclip size={11} aria-hidden="true" />มีรูปหลักฐาน</span>}
+            <button type="button" className="inline-flex items-center gap-0.5 font-semibold text-teal-800 hover:underline" aria-expanded={isOpen}
+              onClick={e => { e.stopPropagation(); setExpandedRows(v => ({ ...v, [String(r.id)]: !v[String(r.id)] })) }}><ChevronDown size={12} aria-hidden="true" className={isOpen ? 'rotate-180 transition' : 'transition'} />{isOpen ? 'ซ่อนรายละเอียด' : 'รายละเอียด'}</button>
+          </div>
+          {r.parent_log_id && <div className="mt-1 inline-flex rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">คำขอเพิ่มจำนวน · อ้างอิงรายการ #{r.parent_log_id}</div>}
+          {r.supplemental_reason && <div className="mt-1 rounded-md bg-amber-50 p-2 text-xs text-amber-900">เหตุผลที่ขอเพิ่ม: {r.supplemental_reason}</div>}
+          {returnedReason}
+        </td>
+        <td className={cell + ' text-right tabular-nums'}><div className="font-semibold text-stone-900">{r.qty}</div><div className="text-[11px] text-stone-500">{r.uom}</div></td>
+        <td className={cell + ' bg-teal-50/60 text-right'}>
+          <div className={'whitespace-nowrap text-lg font-bold leading-tight tabular-nums ' + ptsCls}>{nf(r.counted_points)}</div>
+          {Number(r.cap_cut) > 0 && Number(r.points_before_cap) > 0 ? <div className="text-[11px] leading-tight text-amber-700">ตัดเพดาน −{nf(r.cap_cut)}</div> : Number(r.counted_points) !== Number(r.points) && <div className="text-[11px] leading-tight text-red-700">(ไม่นับ)</div>}
+        </td>
+        <td className={cell + ' text-xs'}>{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="font-semibold text-emerald-700">✓ ผ่าน</span>}</td>
+        <td className={cell + ' text-center'}><span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${isCommitteeRejected(r) ? 'bg-red-100 text-red-800' : ST[r.status][1]}`}>{isCommitteeRejected(r) ? 'คณะกรรมการไม่อนุมัติ' : r.status === 'pending' && String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? 'แก้ไขแล้ว รอตรวจซ้ำ' : ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-1 text-xs text-stone-600">ผู้รับรอง: <b className="text-stone-800">{nextApproverNames[String(r.person_id)] || 'ไม่พบชื่อผู้รับรองในระบบ'}</b></div>}</td>
+        <td className={cell + ' text-center'}><div className="flex flex-col items-stretch gap-1">
           {canEditReturnedRow(r) && ['draft', 'rejected'].includes(String(r.status)) && <>
             <button type="button" className="btn !py-0.5" onClick={e => { e.stopPropagation(); void submitRows([r.id]) }}>{r.status === 'rejected' || String(r.reject_reason || '').trim() ? 'ส่งใหม่' : 'ส่ง'}</button>
             <button type="button" className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); beginEdit(r) }}>แก้ไข</button>
@@ -1560,13 +1611,27 @@ function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprove, show
             (r.entered_by === me || (ownerPersonId && String(ownerPersonId) === String(r.person_id))) &&
             <button className={`btn sec !py-0.5 ${String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? '!border-teal-300 !text-teal-800 !bg-teal-50' : '!border-amber-300 !text-amber-800'}`} onClick={e => { e.stopPropagation(); beginEdit(r) }}>{String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? 'แก้ไขแล้ว รอตรวจ' : 'แก้ไขตามที่ส่งกลับ'}</button>}
           {isReturnedPending(r) && <button type="button" className="text-xs underline text-red-700" onClick={e => { e.stopPropagation(); void del(r.id) }}>ลบ</button>}
-          {(r.status !== 'pending' || canDecideRow(ap, me, r)) && <div className="flex flex-col items-start gap-1">
-            <button className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); setEditing(null); setDetailRow(r) }}>{r.status === 'pending' && canDecideRow(ap, me, r) && !readOnly ? 'รายละเอียด / รับรอง' : 'ดูรายละเอียด'}</button>
+          {(r.status !== 'pending' || canDecideRow(ap, me, r)) && <>
+            <button className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); setEditing(null); setDetailRow(r) }}>{r.status === 'pending' && canDecideRow(ap, me, r) && !readOnly ? 'ตรวจ / รับรอง' : 'ดูรายละเอียดเต็ม'}</button>
             {allowReopenApproved && r.status === 'approved' && canDecideRow(ap, me, r) && (ap.role !== 'admin' || String(ap.username || '').trim() === '11450') && !readOnly &&
               <button type="button" className="btn sec !py-0.5 !border-amber-300 !text-amber-800 hover:!bg-amber-50" onClick={async e => { e.stopPropagation(); await reopenOwnApproval(r) }}>แก้ไขการรับรอง</button>}
-          </div>}
-          {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}</td>
-      </tr>})}{!displayedRows.length && <tr><td colSpan={canApprove && !readOnly ? 10 : 9} className="text-center text-stone-500 py-6">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
+          </>}
+          {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}
+        </div></td>
+        </tr>
+        {isOpen && <tr><td colSpan={colCount} className={band + ' border-t border-t-stone-100 px-3 pb-3 pt-1'}>
+          <div className="sticky left-0 w-[min(100%,calc(100vw-4.5rem))]">
+            <SubActivityEvidence subActivity={r.sub_activity} evidence={r.evidence} hasImage={!!r.evidence_image_path} needEvidence={!!r.need_evidence} onOpenImage={() => openEvidence(sb, r.evidence_image_path)} />
+            <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-teal-100 bg-teal-50/60 p-2 text-xs sm:grid-cols-4">
+              <div><div className="text-stone-500">หน่วยนับ</div><b className="text-stone-900">{r.uom || '—'}</b></div>
+              <div><div className="text-stone-500">เวลาพื้นฐาน</div><b className="text-stone-900">{nf(r.minutes ?? 0)} นาที/หน่วย</b></div>
+              <div><div className="text-stone-500">แต้มก่อนตัดเพดาน</div><b className="text-stone-900">{nf(r.points_before_cap ?? r.points)}</b></div>
+              <div><div className="text-stone-500">แต้มที่นับได้</div><b className="text-teal-900">{nf(counted)}</b></div>
+            </div>
+          </div>
+        </td></tr>}
+        </Fragment>})}{!displayedRows.length && <tr><td colSpan={colCount} className="py-6 text-center text-stone-500">{rows.length ? 'ไม่พบรายการในช่วงวันที่ที่เลือก' : 'ยังไม่มีรายการในเดือนนี้'}</td></tr>}</tbody></table>
+    })()}
     {detailRow && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-labelledby="activity-detail-title" onClick={() => setDetailRow(null)}><div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
       <div className="flex items-start justify-between gap-3 border-b pb-3"><div><h3 id="activity-detail-title" className="text-lg font-bold">รายละเอียดกิจกรรมที่ส่งรับรอง</h3><p className="text-sm text-stone-500">{detailRow.person_name || 'ผู้บันทึก'} · {formatThaiShortDate(detailRow.work_date)}</p></div><button type="button" className="btn sec" onClick={() => setDetailRow(null)}>ปิด</button></div>
       <section className="space-y-3 text-sm">
