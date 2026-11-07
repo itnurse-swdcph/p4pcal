@@ -3,7 +3,7 @@ import { Moon, Paperclip, Sun, Sunset } from 'lucide-react'
 // ชิ้นส่วนแสดงผลที่ใช้ร่วมกันในตารางกิจกรรมทุกหน้า (บันทึก / รับรอง / รายบุคคล / ตรวจสอบของกรรมการ)
 export const SHIFT_ORDER = ['เช้า', 'บ่าย', 'ดึก']
 const SHIFT_STYLE: Record<string, { cls: string; Icon: any }> = {
-  'เช้า': { cls: 'border-amber-300 bg-amber-100 text-amber-900', Icon: Sun },
+  'เช้า': { cls: 'border-green-300 bg-green-100 text-green-900', Icon: Sun },
   'บ่าย': { cls: 'border-orange-300 bg-orange-100 text-orange-900', Icon: Sunset },
   'ดึก': { cls: 'border-indigo-300 bg-indigo-100 text-indigo-900', Icon: Moon }
 }
