@@ -34,9 +34,10 @@ declare
            )$new$;
 begin
   v_def := pg_get_functiondef('public.guard_p4p_submission_lock()'::regprocedure);
-  if position(v_old in v_def) = 0 then
-    raise exception 'ไม่พบเงื่อนไข corrected-return เดิมใน guard trigger';
+  if position(v_old in v_def) > 0 then
+    execute replace(v_def, v_old, v_new);
+  elsif position(v_new in v_def) = 0 then
+    raise exception 'ไม่พบเงื่อนไข return-audit เดิมหรือใหม่ใน guard trigger';
   end if;
-  execute replace(v_def, v_old, v_new);
 end
 $$;
