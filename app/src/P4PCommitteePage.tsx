@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowRight, CalendarDays, CheckCircle2, ClipboardList, Info, RefreshCw, ShieldCheck, UserCog } from 'lucide-react'
+import { ArrowRight, CalendarDays, CheckCircle2, ClipboardList, Info, RefreshCw, ShieldCheck, UserCog, Wallet } from 'lucide-react'
 import { appConfirm } from './AppDialog'
 import ActivityPanel from './committee/ActivityPanel'
+import BudgetPanel from './committee/BudgetPanel'
 import ClosePanel from './committee/ClosePanel'
 import RosterAdmin from './committee/RosterAdmin'
 import UnitDetail from './committee/UnitDetail'
 import UnitOverview from './committee/UnitOverview'
 import { buildUnitStats, isBelowGuarantee, monthLabel, num } from './committee/utils'
 
-type Tab = 'overview' | 'close' | 'roster'
+type Tab = 'overview' | 'budget' | 'close' | 'roster'
 const STATUS_LABEL: Record<string, string> = {
   none: 'ยังไม่เริ่มรับรอง', reviewing: 'อยู่ระหว่างลงมติ', approved: 'กรรมการอนุมัติครบ', rejected: 'มีมติไม่เห็นชอบ',
   stale: 'ข้อมูลเปลี่ยน ต้องรับรองใหม่', closed: 'ปิดงวดและประกาศผลแล้ว', reopened: 'เปิดงวดใหม่'
@@ -265,7 +266,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         : allReady ? { text: 'ตรวจครบทุกหน่วยงานแล้ว เริ่มกระบวนการรับรองได้', go: 'close' as Tab, tone: 'act' }
           : { text: `ยังมี ${num(units.length - readyCount, 0)} หน่วยงานที่ยังไม่พร้อม (ค้างรับรอง ${num(pendingTotal, 0)} รายการ)`, go: null as Tab | null, tone: 'wait' }
 
-  const tabs: [Tab, string][] = [['overview', 'ตรวจรายหน่วยงาน'], ['close', 'รับรองและปิดงวด'], ...(isAdmin ? [['roster', 'กรรมการ'] as [Tab, string]] : [])]
+  const tabs: [Tab, string][] = [['overview', 'ตรวจรายหน่วยงาน'], ['budget', 'วงเงินและยอดจัดสรร'], ['close', 'รับรองและปิดงวด'], ...(isAdmin ? [['roster', 'กรรมการ'] as [Tab, string]] : [])]
 
   return <div className="space-y-4">
     <section className="card space-y-3">
@@ -295,7 +296,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       <div className="flex flex-wrap gap-1 border-b border-stone-200" role="tablist">{tabs.map(([k, l]) =>
         <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
           className={'-mb-px inline-flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-semibold ' + (tab === k ? 'border-teal-700 text-teal-800' : 'border-transparent text-stone-600 hover:text-stone-900')}>
-          {k === 'overview' ? <ClipboardList size={16} /> : k === 'close' ? <ShieldCheck size={16} /> : <UserCog size={16} />}{l}</button>)}</div>
+          {k === 'overview' ? <ClipboardList size={16} /> : k === 'budget' ? <Wallet size={16} /> : k === 'close' ? <ShieldCheck size={16} /> : <UserCog size={16} />}{l}</button>)}</div>
     </section>
 
     {loading ? <div className="card text-sm text-stone-500">กำลังโหลดข้อมูล…</div> : <>
@@ -303,6 +304,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         ? <UnitDetail unit={overviewUnits.find((u: any) => u.key === unit.key) || unit} groups={groups} siblings={overviewUnits} submission={selectedSubmission} returnedPeople={returnedPeopleByUnit.get(unit.key) || []} onReturnPerson={canReturnSubmission ? returnSubmissionPerson : undefined} onAllowAdditional={canReturnSubmission ? allowAdditionalActivity : undefined} canAudit={canAudit} reviewEnabled={reviewOk} canReview={canAudit && !busy} onReviewUnit={reviewUnit} onUnreviewUnit={unreviewUnit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
           onViewPerson={line => setPanel({ person: line })} onRandomAudit={() => setPanel({ person: null, randomUnitId: unit.key })} />
         : <UnitOverview units={overviewUnits} onOpen={openUnit} showReview={reviewOk} />)}
+      {tab === 'budget' && <BudgetPanel groups={groups} lines={lines} month={month} monthText={monthLabel(month)} closed={!!viewCalc?.closed} />}
       {tab === 'close' && <ClosePanel review={review} votes={votes} roster={roster} currentUserId={currentUserId} isMember={isMember} activeCount={activeMembers.length}
         units={statusOk ? overviewUnits : []} groups={groups} totals={totals} busy={busy} reviewGate={reviewOk} onStart={startReview} onVote={castVote} onOpenUnit={openUnit} />}
       {tab === 'roster' && isAdmin && <RosterAdmin sb={sb} members={members} roster={roster} version={version} busy={busy} runAction={runAction} setError={setError} />}
