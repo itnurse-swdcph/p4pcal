@@ -205,7 +205,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
           <div className="flex items-center gap-2 text-sm font-semibold text-stone-700"><Clock3 size={16}/>รายการส่งกลับและสถานะแก้ไข</div>
           {correctionRows.length
             ? <button type="button" onClick={() => setShowReturnDetails(true)} className="mt-2 flex w-full items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3 text-left text-red-900 hover:bg-red-100">
-                <span><b className="text-2xl tabular-nums">{num(correctionPending.length,0)}</b><span className="ml-2 text-sm">รายการรอแก้ไข</span><span className="mt-1 block text-xs underline">ดูรายละเอียดและประวัติสถานะ {num(correctionRows.length,0)} รายการ</span></span>
+                <span><b className="text-2xl tabular-nums">{num(correctionPending.length,0)}</b><span className="ml-2 text-sm">คนรอแก้ไข</span><span className="mt-1 block text-xs underline">ดูรายละเอียดและประวัติสถานะ {num(correctionRows.length,0)} รายการ</span></span>
                 <span className="text-sm font-semibold">ดูรายละเอียด →</span>
               </button>
             : <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ไม่มีรายการส่งกลับรอแก้ไข</div>}
@@ -251,6 +251,14 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
               <div>ส่งกลับเมื่อ: <b>{dateTimeText(r.returned_at)}</b></div>
               <div>แก้ไขเมื่อ: <b>{r.corrected_at ? dateTimeText(r.corrected_at) : 'ยังไม่แก้ไข'}</b></div>
             </div>
+            {Array.isArray(r.activities) && r.activities.length > 0 && <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
+              <div className="text-xs font-bold text-stone-600">กิจกรรมที่ถูกส่งกลับ ({r.activities.length} รายการ)</div>
+              {r.activities.map((a: any) => <div key={a.log_id} className="rounded-lg bg-stone-50 p-2 text-sm">
+                <div className="font-medium text-stone-800">{a.work_date ? new Date(a.work_date + 'T00:00:00').toLocaleDateString('th-TH') : '—'} · {[a.activity_code, a.title].filter(Boolean).join(' · ')}</div>
+                <div className="mt-1 whitespace-pre-wrap text-xs text-stone-600">เหตุผล: {a.reason || r.reason || 'ไม่ได้ระบุเหตุผล'}</div>
+                <div className="mt-1 text-xs text-stone-500">ส่งกลับเมื่อ: {dateTimeText(a.returned_at)}</div>
+              </div>)}
+            </div>}
           </article>)}</div>
         </div>
         <div className="flex justify-end border-t border-stone-200 p-3"><button type="button" className="btn" onClick={() => setShowReturnDetails(false)}>ปิดหน้าต่าง</button></div>
