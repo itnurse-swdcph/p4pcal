@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Send } from 'lucide-react'
+import { CheckCircle2, Clock3, FileCheck2, Send, X } from 'lucide-react'
 import { appConfirm } from './AppDialog'
 import { monthLabel, num } from './committee/utils'
 
@@ -19,6 +19,8 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
   const [peopleRows, setPeopleRows] = useState<any[]>([])
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [submission, setSubmission] = useState<any>(null)
+  const [dashboardStatus, setDashboardStatus] = useState<any>(null)
+  const [showReturnDetails, setShowReturnDetails] = useState(false)
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -102,6 +104,11 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       const noteRows = [...(leaveResult.data || []), ...(groupLeaveResult.data || [])]
       setNotes(Object.fromEntries(noteRows.map((x: any) => [String(x.staff_directory_id), String(x.other_notes || '')])))
       setSubmission(subResult.data || null)
+      if (subResult.data?.id) {
+        const dashboard = await sb.rpc('p4p_submission_dashboard_status', { p_submission_id: subResult.data.id })
+        if (!alive) return
+        setDashboardStatus(dashboard.error ? null : dashboard.data || null)
+      } else setDashboardStatus(null)
       setIsGroupHeadWithoutUnit(Boolean(ownStaff.data && !String(ownStaff.data.unit_name || '').trim() && String(ownStaff.data.org_role || '').includes('หัวหน้ากลุ่มงาน')))
       setLoading(false)
     }
@@ -132,6 +139,14 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
   const alreadySubmitted = !!submission && ['submitted', 'resubmitted', 'reviewed'].includes(String(submission.status))
   const ready = !loading && !error && pending === 0 && missingNotes.length === 0 && staff.length > 0
   const statusLabel: Record<string, string> = { submitted: 'ส่งผลงานแล้ว', returned: 'มีรายการส่งกลับแก้ไข', resubmitted: 'ส่งผลงานซ้ำแล้ว', reviewed: 'ตรวจสอบแล้ว', reopened: 'ยังไม่พร้อมตรวจ' }
+  const correctionRows: any[] = dashboardStatus?.returns || []
+  const correctionPending = correctionRows.filter((r: any) => r.status === 'returned')
+  const dateTimeText = (value?: string | null) => value
+    ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeStyle: 'medium', hour12: false }).format(new Date(value))
+    : '—'
+  const correctionStatusLabel = (status: string) => status === 'returned' ? 'รอแก้ไข'
+    : status === 'corrected' ? 'แก้ไขแล้ว · รอส่งผลงาน/รับรอง'
+      : status === 'cancelled' ? 'ยกเลิก' : status || 'ไม่ทราบสถานะ'
 
   async function cancelSubmissionForEdit() {
     if (!submission || !['submitted', 'resubmitted', 'reviewed'].includes(String(submission.status))) return
@@ -175,6 +190,27 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       {submission && <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">{statusLabel[submission.status] || submission.status}</span>}
     </div>
     {loading ? <p className="text-sm text-stone-500">กำลังตรวจสอบความพร้อม…</p> : <>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="rounded-xl border border-stone-200 bg-white p-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-stone-700"><FileCheck2 size={16}/>ผลการตรวจหน่วยงาน</div>
+          {dashboardStatus?.review?.reviewed_at
+            ? <div className="mt-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+                <div className="flex items-center gap-2 font-bold"><CheckCircle2 size={17}/>ตรวจแล้ว</div>
+                <div className="mt-1">ตรวจโดย <b>{dashboardStatus.review.reviewed_by_name || 'กรรมการ P4P'}</b></div>
+                <div className="text-xs">วันที่ {dateTimeText(dashboardStatus.review.reviewed_at)}</div>
+              </div>
+            : <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ยังไม่มีผลการตรวจจากคณะกรรมการ</div>}
+        </div>
+        <div className="rounded-xl border border-stone-200 bg-white p-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-stone-700"><Clock3 size={16}/>รายการส่งกลับรอแก้ไข</div>
+          {correctionPending.length
+            ? <button type="button" onClick={() => setShowReturnDetails(true)} className="mt-2 flex w-full items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3 text-left text-red-900 hover:bg-red-100">
+                <span><b className="text-2xl tabular-nums">{num(correctionPending.length,0)}</b><span className="ml-2 text-sm">รายการรอแก้ไข</span><span className="mt-1 block text-xs underline">กดเพื่อดูรายละเอียดและสถานะ</span></span>
+                <span className="text-sm font-semibold">ดูรายละเอียด →</span>
+              </button>
+            : <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ไม่มีรายการส่งกลับที่รอแก้ไข</div>}
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">บุคลากร</div><div className="text-xl font-bold">{num(staff.length,0)} คน</div></div>
         <div className="rounded-lg bg-stone-50 p-3"><div className="text-xs text-stone-500">กิจกรรมรอรับรอง</div><div className={'text-xl font-bold ' + (pending ? 'text-amber-700' : 'text-emerald-700')}>{num(pending,0)} รายการ</div></div>
@@ -198,6 +234,28 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
           {submission?.status === 'returned' && <span className="self-center text-xs text-stone-600">หลังแก้ไข ต้องส่งผลงานทั้งหน่วยงานอีกครั้ง</span>}
         </div>}
     </>}
+    {showReturnDetails && <div className="fixed inset-0 z-[135] flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-label="รายละเอียดรายการส่งกลับแก้ไข">
+      <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-stone-200 p-4">
+          <div><h3 className="text-lg font-bold text-stone-900">รายละเอียดรายการส่งกลับแก้ไข</h3><p className="text-sm text-stone-600">{scopeLabel || groupName} · {monthLabel(month)} · รอแก้ไข {num(correctionPending.length,0)} รายการ</p></div>
+          <button type="button" className="btn sec !p-2" onClick={() => setShowReturnDetails(false)} aria-label="ปิด"><X size={18}/></button>
+        </div>
+        <div className="overflow-y-auto p-4">
+          <div className="space-y-3">{correctionRows.map((r: any) => <article key={r.id} className="rounded-xl border border-stone-200 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="font-semibold text-stone-900">{r.person_name || 'บุคลากรรหัส ' + r.staff_directory_id}</div>
+              <span className={'rounded-full px-2.5 py-1 text-xs font-bold ' + (r.status === 'returned' ? 'bg-red-50 text-red-800' : r.status === 'corrected' ? 'bg-emerald-50 text-emerald-800' : 'bg-stone-100 text-stone-700')}>{correctionStatusLabel(r.status)}</span>
+            </div>
+            <p className="mt-2 whitespace-pre-wrap rounded-lg bg-stone-50 p-2 text-sm text-stone-700"><b>เหตุผลที่ส่งกลับ:</b> {r.reason || 'ไม่ได้ระบุเหตุผล'}</p>
+            <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-stone-600 sm:grid-cols-2">
+              <div>ส่งกลับเมื่อ: <b>{dateTimeText(r.returned_at)}</b></div>
+              <div>แก้ไขเมื่อ: <b>{r.corrected_at ? dateTimeText(r.corrected_at) : 'ยังไม่แก้ไข'}</b></div>
+            </div>
+          </article>)}</div>
+        </div>
+        <div className="flex justify-end border-t border-stone-200 p-3"><button type="button" className="btn" onClick={() => setShowReturnDetails(false)}>ปิดหน้าต่าง</button></div>
+      </div>
+    </div>}
     {preview && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-label="ตรวจทานข้อมูลก่อนส่งผลงาน">
       <div className="w-full max-w-2xl space-y-4 rounded-2xl bg-white p-5 shadow-2xl">
         <div><h3 className="text-lg font-bold">ตรวจทานก่อนยืนยันส่งผลงาน</h3><p className="text-sm text-stone-600">หน่วยงาน: {scopeLabel || groupName} · {monthLabel(month)}</p></div>
