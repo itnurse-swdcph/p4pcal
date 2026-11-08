@@ -140,7 +140,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
   const ready = !loading && !error && pending === 0 && missingNotes.length === 0 && staff.length > 0
   const statusLabel: Record<string, string> = { submitted: 'ส่งผลงานแล้ว', returned: 'มีรายการส่งกลับแก้ไข', resubmitted: 'ส่งผลงานซ้ำแล้ว', reviewed: 'ตรวจสอบแล้ว', reopened: 'ยังไม่พร้อมตรวจ' }
   const correctionRows: any[] = Object.values((dashboardStatus?.returns || []).reduce((byPerson: Record<string, any>, row: any) => {
-    const key = String(row.staff_directory_id || row.person_name || row.id)
+    const key = String(row.person_id || row.staff_directory_id || row.person_name || row.id)
     const existing = byPerson[key]
     if (!existing) byPerson[key] = { ...row, activities: [...(row.activities || [])] }
     else {
