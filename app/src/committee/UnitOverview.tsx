@@ -1,10 +1,10 @@
 import { Fragment, useMemo, useState } from 'react'
-import { CheckCheck, CheckCircle2, ChevronRight, Clock3 } from 'lucide-react'
+import { CheckCheck, CheckCircle2, ChevronRight, Clock3, FileSpreadsheet } from 'lucide-react'
 import { dateTime, money, num, type UnitStat } from './utils'
 
 type Ready = 'all' | 'ready' | 'notready' | 'reviewed' | 'returned'
 
-export default function UnitOverview({ units, onOpen, showReview = false }: { units: UnitStat[]; onOpen: (key: number) => void; showReview?: boolean }) {
+export default function UnitOverview({ units, onOpen, onExportReturned, showReview = false }: { units: UnitStat[]; onOpen: (key: number) => void; onExportReturned?: () => void; showReview?: boolean }) {
   const [group, setGroup] = useState('')
   const [unit, setUnit] = useState('')
   const [ready, setReady] = useState<Ready>('all')
@@ -42,7 +42,7 @@ export default function UnitOverview({ units, onOpen, showReview = false }: { un
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="กรองตามความพร้อม">{chips.map(([k, l, n]) =>
           <button key={k} type="button" onClick={() => setReady(k)} aria-pressed={ready === k}
             className={'rounded-full border px-3 py-1 text-sm font-semibold ' + (ready === k ? 'border-teal-700 bg-teal-700 text-white' : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50')}>{l} <span className="tabular-nums">{n}</span></button>)}</div>
-        <span className="text-xs text-stone-600">รอรับรองทั้งโรงพยาบาล <b className={pendingTotal ? 'text-amber-700' : 'text-emerald-700'}>{num(pendingTotal, 0)}</b> รายการ</span>
+        <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-stone-600">รอรับรองทั้งโรงพยาบาล <b className={pendingTotal ? 'text-amber-700' : 'text-emerald-700'}>{num(pendingTotal, 0)}</b> รายการ</span>{onExportReturned && <button type="button" className="btn sec" disabled={!returnedCount} onClick={onExportReturned}><FileSpreadsheet size={16}/>Export Excel รายงานรอแก้ไข</button>}</div>
       </div>
     </section>
 
