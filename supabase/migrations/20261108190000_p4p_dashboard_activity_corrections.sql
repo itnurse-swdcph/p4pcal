@@ -91,7 +91,7 @@ begin
     'id', 'activity-' || x.person_id::text,
     'staff_directory_id', x.staff_directory_id,
     'person_name', max(x.person_name),
-    'reason', string_agg(distinct x.reason, E'\\n'),
+    'reason', string_agg(distinct x.reason, ' | '),
     'status', 'returned',
     'returned_at', max(x.returned_at),
     'corrected_at', null,
