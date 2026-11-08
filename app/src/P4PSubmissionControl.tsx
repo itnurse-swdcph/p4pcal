@@ -139,7 +139,18 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
   const alreadySubmitted = !!submission && ['submitted', 'resubmitted', 'reviewed'].includes(String(submission.status))
   const ready = !loading && !error && pending === 0 && missingNotes.length === 0 && staff.length > 0
   const statusLabel: Record<string, string> = { submitted: 'ส่งผลงานแล้ว', returned: 'มีรายการส่งกลับแก้ไข', resubmitted: 'ส่งผลงานซ้ำแล้ว', reviewed: 'ตรวจสอบแล้ว', reopened: 'ยังไม่พร้อมตรวจ' }
-  const correctionRows: any[] = dashboardStatus?.returns || []
+  const correctionRows: any[] = Object.values((dashboardStatus?.returns || []).reduce((byPerson: Record<string, any>, row: any) => {
+    const key = String(row.staff_directory_id || row.person_name || row.id)
+    const existing = byPerson[key]
+    if (!existing) byPerson[key] = { ...row, activities: [...(row.activities || [])] }
+    else {
+      existing.activities = [...(existing.activities || []), ...(row.activities || [])]
+      if (row.status === 'returned') existing.status = 'returned'
+      if (row.returned_at && (!existing.returned_at || new Date(row.returned_at) > new Date(existing.returned_at))) existing.returned_at = row.returned_at
+      if (row.reason && !existing.reason) existing.reason = row.reason
+    }
+    return byPerson
+  }, {} as Record<string, any>))
   const correctionPending = correctionRows.filter((r: any) => r.status === 'returned')
   const dateTimeText = (value?: string | null) => value
     ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeStyle: 'medium', hour12: false }).format(new Date(value))
