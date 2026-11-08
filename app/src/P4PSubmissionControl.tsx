@@ -202,13 +202,13 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
             : <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ยังไม่มีผลการตรวจจากคณะกรรมการ</div>}
         </div>
         <div className="rounded-xl border border-stone-200 bg-white p-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-stone-700"><Clock3 size={16}/>รายการส่งกลับรอแก้ไข</div>
-          {correctionPending.length
+          <div className="flex items-center gap-2 text-sm font-semibold text-stone-700"><Clock3 size={16}/>รายการส่งกลับและสถานะแก้ไข</div>
+          {correctionRows.length
             ? <button type="button" onClick={() => setShowReturnDetails(true)} className="mt-2 flex w-full items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3 text-left text-red-900 hover:bg-red-100">
-                <span><b className="text-2xl tabular-nums">{num(correctionPending.length,0)}</b><span className="ml-2 text-sm">รายการรอแก้ไข</span><span className="mt-1 block text-xs underline">กดเพื่อดูรายละเอียดและสถานะ</span></span>
+                <span><b className="text-2xl tabular-nums">{num(correctionPending.length,0)}</b><span className="ml-2 text-sm">รายการรอแก้ไข</span><span className="mt-1 block text-xs underline">ดูรายละเอียดและประวัติสถานะ {num(correctionRows.length,0)} รายการ</span></span>
                 <span className="text-sm font-semibold">ดูรายละเอียด →</span>
               </button>
-            : <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ไม่มีรายการส่งกลับที่รอแก้ไข</div>}
+            : <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ไม่มีรายการส่งกลับรอแก้ไข</div>}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
