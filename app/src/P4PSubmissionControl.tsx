@@ -20,6 +20,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [submission, setSubmission] = useState<any>(null)
   const [dashboardStatus, setDashboardStatus] = useState<any>(null)
+  const [dashboardError, setDashboardError] = useState('')
   const [showReturnDetails, setShowReturnDetails] = useState(false)
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(false)
@@ -108,7 +109,9 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
         const dashboard = await sb.rpc('p4p_submission_dashboard_status', { p_submission_id: subResult.data.id })
         if (!alive) return
         setDashboardStatus(dashboard.error ? null : dashboard.data || null)
-      } else setDashboardStatus(null)
+        // ไม่ให้ความผิดพลาดในการโหลดผลตรวจถูกแสดงเป็น "ไม่มีรายการส่งกลับ" แบบเงียบๆ
+        setDashboardError(dashboard.error ? (dashboard.error.message || 'โหลดผลการตรวจไม่สำเร็จ') : '')
+      } else { setDashboardStatus(null); setDashboardError('') }
       setIsGroupHeadWithoutUnit(Boolean(ownStaff.data && !String(ownStaff.data.unit_name || '').trim() && String(ownStaff.data.org_role || '').includes('หัวหน้ากลุ่มงาน')))
       setLoading(false)
     }
@@ -152,6 +155,14 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
     return byPerson
   }, {} as Record<string, any>))
   const correctionPending = correctionRows.filter((r: any) => r.status === 'returned')
+  // นับเป็น "รายการ" (กิจกรรม) ไม่ใช่จำนวนคน: ส่งกลับทั้งชุดที่ไม่มีรายกิจกรรมนับเป็น 1 รายการ
+  const correctionItems: any[] = correctionRows.flatMap((r: any) => (Array.isArray(r.activities) && r.activities.length)
+    ? r.activities.map((a: any) => ({ ...a, status: a.status || r.status }))
+    : [{ ...r, log_id: 'person-' + r.id }])
+  const itemsPending = correctionItems.filter((a: any) => a.status === 'returned').length
+  const itemsCorrected = correctionItems.length - itemsPending
+  const dateOnlyText = (value?: string | null) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'long' }).format(new Date(value)) : '—'
+  const timeOnlyText = (value?: string | null) => value ? new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value)) + ' น.' : '—'
   const dateTimeText = (value?: string | null) => value
     ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeStyle: 'medium', hour12: false }).format(new Date(value))
     : '—'
@@ -204,22 +215,28 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="rounded-xl border border-stone-200 bg-white p-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-stone-700"><FileCheck2 size={16}/>ผลการตรวจหน่วยงาน</div>
-          {dashboardStatus?.review?.reviewed_at
-            ? <div className="mt-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
-                <div className="flex items-center gap-2 font-bold"><CheckCircle2 size={17}/>ตรวจแล้ว</div>
-                <div className="mt-1">ตรวจโดย <b>{dashboardStatus.review.reviewed_by_name || 'กรรมการ P4P'}</b></div>
-                <div className="text-xs">วันที่ {dateTimeText(dashboardStatus.review.reviewed_at)}</div>
-              </div>
-            : <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ยังไม่มีผลการตรวจจากคณะกรรมการ</div>}
+          {dashboardError
+            ? <div role="alert" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">โหลดผลการตรวจไม่สำเร็จ กรุณากดรีเฟรชหรือแจ้งผู้ดูแลระบบ<div className="mt-1 break-words text-xs text-amber-800">{dashboardError}</div></div>
+            : dashboardStatus?.review?.reviewed_at
+              ? <div className="mt-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+                  <div className="flex items-center gap-2 font-bold"><CheckCircle2 size={17}/>ตรวจแล้ว</div>
+                  <div className="mt-1">ตรวจโดย <b>{dashboardStatus.review.reviewed_by_name || 'กรรมการ P4P'}</b></div>
+                  <div className="text-xs">วันที่ <b>{dateOnlyText(dashboardStatus.review.reviewed_at)}</b> เวลา <b>{timeOnlyText(dashboardStatus.review.reviewed_at)}</b></div>
+                </div>
+              : itemsPending > 0
+                ? <div className="mt-2 rounded-lg bg-red-50 p-3 text-sm text-red-900"><b>กรรมการส่งกลับให้แก้ไข</b> · ยังไม่ผ่านการตรวจ</div>
+                : <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ยังไม่มีผลการตรวจจากคณะกรรมการ</div>}
         </div>
         <div className="rounded-xl border border-stone-200 bg-white p-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-stone-700"><Clock3 size={16}/>รายการส่งกลับและสถานะแก้ไข</div>
-          {correctionRows.length
-            ? <button type="button" onClick={() => setShowReturnDetails(true)} className="mt-2 flex w-full items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3 text-left text-red-900 hover:bg-red-100">
-                <span><b className="text-2xl tabular-nums">{num(correctionPending.length,0)}</b><span className="ml-2 text-sm">คนรอแก้ไข</span><span className="mt-1 block text-xs underline">ดูรายละเอียดและประวัติสถานะ {num(correctionRows.length,0)} รายการ</span></span>
-                <span className="text-sm font-semibold">ดูรายละเอียด →</span>
-              </button>
-            : <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ไม่มีรายการส่งกลับรอแก้ไข</div>}
+          {dashboardError
+            ? <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ไม่สามารถแสดงรายการส่งกลับได้ในขณะนี้</div>
+            : correctionRows.length
+              ? <button type="button" onClick={() => setShowReturnDetails(true)} className={'mt-2 flex w-full items-center justify-between rounded-lg border p-3 text-left ' + (itemsPending > 0 ? 'border-red-200 bg-red-50 text-red-900 hover:bg-red-100' : 'border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100')}>
+                  <span><b className="text-2xl tabular-nums">{num(itemsPending,0)}</b><span className="ml-2 text-sm">{itemsPending > 0 ? 'รายการรอแก้ไข' : 'รายการ · แก้ไขครบแล้ว'}</span><span className="mt-1 block text-xs underline">จาก {num(correctionPending.length || correctionRows.length,0)} คน · ส่งกลับทั้งหมด {num(correctionItems.length,0)} รายการ · แก้ไขแล้ว {num(itemsCorrected,0)} รายการ</span></span>
+                  <span className="text-sm font-semibold">ดูรายละเอียด →</span>
+                </button>
+              : <div className="mt-2 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ไม่มีรายการส่งกลับรอแก้ไข</div>}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -248,7 +265,7 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
     {showReturnDetails && <div className="fixed inset-0 z-[135] flex items-center justify-center bg-slate-950/55 p-3" role="dialog" aria-modal="true" aria-label="รายละเอียดรายการส่งกลับแก้ไข">
       <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-stone-200 p-4">
-          <div><h3 className="text-lg font-bold text-stone-900">รายละเอียดรายการส่งกลับแก้ไข</h3><p className="text-sm text-stone-600">{scopeLabel || groupName} · {monthLabel(month)} · รอแก้ไข {num(correctionPending.length,0)} รายการ</p></div>
+          <div><h3 className="text-lg font-bold text-stone-900">รายละเอียดรายการส่งกลับแก้ไข</h3><p className="text-sm text-stone-600">{scopeLabel || groupName} · {monthLabel(month)} · รอแก้ไข {num(itemsPending,0)} รายการ · แก้ไขแล้ว {num(itemsCorrected,0)} รายการ</p></div>
           <button type="button" className="btn sec !p-2" onClick={() => setShowReturnDetails(false)} aria-label="ปิด"><X size={18}/></button>
         </div>
         <div className="overflow-y-auto p-4">
@@ -263,12 +280,15 @@ export default function P4PSubmissionControl({ sb, profile, unitId, groupName, m
               <div>แก้ไขเมื่อ: <b>{r.corrected_at ? dateTimeText(r.corrected_at) : 'ยังไม่แก้ไข'}</b></div>
             </div>
             {Array.isArray(r.activities) && r.activities.length > 0 && <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
-              <div className="text-xs font-bold text-stone-600">กิจกรรมที่ถูกส่งกลับ ({r.activities.length} รายการ)</div>
-              {r.activities.map((a: any) => <div key={a.log_id} className="rounded-lg bg-stone-50 p-2 text-sm">
-                <div className="font-medium text-stone-800">{a.work_date ? new Date(a.work_date + 'T00:00:00').toLocaleDateString('th-TH') : '—'} · {[a.activity_code, a.title].filter(Boolean).join(' · ')}</div>
+              <div className="text-xs font-bold text-stone-600">กิจกรรมที่ถูกส่งกลับ ({r.activities.length} รายการ · รอแก้ไข {r.activities.filter((a: any) => (a.status || r.status) === 'returned').length})</div>
+              {r.activities.map((a: any) => { const st = a.status || r.status; return <div key={a.log_id} className="rounded-lg bg-stone-50 p-2 text-sm">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="font-medium text-stone-800">{a.work_date ? new Date(a.work_date + 'T00:00:00').toLocaleDateString('th-TH') : '—'} · {[a.activity_code, a.title].filter(Boolean).join(' · ')}</div>
+                  <span className={'whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ' + (st === 'returned' ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-800')}>{st === 'returned' ? 'รอแก้ไข' : 'แก้ไขแล้ว'}</span>
+                </div>
                 <div className="mt-1 whitespace-pre-wrap text-xs text-stone-600">เหตุผล: {a.reason || r.reason || 'ไม่ได้ระบุเหตุผล'}</div>
-                <div className="mt-1 text-xs text-stone-500">ส่งกลับเมื่อ: {dateTimeText(a.returned_at)}</div>
-              </div>)}
+                <div className="mt-1 grid grid-cols-1 gap-0.5 text-xs text-stone-500 sm:grid-cols-2"><div>ส่งกลับเมื่อ: <b>{dateTimeText(a.returned_at)}</b></div><div>แก้ไขเมื่อ: <b>{a.corrected_at ? dateTimeText(a.corrected_at) : st === 'returned' ? 'ยังไม่แก้ไข' : 'แก้ไขแล้ว (ไม่ระบุเวลา)'}</b></div></div>
+              </div> })}
             </div>}
           </article>)}</div>
         </div>
