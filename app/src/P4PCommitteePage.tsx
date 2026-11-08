@@ -6,7 +6,7 @@ import BudgetPanel from './committee/BudgetPanel'
 import ClosePanel from './committee/ClosePanel'
 import RosterAdmin from './committee/RosterAdmin'
 import UnitDetail from './committee/UnitDetail'
-import UnitOverview from './committee/UnitOverview'
+import UnitOverview from './committee/UnitOverview'\nimport { downloadXlsxWorkbook, type SheetSpec } from './committee/xlsxExport'
 import { buildUnitStats, isBelowGuarantee, monthLabel, num } from './committee/utils'
 
 type Tab = 'overview' | 'budget' | 'close' | 'roster'
@@ -72,7 +72,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       const [auditResult, returnedActivityResult] = await Promise.all([
         sb.from('p4p_activity_audit_events').select('id,log_id,person_id,action,reason,old_status,new_status,created_at')
           .eq('month', monthDate).in('action', ['return_for_correction', 'reject']).order('created_at', { ascending: false }),
-        sb.from('v_logs').select('id,person_id,person_name,position,unit_id,activity_code,title,status,reject_reason')
+        sb.from('v_logs').select('id,person_id,person_name,position,unit_id,work_date,activity_code,title,status,reject_reason')
           .eq('month', monthDate).in('status', ['pending', 'draft', 'rejected']).not('reject_reason', 'is', null).range(0, 1999)
       ])
       const latestAudit = new Map<string, any>()
@@ -159,7 +159,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         ...(line || {}), id: returned.person_id, staff_directory_id: line?.staff_directory_id,
         name: returned.person_name || line?.name || 'ไม่พบชื่อบุคลากร',
         reason: returned.committee_reason, returned_at: returned.committee_returned_at
-      }, { id: returned.id, code: returned.activity_code, title: returned.title, action: returned.committee_action, reason: returned.committee_reason, status: returned.status })
+      }, { id: returned.id, code: returned.activity_code, title: returned.title, date: returned.work_date, action: returned.committee_action, reason: returned.committee_reason, status: returned.status })
     }
     return grouped
   }, [submissionReturns, activityReturns, submissions, linesWithOrg, units])
@@ -183,6 +183,33 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       reviewed: reviewOk && ready && !!rv, reviewedByName: rv?.reviewed_by_name || '', reviewedAt: rv?.reviewed_at || null }
   }), [units, submissions, returnedPeopleByUnit, statusOk, correctionQueueOk, unitReviews, reviewOk])
   const selectedSubmission = unit ? submissionForUnit(unit) : null
+  const exportReturnedReport = () => {
+    const pendingUnits = overviewUnits.filter((u: any) => u.submissionStatus === 'returned' && (u.returnedPeople || []).length)
+    const specs: SheetSpec[] = pendingUnits.map((unit: any) => {
+      const rows: SheetSpec['rows'] = [
+        [{ v: 'รายงานรายการรอแก้ไข', s: 'title' }],
+        [{ v: `หน่วยงาน: ${unit.name} · เดือน ${monthLabel(month)}`, s: 'subtitle' }],
+        [{ v: 'ชื่อเจ้าหน้าที่', s: 'header' }, { v: 'วันที่', s: 'header' }, { v: 'กิจกรรม', s: 'header' }, { v: 'เหตุผลที่ต้องแก้ไข', s: 'header' }]
+      ]
+      for (const person of unit.returnedPeople || []) {
+        const activities = person.activities || []
+        if (activities.length) for (const activity of activities) rows.push([
+          { v: person.name || 'ไม่พบชื่อบุคลากร', s: 'label' },
+          { v: activity.date ? new Date(`${activity.date}T00:00:00`).toLocaleDateString('th-TH') : '—', s: 'center' },
+          { v: [activity.code, activity.title].filter(Boolean).join(' · ') || 'กิจกรรม', s: 'label' },
+          { v: activity.reason || person.reason || 'ไม่ได้ระบุเหตุผล', s: 'note' }
+        ])
+        else rows.push([
+          { v: person.name || 'ไม่พบชื่อบุคลากร', s: 'label' }, { v: '—', s: 'center' },
+          { v: 'ส่งกลับรายบุคคล (ตรวจสอบกิจกรรมทั้งหมด)', s: 'label' },
+          { v: person.reason || 'ไม่ได้ระบุเหตุผล', s: 'note' }
+        ])
+      }
+      return { sheetName: unit.name, rows, colWidths: [30, 16, 46, 64], freeze: { row: 3, col: 0 } }
+    })
+    downloadXlsxWorkbook(specs, `รายงานหน่วยงานรอแก้ไข_${month}.xlsx`)
+  }
+
 
   const readyCount = overviewUnits.filter((u: any) => u.submitted && u.ready).length
   const pendingTotal = units.reduce((s, u) => s + u.pending, 0)
@@ -303,7 +330,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       {tab === 'overview' && (unit
         ? <UnitDetail unit={overviewUnits.find((u: any) => u.key === unit.key) || unit} groups={groups} siblings={overviewUnits} submission={selectedSubmission} returnedPeople={returnedPeopleByUnit.get(unit.key) || []} onReturnPerson={canReturnSubmission ? returnSubmissionPerson : undefined} onAllowAdditional={canReturnSubmission ? allowAdditionalActivity : undefined} canAudit={canAudit} reviewEnabled={reviewOk} canReview={canAudit && !busy} onReviewUnit={reviewUnit} onUnreviewUnit={unreviewUnit} onBack={() => setUnitKey(null)} onSelectUnit={setUnitKey}
           onViewPerson={line => setPanel({ person: line })} onRandomAudit={() => setPanel({ person: null, randomUnitId: unit.key })} />
-        : <UnitOverview units={overviewUnits} onOpen={openUnit} showReview={reviewOk} />)}
+        : <UnitOverview units={overviewUnits} onOpen={openUnit} onExportReturned={exportReturnedReport} showReview={reviewOk} />)}
       {tab === 'budget' && <BudgetPanel groups={groups} lines={lines} month={month} monthText={monthLabel(month)} closed={!!viewCalc?.closed} />}
       {tab === 'close' && <ClosePanel review={review} votes={votes} roster={roster} currentUserId={currentUserId} isMember={isMember} activeCount={activeMembers.length}
         units={statusOk ? overviewUnits : []} groups={groups} totals={totals} busy={busy} reviewGate={reviewOk} onStart={startReview} onVote={castVote} onOpenUnit={openUnit} />}
