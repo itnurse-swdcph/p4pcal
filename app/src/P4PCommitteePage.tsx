@@ -69,11 +69,15 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         returnedRowsError = returned.error
       }
       // ดึงประวัติการส่งกลับ/ไม่อนุมัติรายกิจกรรมจากกรรมการ แล้วเทียบกับสถานะปัจจุบัน
-      const [auditResult, returnedActivityResult] = await Promise.all([
+      const returnedPersonIds = [...new Set(returnedRows.map((x: any) => String(x.person_id || '')).filter(Boolean))]
+      const [auditResult, returnedActivityResult, submissionReturnedLogs] = await Promise.all([
         sb.from('p4p_activity_audit_events').select('id,log_id,person_id,action,reason,old_status,new_status,created_at')
           .eq('month', monthDate).in('action', ['return_for_correction', 'reject']).order('created_at', { ascending: false }),
         sb.from('v_logs').select('id,person_id,person_name,position,unit_id,work_date,activity_code,title,status,reject_reason')
-          .eq('month', monthDate).in('status', ['pending', 'draft', 'rejected']).not('reject_reason', 'is', null).range(0, 1999)
+          .eq('month', monthDate).in('status', ['pending', 'draft', 'rejected']).not('reject_reason', 'is', null).range(0, 1999),
+        returnedPersonIds.length
+          ? sb.from('v_logs').select('id,person_id,work_date,activity_code,title,status').eq('month', monthDate).in('person_id', returnedPersonIds).order('work_date', { ascending: true }).range(0, 4999)
+          : Promise.resolve({ data: [], error: null })
       ])
       const latestAudit = new Map<string, any>()
       for (const event of auditResult.data || []) if (!latestAudit.has(String(event.log_id))) latestAudit.set(String(event.log_id), event)
@@ -84,7 +88,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
           ? [{ ...row, committee_action: event.action, committee_reason: event.reason || row.reject_reason, committee_returned_at: event.created_at }]
           : []
       })
-      const activityReturnsError = auditResult.error || returnedActivityResult.error
+      const activityReturnsError = auditResult.error || returnedActivityResult.error || submissionReturnedLogs.error
       if (!alive) return
       const errs = [c.error && (c.error.message || 'ไม่สามารถโหลดผลคำนวณ P4P ได้'), r.error && 'ไม่สามารถโหลดสถานะการรับรองได้', m.error && 'ไม่สามารถโหลดรายชื่อกรรมการได้',
         v.error && 'ไม่สามารถโหลดผลลงมติได้', ro.error && 'ไม่สามารถโหลดทะเบียนกรรมการได้', st.error && 'ไม่สามารถตรวจสอบสถานะกิจกรรมรายหน่วยงานได้ จึงยังไม่ถือว่าหน่วยงานใดพร้อมตรวจ',
@@ -94,7 +98,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       setCalc(c.error ? null : c.data); setReview(r.error ? null : r.data); setMembers(m.data || []); setVotes(v.data || [])
       setRoster(ro.data || []); setStatusRows(st.data || []); setStatusOk(!st.error)
       setUnitsMeta(un.data || []); setStaffMeta(sd.data || []); setSubmissions(ss.data || []); setSubmissionReturns(returnedRows)
-      setActivityReturns(activityReturns); setCorrectionQueueOk(!returnedRowsError && !activityReturnsError)
+      setActivityReturns(activityReturns); setCorrectionQueueOk(!returnedRowsError && !activityReturnsError);
       // สถานะตรวจแล้วเป็นเงื่อนไขบังคับ: หากฐานข้อมูลยังไม่พร้อมหรืออ่านสถานะไม่ได้ ต้องไม่อนุญาตให้เริ่มรับรอง
       setUnitReviews(ur.error ? [] : ur.data || []); setReviewOk(!ur.error)
       setLoadedFor(monthDate)
@@ -144,7 +148,15 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       const key = submission.scope_type === 'unit'
         ? Number(submission.unit_id)
         : units.find(u => Number(u.key) < 0 && String(u.group) === String(submission.group_name))?.key
-      addPerson(key, {
+      const personActivities = (submissionReturnedLogs.data || []).filter((a: any) => String(a.person_id) === String(returned.person_id))
+      if (personActivities.length) {
+        for (const a of personActivities) addPerson(key, {
+          ...(line || {}), id: returned.person_id || line?.id || null,
+          staff_directory_id: returned.staff_directory_id,
+          name: line?.name || line?.person_name || `บุคลากรรหัส ${returned.staff_directory_id}`,
+          reason: returned.reason, returned_at: returned.returned_at, return_id: returned.id
+        }, { id: a.id, code: a.activity_code, title: a.title, date: a.work_date, action: 'return_for_correction', reason: returned.reason, status: a.status })
+      } else addPerson(key, {
         ...(line || {}), id: returned.person_id || line?.id || null,
         staff_directory_id: returned.staff_directory_id,
         name: line?.name || line?.person_name || `บุคลากรรหัส ${returned.staff_directory_id}`,
