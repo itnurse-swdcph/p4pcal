@@ -63,7 +63,7 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
   const allUnits = units
   const readyUnits = units.filter((u: any) => u.submitted && u.ready && u.submissionStatus !== 'returned')
   const returnedUnits = units.filter((u: any) => u.submissionStatus === 'returned' || (returnedPeopleByUnit?.get(u.key) || []).length)
-  const notReadyUnits = units.filter((u: any) => !u.submitted || Number(u.pending || 0) > 0)
+  const notReadyUnits = units.filter((u: any) => u.submissionStatus !== 'returned' && (!u.submitted || Number(u.pending || 0) > 0))
   const checkedUnits = units.filter((u: any) => !!u.reviewed)
   const specs: SheetSpec[] = []
   const addSummary = (list: any[], name: string) => specs.push(sheet('01_สรุปหน่วยงาน', name, month,
@@ -73,6 +73,9 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
   const addActivities = (list: any[], name: string, sheetName = '03_รายละเอียดกิจกรรม') => specs.push(sheet(sheetName, name, month,
     ['กลุ่มงาน', 'หน่วยงาน', 'ชื่อเจ้าหน้าที่', 'ตำแหน่ง', 'วันที่', 'รหัสกิจกรรม', 'ชื่อกิจกรรม', 'จำนวน', 'คะแนน', 'สถานะล่าสุด', 'เหตุผล'], activityExportRows(list), [28, 32, 30, 26, 16, 16, 42, 12, 12, 18, 48]))
   if (selected === 'all') {
+    specs.push(sheet('00_ภาพรวม', 'ภาพรวมสถานะ P4P ทุกหน่วยงาน', month, ['สถานะ', 'จำนวนหน่วยงาน'], [
+      ['พร้อมตรวจ', readyUnits.length], ['รอแก้ไข', returnedUnits.length], ['ยังไม่พร้อม', notReadyUnits.length], ['ตรวจแล้ว', checkedUnits.length], ['ทั้งหมด', allUnits.length]
+    ], [32, 20]))
     addSummary(allUnits, 'รายงาน P4P ทุกสถานะ')
     addPeople(allUnits, 'รายละเอียดบุคลากรทุกสถานะ')
     addActivities(allUnits, 'รายละเอียดกิจกรรมตามสถานะล่าสุด')
@@ -95,7 +98,7 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
   } else if (selected === 'notready') {
     addSummary(notReadyUnits, 'หน่วยงานที่ยังไม่พร้อม')
     specs.push(sheet('02_ยังไม่ส่งผลงาน', 'บุคลากรที่ยังไม่ส่งผลงาน', month,
-      ['กลุ่มงาน', 'หน่วยงาน', 'ชื่อเจ้าหน้าที่', 'ตำแหน่ง', 'สถานะ'], notReadyUnits.filter((u: any) => !u.submitted).flatMap((u: any) => (u.lines || []).map((p: any) => [u.group, u.name, p.name, p.position, 'ยังไม่ส่งผลงาน'])), [28, 32, 30, 28, 20]))
+      ['กลุ่มงาน', 'หน่วยงาน', 'ชื่อเจ้าหน้าที่', 'ตำแหน่ง', 'สถานะ'], notReadyUnits.filter((u: any) => !u.submitted && u.submissionStatus !== 'returned').flatMap((u: any) => (u.lines || []).map((p: any) => [u.group, u.name, p.name, p.position, 'ยังไม่ส่งผลงาน'])), [28, 32, 30, 28, 20]))
     specs.push(sheet('03_ค้างรับรอง', 'บุคลากรที่มีรายการค้างรับรอง', month,
       ['กลุ่มงาน', 'หน่วยงาน', 'ชื่อเจ้าหน้าที่', 'ตำแหน่ง', 'จำนวนรายการค้างรับรอง'], notReadyUnits.filter((u: any) => u.submitted && Number(u.pending || 0) > 0).flatMap((u: any) => (u.lines || []).filter((p: any) => Number(p.pending || 0) > 0).map((p: any) => [u.group, u.name, p.name, p.position, p.pending])), [28, 32, 30, 28, 24]))
     addActivities(notReadyUnits, 'กิจกรรมของหน่วยงานที่ยังไม่พร้อม', '04_รายละเอียดกิจกรรม')
