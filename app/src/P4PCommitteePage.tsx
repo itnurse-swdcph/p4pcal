@@ -118,7 +118,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       setUnitsMeta(un.data || []); setStaffMeta(sd.data || []); setSubmissions(ss.data || []); setSubmissionReturns(returnedRows)
       setActivityReturns(activityReturns); setCorrectionQueueOk(!returnedRowsError && !activityReturnsError);
       setReportActivityRows(allActivityResult.data || []); setAuditHistory(auditHistoryResult.data || []);
-      setReportDataOk(!allActivityResult.error && !auditHistoryResult.error);
+      setReportDataOk(!st.error && !ur.error && !returnedRowsError && !activityReturnsError && !allActivityResult.error && !auditHistoryResult.error);
       if (allActivityResult.error || auditHistoryResult.error) setError(prev => [prev, 'ไม่สามารถโหลดข้อมูลกิจกรรมหรือประวัติทั้งหมดสำหรับ Export ได้'].filter(Boolean).join(' · '));
       // สถานะตรวจแล้วเป็นเงื่อนไขบังคับ: หากฐานข้อมูลยังไม่พร้อมหรืออ่านสถานะไม่ได้ ต้องไม่อนุญาตให้เริ่มรับรอง
       setUnitReviews(ur.error ? [] : ur.data || []); setReviewOk(!ur.error)
