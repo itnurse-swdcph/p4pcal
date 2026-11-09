@@ -37,6 +37,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   const [auditHistory, setAuditHistory] = useState<any[]>([])
   const [reportDataOk, setReportDataOk] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [exportLoading, setExportLoading] = useState(false)
   const [correctionQueueOk, setCorrectionQueueOk] = useState(false)
   const [unitReviews, setUnitReviews] = useState<any[]>([])
   const [reviewOk, setReviewOk] = useState(false)
@@ -65,17 +66,6 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         sb.rpc('p4p_committee_submissions', { p_month: monthDate }),
         sb.rpc('p4p_committee_unit_reviews', { p_month: monthDate })
       ])
-      const loadAllRows = async (makeQuery: () => any) => {
-        const all: any[] = []
-        for (let from = 0; ; from += 1000) {
-          const page = await makeQuery().range(from, from + 999)
-          if (page.error) return { data: all, error: page.error }
-          const rows = page.data || []
-          all.push(...rows)
-          if (rows.length < 1000) break
-        }
-        return { data: all, error: null }
-      }
       const submissionIds = (ss.data || []).map((x: any) => x.id).filter(Boolean)
       let returnedRows: any[] = []
       let returnedRowsError: any = null
@@ -88,16 +78,14 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       }
       // ดึงประวัติการส่งกลับ/ไม่อนุมัติรายกิจกรรมจากกรรมการ แล้วเทียบกับสถานะปัจจุบัน
       const returnedPersonIds = [...new Set(returnedRows.map((x: any) => String(x.person_id || '')).filter(Boolean))]
-      const [auditResult, returnedActivityResult, submissionReturnedLogs, allActivityResult, auditHistoryResult] = await Promise.all([
+      const [auditResult, returnedActivityResult, submissionReturnedLogs] = await Promise.all([
         sb.from('p4p_activity_audit_events').select('id,log_id,person_id,action,reason,old_status,new_status,created_at')
           .eq('month', monthDate).in('action', ['return_for_correction', 'reject']).order('created_at', { ascending: false }),
         sb.from('v_logs').select('id,person_id,person_name,position,unit_id,work_date,activity_code,title,status,reject_reason')
           .eq('month', monthDate).in('status', ['pending', 'draft', 'rejected']).not('reject_reason', 'is', null).range(0, 1999),
         returnedPersonIds.length
           ? sb.from('v_logs').select('id,person_id,work_date,activity_code,title,status').eq('month', monthDate).in('person_id', returnedPersonIds).order('work_date', { ascending: true }).range(0, 4999)
-          : Promise.resolve({ data: [], error: null }),
-        loadAllRows(() => sb.from('v_logs').select('*').eq('month', monthDate).order('work_date', { ascending: true })),
-        loadAllRows(() => sb.from('p4p_activity_audit_events').select('*').eq('month', monthDate).order('created_at', { ascending: false }))
+          : Promise.resolve({ data: [], error: null })
       ])
       const latestAudit = new Map<string, any>()
       for (const event of auditResult.data || []) if (!latestAudit.has(String(event.log_id))) latestAudit.set(String(event.log_id), event)
@@ -120,9 +108,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       setUnitsMeta(un.data || []); setStaffMeta(sd.data || []); setSubmissions(ss.data || []); setSubmissionReturns(returnedRows)
       setActivityReturns(activityReturns); setCorrectionQueueOk(!returnedRowsError && !activityReturnsError);
       setSubmissionReturnedLogRows(submissionReturnedLogs.data || []);
-      setReportActivityRows(allActivityResult.data || []); setAuditHistory(auditHistoryResult.data || []);
-      setReportDataOk(!st.error && !ur.error && !returnedRowsError && !activityReturnsError && !allActivityResult.error && !auditHistoryResult.error);
-      if (allActivityResult.error || auditHistoryResult.error) setError(prev => [prev, 'ไม่สามารถโหลดข้อมูลกิจกรรมหรือประวัติทั้งหมดสำหรับ Export ได้'].filter(Boolean).join(' · '));
+      setReportDataOk(!st.error && !ur.error && !returnedRowsError && !activityReturnsError);
       // สถานะตรวจแล้วเป็นเงื่อนไขบังคับ: หากฐานข้อมูลยังไม่พร้อมหรืออ่านสถานะไม่ได้ ต้องไม่อนุญาตให้เริ่มรับรอง
       setUnitReviews(ur.error ? [] : ur.data || []); setReviewOk(!ur.error)
       setLoadedFor(monthDate)
@@ -139,6 +125,30 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   }, [sb, monthDate, version])
 
   const loading = loadedFor !== monthDate
+  const openExportReport = async () => {
+    setExportLoading(true)
+    setError('')
+    try {
+      const loadAllRows = async (table: string) => {
+        const all: any[] = []
+        for (let from = 0; ; from += 1000) {
+          const page = await sb.from(table).select('*').eq('month', monthDate).order(table === 'v_logs' ? 'work_date' : 'created_at', { ascending: table === 'v_logs' }).range(from, from + 999)
+          if (page.error) throw page.error
+          all.push(...(page.data || []))
+          if ((page.data || []).length < 1000) break
+        }
+        return all
+      }
+      const [activityRows, historyRows] = await Promise.all([loadAllRows('v_logs'), loadAllRows('p4p_activity_audit_events')])
+      setReportActivityRows(activityRows)
+      setAuditHistory(historyRows)
+      setExportOpen(true)
+    } catch (e: any) {
+      setError(e?.message || 'โหลดข้อมูลสำหรับรายงานไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setExportLoading(false)
+    }
+  }
   const activeMembers = useMemo(() => members.filter(x => x.active), [members])
   const isMember = activeMembers.some(x => x.user_id === currentUserId)
   const canReturnSubmission = isMember || isCentralAdminAccount
@@ -320,7 +330,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-stone-700"><CalendarDays size={16} className="text-teal-800" /><span className="sr-only">เลือกเดือน</span>
             <input type="month" aria-label="เลือกเดือนที่ต้องการตรวจสอบ" className="inp !w-44 bg-white" value={month} onChange={e => { if (e.target.value) { setMonth(e.target.value); setUnitKey(null); setPanel(null) } }} /></label>
-          <button type="button" className="btn" onClick={() => setExportOpen(true)} disabled={loading || !reportDataOk}><FileSpreadsheet size={16} />Export รายงาน</button>
+          <button type="button" className="btn" onClick={openExportReport} disabled={loading || exportLoading || !reportDataOk}><FileSpreadsheet size={16} />{exportLoading ? 'กำลังเตรียมรายงาน…' : 'Export รายงาน'}</button>
           <button type="button" className="btn sec" onClick={refresh} disabled={loading || busy}><RefreshCw size={15} />รีเฟรช</button>
         </div>
       </div>
