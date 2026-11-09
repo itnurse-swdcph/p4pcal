@@ -20,22 +20,16 @@ const sheet = (sheetName: string, title: string, month: string, headers: string[
   colWidths: widths, freeze: { row: 3, col: 0 }
 })
 
-export default function P4PCommitteeExport({ open, onClose, month, units = [], lines = [], statusRows = [], submissions = [], activityRows = [], auditHistory = [], staffMeta = [], submissionReturns = [], returnedPeopleByUnit }: any) {
+export default function P4PCommitteeExport({ open, onClose, month, units = [], lines = [], statusRows = [], submissions = [], activityRows = [], auditHistory = [], returnedPeopleByUnit }: any) {
   const [selected, setSelected] = useState<ReportKey>('all')
   const unitByKey = useMemo(() => new Map(units.map((u: any) => [Number(u.key), u])), [units])
   const personById = useMemo(() => new Map(lines.map((p: any) => [String(p.id), p])), [lines])
-  const staffBySource = useMemo(() => new Map(staffMeta.map((p: any) => [String(p.source_row), p])), [staffMeta])
   const getPerson = (row: any) => personById.get(String(row.person_id)) || lines.find((p: any) => String(p.staff_directory_id) === String(row.staff_directory_id)) || {}
   const getUnit = (row: any) => {
     const person = getPerson(row)
     const id = row.unit_id ?? person.unit_id
     return unitByKey.get(Number(id)) || units.find((u: any) => String(u.group) === String(person.nursing_group)) || null
   }
-  const activitiesByPerson = useMemo(() => {
-    const map = new Map<string, any[]>()
-    for (const row of activityRows) map.set(String(row.person_id), [...(map.get(String(row.person_id)) || []), row])
-    return map
-  }, [activityRows])
   const counts = useMemo(() => {
     const ready = units.filter((u: any) => u.submitted && u.ready && u.submissionStatus !== 'returned')
     const returned = units.filter((u: any) => u.submissionStatus === 'returned' || (returnedPeopleByUnit?.get(u.key) || []).length)
