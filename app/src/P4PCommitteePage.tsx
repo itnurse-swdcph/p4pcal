@@ -32,6 +32,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   const [submissions, setSubmissions] = useState<any[]>([])
   const [submissionReturns, setSubmissionReturns] = useState<any[]>([])
   const [activityReturns, setActivityReturns] = useState<any[]>([])
+  const [submissionReturnedLogRows, setSubmissionReturnedLogRows] = useState<any[]>([])
   const [reportActivityRows, setReportActivityRows] = useState<any[]>([])
   const [auditHistory, setAuditHistory] = useState<any[]>([])
   const [reportDataOk, setReportDataOk] = useState(false)
@@ -51,6 +52,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
     let alive = true
     const load = async () => {
       setError('')
+      try {
       const [c, r, m, v, ro, st, un, sd, ss, ur] = await Promise.all([
         sb.rpc('p4p_committee_calc', { p_month: monthDate }),
         sb.from('p4p_monthly_reviews').select('*').eq('month', monthDate).maybeSingle(),
@@ -117,12 +119,20 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       setRoster(ro.data || []); setStatusRows(st.data || []); setStatusOk(!st.error)
       setUnitsMeta(un.data || []); setStaffMeta(sd.data || []); setSubmissions(ss.data || []); setSubmissionReturns(returnedRows)
       setActivityReturns(activityReturns); setCorrectionQueueOk(!returnedRowsError && !activityReturnsError);
+      setSubmissionReturnedLogRows(submissionReturnedLogs.data || []);
       setReportActivityRows(allActivityResult.data || []); setAuditHistory(auditHistoryResult.data || []);
       setReportDataOk(!st.error && !ur.error && !returnedRowsError && !activityReturnsError && !allActivityResult.error && !auditHistoryResult.error);
       if (allActivityResult.error || auditHistoryResult.error) setError(prev => [prev, 'ไม่สามารถโหลดข้อมูลกิจกรรมหรือประวัติทั้งหมดสำหรับ Export ได้'].filter(Boolean).join(' · '));
       // สถานะตรวจแล้วเป็นเงื่อนไขบังคับ: หากฐานข้อมูลยังไม่พร้อมหรืออ่านสถานะไม่ได้ ต้องไม่อนุญาตให้เริ่มรับรอง
       setUnitReviews(ur.error ? [] : ur.data || []); setReviewOk(!ur.error)
       setLoadedFor(monthDate)
+      } catch (loadError: any) {
+        if (alive) {
+          setError(loadError?.message || 'เกิดข้อผิดพลาดระหว่างโหลดข้อมูลคณะกรรมการ P4P กรุณาลองใหม่')
+          setReportDataOk(false)
+          setLoadedFor(monthDate)
+        }
+      }
     }
     load()
     return () => { alive = false }
@@ -169,7 +179,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       const key = submission.scope_type === 'unit'
         ? Number(submission.unit_id)
         : units.find(u => Number(u.key) < 0 && String(u.group) === String(submission.group_name))?.key
-      const personActivities = (submissionReturnedLogs.data || []).filter((a: any) => String(a.person_id) === String(returned.person_id))
+      const personActivities = submissionReturnedLogRows.filter((a: any) => String(a.person_id) === String(returned.person_id))
       if (personActivities.length) {
         for (const a of personActivities) addPerson(key, {
           ...(line || {}), id: returned.person_id || line?.id || null,
@@ -195,7 +205,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       }, { id: returned.id, code: returned.activity_code, title: returned.title, date: returned.work_date, action: returned.committee_action, reason: returned.committee_reason, status: returned.status })
     }
     return grouped
-  }, [submissionReturns, activityReturns, submissions, linesWithOrg, units])
+  }, [submissionReturns, activityReturns, submissionReturnedLogRows, submissions, linesWithOrg, units])
   const unit = unitKey == null ? null : units.find(u => u.key === unitKey) || null
   // หน้าตรวจสอบจะแสดงเฉพาะหน่วยงาน/กลุ่มงานที่กดส่งผลงานแล้ว
   const submissionForUnit = (u: any) => submissions.find(s =>
