@@ -1356,13 +1356,18 @@ export function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprov
   const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me || showAllDrafts || (!!ownerPersonId && String(r.person_id) === String(ownerPersonId))), [allRows, me, showAllDrafts, ownerPersonId])
   // รายการที่คณะกรรมการไม่อนุมัติ (ถูกตีกลับเป็นแบบร่างพร้อมเหตุผล) — ใช้แสดงป้ายสถานะและหัวเหตุผลให้ชัดเจน
   const [committeeRejectedIds, setCommitteeRejectedIds] = useState<Set<string>>(new Set())
+  const [committeeRejectedLoadedKey, setCommitteeRejectedLoadedKey] = useState<string | null>(null)
   const rejectedCheckKey = rows.filter((r: any) => ['draft', 'rejected', 'pending'].includes(String(r.status)) && String(r.reject_reason || '').trim()).map((r: any) => r.id).join(',')
   useEffect(() => {
-    if (!rejectedCheckKey) { setCommitteeRejectedIds(new Set()); return }
+    if (!rejectedCheckKey) { setCommitteeRejectedIds(new Set()); setCommitteeRejectedLoadedKey(''); return }
     let alive = true
+    setCommitteeRejectedLoadedKey(null)
     sb.rpc('p4p_committee_rejected_log_ids', { p_log_ids: rejectedCheckKey.split(',').map(Number) }).then((res: any) => {
-      if (alive && !res.error) setCommitteeRejectedIds(new Set((res.data || []).map((x: any) => String(typeof x === 'object' ? x.log_id : x))))
-    })
+      if (!alive) return
+      if (res.error) { setCommitteeRejectedLoadedKey(null); return }
+      setCommitteeRejectedIds(new Set((res.data || []).map((x: any) => String(typeof x === 'object' ? x.log_id : x))))
+      setCommitteeRejectedLoadedKey(rejectedCheckKey)
+    }).catch(() => { if (alive) setCommitteeRejectedLoadedKey(null) })
     return () => { alive = false }
   }, [sb, rejectedCheckKey])
   const isCommitteeRejected = (r: any) => ['draft', 'rejected', 'pending'].includes(String(r?.status)) && committeeRejectedIds.has(String(r?.id))
@@ -1421,7 +1426,8 @@ export function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprov
     return bi - ai
   }), [rows])
   const displayedRows = useMemo(() => sortedRows.filter((r: any) => (!filterFrom || String(r.work_date || '') >= filterFrom) && (!filterTo || String(r.work_date || '') <= filterTo)), [sortedRows, filterFrom, filterTo])
-  const approvableDisplayedRows = useMemo(() => displayedRows.filter((r: any) => r.status === 'pending' && !isCommitteeRejected(r) && canDecideRow(ap, me, r)), [displayedRows, ap, me, committeeRejectedIds])
+  const committeeReturnCheckReady = committeeRejectedLoadedKey === rejectedCheckKey
+  const approvableDisplayedRows = useMemo(() => displayedRows.filter((r: any) => committeeReturnCheckReady && r.status === 'pending' && !isCommitteeRejected(r) && canDecideRow(ap, me, r)), [displayedRows, ap, me, committeeRejectedIds, committeeReturnCheckReady])
   const selectedApprovableIds = useMemo(() => selectedApprovalIds.filter(id => approvableDisplayedRows.some((r: any) => Number(r.id) === Number(id))), [selectedApprovalIds, approvableDisplayedRows])
   const allApprovableSelected = approvableDisplayedRows.length > 0 && approvableDisplayedRows.every((r: any) => selectedApprovableIds.includes(Number(r.id)))
   const toggleApprovalSelection = (id: number, checked: boolean) => setSelectedApprovalIds(current => checked ? [...new Set([...current, Number(id)])] : current.filter(x => Number(x) !== Number(id)))
