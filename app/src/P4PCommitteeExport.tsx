@@ -13,14 +13,13 @@ const REPORTS: { key: ReportKey; label: string; detail: string }[] = [
 ]
 const cell = (v: any, s: XCell['s'] = 'label'): XCell => ({ v: v == null ? '' : String(v), s })
 const dateTH = (v: any) => v ? new Date(String(v).length === 10 ? `${v}T00:00:00` : v).toLocaleDateString('th-TH') : '—'
-const safeName = (v: any) => String(v || 'ไม่ระบุชื่อ')
 const sheet = (sheetName: string, title: string, month: string, headers: string[], rows: any[][], widths: number[]): SheetSpec => ({
   sheetName,
   rows: [[{ v: title, s: 'title' }], [{ v: `โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน · เดือน${monthLabel(month)} · ส่งออกเมื่อ ${new Date().toLocaleString('th-TH')}`, s: 'subtitle' }], headers.map(x => cell(x, 'header')), ...rows.map(r => r.map((v, i) => cell(v, i === 0 ? 'labelStrong' : 'label')))],
   colWidths: widths, freeze: { row: 3, col: 0 }
 })
 
-export default function P4PCommitteeExport({ open, onClose, month, units = [], lines = [], statusRows = [], submissions = [], activityRows = [], auditHistory = [], returnedPeopleByUnit }: any) {
+export default function P4PCommitteeExport({ open, onClose, month, units = [], lines = [], statusRows = [], activityRows = [], auditHistory = [], returnedPeopleByUnit }: any) {
   const [selected, setSelected] = useState<ReportKey>('all')
   const unitByKey = useMemo(() => new Map(units.map((u: any) => [Number(u.key), u])), [units])
   const personById = useMemo(() => new Map(lines.map((p: any) => [String(p.id), p])), [lines])
