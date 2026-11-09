@@ -64,6 +64,17 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         sb.rpc('p4p_committee_submissions', { p_month: monthDate }),
         sb.rpc('p4p_committee_unit_reviews', { p_month: monthDate })
       ])
+      const loadAllRows = async (makeQuery: () => any) => {
+        const all: any[] = []
+        for (let from = 0; ; from += 1000) {
+          const page = await makeQuery().range(from, from + 999)
+          if (page.error) return { data: all, error: page.error }
+          const rows = page.data || []
+          all.push(...rows)
+          if (rows.length < 1000) break
+        }
+        return { data: all, error: null }
+      }
       const submissionIds = (ss.data || []).map((x: any) => x.id).filter(Boolean)
       let returnedRows: any[] = []
       let returnedRowsError: any = null
@@ -84,8 +95,8 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         returnedPersonIds.length
           ? sb.from('v_logs').select('id,person_id,work_date,activity_code,title,status').eq('month', monthDate).in('person_id', returnedPersonIds).order('work_date', { ascending: true }).range(0, 4999)
           : Promise.resolve({ data: [], error: null }),
-        sb.from('v_logs').select('*').eq('month', monthDate).order('work_date', { ascending: true }).range(0, 9999),
-        sb.from('p4p_activity_audit_events').select('*').eq('month', monthDate).order('created_at', { ascending: false }).range(0, 4999)
+        loadAllRows(() => sb.from('v_logs').select('*').eq('month', monthDate).order('work_date', { ascending: true })),
+        loadAllRows(() => sb.from('p4p_activity_audit_events').select('*').eq('month', monthDate).order('created_at', { ascending: false }))
       ])
       const latestAudit = new Map<string, any>()
       for (const event of auditResult.data || []) if (!latestAudit.has(String(event.log_id))) latestAudit.set(String(event.log_id), event)
