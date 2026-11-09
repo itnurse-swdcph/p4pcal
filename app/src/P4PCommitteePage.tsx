@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowRight, CalendarDays, CheckCircle2, ClipboardList, Info, RefreshCw, ShieldCheck, UserCog, Wallet } from 'lucide-react'
+import { ArrowRight, CalendarDays, CheckCircle2, ClipboardList, FileSpreadsheet, Info, RefreshCw, ShieldCheck, UserCog, Wallet } from 'lucide-react'
 import { appConfirm } from './AppDialog'
 import ActivityPanel from './committee/ActivityPanel'
 import BudgetPanel from './committee/BudgetPanel'
@@ -7,6 +7,7 @@ import ClosePanel from './committee/ClosePanel'
 import RosterAdmin from './committee/RosterAdmin'
 import UnitDetail from './committee/UnitDetail'
 import UnitOverview from './committee/UnitOverview'
+import P4PCommitteeExport from './P4PCommitteeExport'
 import { downloadXlsxWorkbook, type SheetSpec } from './committee/xlsxExport'
 import { buildUnitStats, isBelowGuarantee, monthLabel, num } from './committee/utils'
 
@@ -32,6 +33,10 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   const [submissions, setSubmissions] = useState<any[]>([])
   const [submissionReturns, setSubmissionReturns] = useState<any[]>([])
   const [activityReturns, setActivityReturns] = useState<any[]>([])
+  const [reportActivityRows, setReportActivityRows] = useState<any[]>([])
+  const [auditHistory, setAuditHistory] = useState<any[]>([])
+  const [reportDataOk, setReportDataOk] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
   const [correctionQueueOk, setCorrectionQueueOk] = useState(false)
   const [unitReviews, setUnitReviews] = useState<any[]>([])
   const [reviewOk, setReviewOk] = useState(false)
@@ -71,14 +76,16 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       }
       // ดึงประวัติการส่งกลับ/ไม่อนุมัติรายกิจกรรมจากกรรมการ แล้วเทียบกับสถานะปัจจุบัน
       const returnedPersonIds = [...new Set(returnedRows.map((x: any) => String(x.person_id || '')).filter(Boolean))]
-      const [auditResult, returnedActivityResult, submissionReturnedLogs] = await Promise.all([
+      const [auditResult, returnedActivityResult, submissionReturnedLogs, allActivityResult, auditHistoryResult] = await Promise.all([
         sb.from('p4p_activity_audit_events').select('id,log_id,person_id,action,reason,old_status,new_status,created_at')
           .eq('month', monthDate).in('action', ['return_for_correction', 'reject']).order('created_at', { ascending: false }),
         sb.from('v_logs').select('id,person_id,person_name,position,unit_id,work_date,activity_code,title,status,reject_reason')
           .eq('month', monthDate).in('status', ['pending', 'draft', 'rejected']).not('reject_reason', 'is', null).range(0, 1999),
         returnedPersonIds.length
           ? sb.from('v_logs').select('id,person_id,work_date,activity_code,title,status').eq('month', monthDate).in('person_id', returnedPersonIds).order('work_date', { ascending: true }).range(0, 4999)
-          : Promise.resolve({ data: [], error: null })
+          : Promise.resolve({ data: [], error: null }),
+        sb.from('v_logs').select('*').eq('month', monthDate).order('work_date', { ascending: true }).range(0, 9999),
+        sb.from('p4p_activity_audit_events').select('*').eq('month', monthDate).order('created_at', { ascending: false }).range(0, 4999)
       ])
       const latestAudit = new Map<string, any>()
       for (const event of auditResult.data || []) if (!latestAudit.has(String(event.log_id))) latestAudit.set(String(event.log_id), event)
@@ -100,6 +107,9 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       setRoster(ro.data || []); setStatusRows(st.data || []); setStatusOk(!st.error)
       setUnitsMeta(un.data || []); setStaffMeta(sd.data || []); setSubmissions(ss.data || []); setSubmissionReturns(returnedRows)
       setActivityReturns(activityReturns); setCorrectionQueueOk(!returnedRowsError && !activityReturnsError);
+      setReportActivityRows(allActivityResult.data || []); setAuditHistory(auditHistoryResult.data || []);
+      setReportDataOk(!allActivityResult.error && !auditHistoryResult.error);
+      if (allActivityResult.error || auditHistoryResult.error) setError(prev => [prev, 'ไม่สามารถโหลดข้อมูลกิจกรรมหรือประวัติทั้งหมดสำหรับ Export ได้'].filter(Boolean).join(' · '));
       // สถานะตรวจแล้วเป็นเงื่อนไขบังคับ: หากฐานข้อมูลยังไม่พร้อมหรืออ่านสถานะไม่ได้ ต้องไม่อนุญาตให้เริ่มรับรอง
       setUnitReviews(ur.error ? [] : ur.data || []); setReviewOk(!ur.error)
       setLoadedFor(monthDate)
@@ -318,6 +328,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-stone-700"><CalendarDays size={16} className="text-teal-800" /><span className="sr-only">เลือกเดือน</span>
             <input type="month" aria-label="เลือกเดือนที่ต้องการตรวจสอบ" className="inp !w-44 bg-white" value={month} onChange={e => { if (e.target.value) { setMonth(e.target.value); setUnitKey(null); setPanel(null) } }} /></label>
+          <button type="button" className="btn" onClick={() => setExportOpen(true)} disabled={loading || !reportDataOk}><FileSpreadsheet size={16} />Export รายงาน</button>
           <button type="button" className="btn sec" onClick={refresh} disabled={loading || busy}><RefreshCw size={15} />รีเฟรช</button>
         </div>
       </div>
@@ -349,6 +360,8 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         units={statusOk ? overviewUnits : []} groups={groups} totals={totals} busy={busy} reviewGate={reviewOk} onStart={startReview} onVote={castVote} onOpenUnit={openUnit} />}
       {tab === 'roster' && isAdmin && <RosterAdmin sb={sb} members={members} roster={roster} version={version} busy={busy} runAction={runAction} setError={setError} />}
     </>}
+
+    <P4PCommitteeExport open={exportOpen} onClose={() => setExportOpen(false)} month={month} units={overviewUnits} lines={linesWithOrg} statusRows={statusRows} submissions={submissions} activityRows={reportActivityRows} auditHistory={auditHistory} staffMeta={staffMeta} submissionReturns={submissionReturns} returnedPeopleByUnit={returnedPeopleByUnit} />
 
     {panel && <ActivityPanel sb={sb} monthDate={monthDate} person={panel.person} randomUnitId={panel.randomUnitId} canAudit={canAudit} lockedReason={lockedReason} PrintSheet={PrintSheet} units={appUnits} positions={appPositions} scoreBreakdown={scoreBreakdown} openEvidence={openEvidence}
       onClose={() => setPanel(null)} onChanged={refresh} />}
