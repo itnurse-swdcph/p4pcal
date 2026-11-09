@@ -31,9 +31,9 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
     return unitByKey.get(Number(id)) || units.find((u: any) => String(u.group) === String(person.nursing_group)) || null
   }
   const counts = useMemo(() => {
-    const ready = units.filter((u: any) => u.submitted && u.ready && u.submissionStatus !== 'returned')
+    const ready = units.filter((u: any) => u.submitted && u.ready && !u.reviewed && u.submissionStatus !== 'returned')
     const returned = units.filter((u: any) => u.submissionStatus === 'returned' || (returnedPeopleByUnit?.get(u.key) || []).length)
-    const notready = units.filter((u: any) => !u.submitted || Number(u.pending || 0) > 0)
+    const notready = units.filter((u: any) => !u.reviewed && u.submissionStatus !== 'returned' && (!u.submitted || Number(u.pending || 0) > 0))
     const checked = units.filter((u: any) => !!u.reviewed)
     return { all: units.length, ready: ready.length, returned: returned.length, notready: notready.length, checked: checked.length }
   }, [units, returnedPeopleByUnit])
@@ -41,7 +41,7 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
 
   const unitRows = (list: any[]) => list.map((u: any) => [
     u.group, u.name, u.lines?.length || 0, u.eligible || 0, u.pending || 0, u.approved || 0, u.rejected || 0,
-    u.submissionStatus === 'returned' ? 'รอแก้ไข' : !u.submitted ? 'ยังไม่ส่งผลงาน' : u.ready ? 'พร้อมตรวจ' : 'ยังไม่พร้อม',
+    u.submissionStatus === 'returned' ? 'รอแก้ไข' : u.reviewed ? 'ตรวจแล้ว' : !u.submitted ? 'ยังไม่ส่งผลงาน' : u.ready ? 'พร้อมตรวจ' : 'ยังไม่พร้อม',
     u.reviewed ? 'ตรวจแล้ว' : 'ยังไม่ตรวจ'
   ])
   const peopleRows = (list: any[]) => list.flatMap((u: any) => (u.lines || []).map((p: any) => {
@@ -55,9 +55,9 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
     return [u?.group || '', u?.name || '', a.person_name || p.name, a.position || p.position, dateTH(a.work_date), a.activity_code, a.title, a.quantity ?? a.qty ?? a.amount ?? '', a.points ?? a.score ?? '', a.status, a.reject_reason || '']
   })
   const allUnits = units
-  const readyUnits = units.filter((u: any) => u.submitted && u.ready && u.submissionStatus !== 'returned')
+  const readyUnits = units.filter((u: any) => u.submitted && u.ready && !u.reviewed && u.submissionStatus !== 'returned')
   const returnedUnits = units.filter((u: any) => u.submissionStatus === 'returned' || (returnedPeopleByUnit?.get(u.key) || []).length)
-  const notReadyUnits = units.filter((u: any) => u.submissionStatus !== 'returned' && (!u.submitted || Number(u.pending || 0) > 0))
+  const notReadyUnits = units.filter((u: any) => !u.reviewed && u.submissionStatus !== 'returned' && (!u.submitted || Number(u.pending || 0) > 0))
   const checkedUnits = units.filter((u: any) => !!u.reviewed)
   const specs: SheetSpec[] = []
   const addSummary = (list: any[], name: string) => specs.push(sheet('01_สรุปหน่วยงาน', name, month,
