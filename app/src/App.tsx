@@ -1356,7 +1356,7 @@ export function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprov
   const rows = useMemo(() => (allRows || []).filter((r: any) => r.status !== 'draft' || r.entered_by === me || showAllDrafts || (!!ownerPersonId && String(r.person_id) === String(ownerPersonId))), [allRows, me, showAllDrafts, ownerPersonId])
   // รายการที่คณะกรรมการไม่อนุมัติ (ถูกตีกลับเป็นแบบร่างพร้อมเหตุผล) — ใช้แสดงป้ายสถานะและหัวเหตุผลให้ชัดเจน
   const [committeeRejectedIds, setCommitteeRejectedIds] = useState<Set<string>>(new Set())
-  const rejectedCheckKey = rows.filter((r: any) => ['draft', 'rejected'].includes(String(r.status)) && String(r.reject_reason || '').trim()).map((r: any) => r.id).join(',')
+  const rejectedCheckKey = rows.filter((r: any) => ['draft', 'rejected', 'pending'].includes(String(r.status)) && String(r.reject_reason || '').trim()).map((r: any) => r.id).join(',')
   useEffect(() => {
     if (!rejectedCheckKey) { setCommitteeRejectedIds(new Set()); return }
     let alive = true
@@ -1365,7 +1365,7 @@ export function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprov
     })
     return () => { alive = false }
   }, [sb, rejectedCheckKey])
-  const isCommitteeRejected = (r: any) => ['draft', 'rejected'].includes(String(r?.status)) && committeeRejectedIds.has(String(r?.id))
+  const isCommitteeRejected = (r: any) => ['draft', 'rejected', 'pending'].includes(String(r?.status)) && committeeRejectedIds.has(String(r?.id))
   const [rejecting, setRejecting] = useState<any>(null); const [reason, setReason] = useState('')
   const [detailRow, setDetailRow] = useState<any>(null)
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
@@ -1421,7 +1421,7 @@ export function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprov
     return bi - ai
   }), [rows])
   const displayedRows = useMemo(() => sortedRows.filter((r: any) => (!filterFrom || String(r.work_date || '') >= filterFrom) && (!filterTo || String(r.work_date || '') <= filterTo)), [sortedRows, filterFrom, filterTo])
-  const approvableDisplayedRows = useMemo(() => displayedRows.filter((r: any) => r.status === 'pending' && canDecideRow(ap, me, r)), [displayedRows, ap, me])
+  const approvableDisplayedRows = useMemo(() => displayedRows.filter((r: any) => r.status === 'pending' && !isCommitteeRejected(r) && canDecideRow(ap, me, r)), [displayedRows, ap, me, committeeRejectedIds])
   const selectedApprovableIds = useMemo(() => selectedApprovalIds.filter(id => approvableDisplayedRows.some((r: any) => Number(r.id) === Number(id))), [selectedApprovalIds, approvableDisplayedRows])
   const allApprovableSelected = approvableDisplayedRows.length > 0 && approvableDisplayedRows.every((r: any) => selectedApprovableIds.includes(Number(r.id)))
   const toggleApprovalSelection = (id: number, checked: boolean) => setSelectedApprovalIds(current => checked ? [...new Set([...current, Number(id)])] : current.filter(x => Number(x) !== Number(id)))
@@ -1601,7 +1601,7 @@ export function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprov
           {Number(r.cap_cut) > 0 && Number(r.points_before_cap) > 0 ? <div className="text-[11px] leading-tight text-amber-700">ตัดเพดาน −{nf(r.cap_cut)}</div> : Number(r.counted_points) !== Number(r.points) && <div className="text-[11px] leading-tight text-red-700">(ไม่นับ)</div>}
         </td>
         <td className={cell + ' text-xs'}>{checkErrors.map((e: string) => <div key={e} className="text-red-700">✗ {e}</div>)}{checkWarnings.map((e: string) => <div key={e} className="text-amber-700">! {e}</div>)}{!checkErrors.length && !checkWarnings.length && <span className="font-semibold text-emerald-700">✓ ผ่าน</span>}</td>
-        <td className={cell + ' text-center'}><span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${isCommitteeRejected(r) ? 'bg-red-100 text-red-800' : ST[r.status][1]}`}>{isCommitteeRejected(r) ? 'คณะกรรมการไม่อนุมัติ' : r.status === 'pending' && String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? 'แก้ไขแล้ว รอตรวจซ้ำ' : ST[r.status][0]}</span>{r.status === 'pending' && <div className="mt-1 text-xs text-stone-600">ผู้รับรอง: <b className="text-stone-800">{nextApproverNames[String(r.person_id)] || 'ไม่พบชื่อผู้รับรองในระบบ'}</b></div>}</td>
+        <td className={cell + ' text-center'}><span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${isCommitteeRejected(r) ? 'bg-red-100 text-red-800' : ST[r.status][1]}`}>{isCommitteeRejected(r) ? (r.status === 'pending' ? 'รอเจ้าหน้าที่แก้ไข' : 'คณะกรรมการไม่อนุมัติ') : r.status === 'pending' && String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? 'แก้ไขแล้ว รอตรวจซ้ำ' : ST[r.status][0]}</span>{r.status === 'pending' && !isCommitteeRejected(r) && <div className="mt-1 text-xs text-stone-600">ผู้รับรอง: <b className="text-stone-800">{nextApproverNames[String(r.person_id)] || 'ไม่พบชื่อผู้รับรองในระบบ'}</b></div>}</td>
         <td className={cell + ' text-center'}><div className="flex flex-col items-stretch gap-1">
           {canEditReturnedRow(r) && ['draft', 'rejected'].includes(String(r.status)) && <>
             <button type="button" className="btn !py-0.5" onClick={e => { e.stopPropagation(); void submitRows([r.id]) }}>{r.status === 'rejected' || String(r.reject_reason || '').trim() ? 'ส่งใหม่' : 'ส่ง'}</button>
@@ -1611,12 +1611,12 @@ export function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprov
             (r.entered_by === me || (ownerPersonId && String(ownerPersonId) === String(r.person_id))) &&
             <button className={`btn sec !py-0.5 ${String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? '!border-teal-300 !text-teal-800 !bg-teal-50' : '!border-amber-300 !text-amber-800'}`} onClick={e => { e.stopPropagation(); beginEdit(r) }}>{String(r.reject_reason || '').startsWith('แก้ไขแล้ว รอตรวจซ้ำ:') ? 'แก้ไขแล้ว รอตรวจ' : 'แก้ไขตามที่ส่งกลับ'}</button>}
           {isReturnedPending(r) && <button type="button" className="text-xs underline text-red-700" onClick={e => { e.stopPropagation(); void del(r.id) }}>ลบ</button>}
-          {(r.status !== 'pending' || canDecideRow(ap, me, r)) && <>
+          {(r.status !== 'pending' || (canDecideRow(ap, me, r) && !isCommitteeRejected(r))) && <>
             <button className="btn sec !py-0.5" onClick={e => { e.stopPropagation(); setEditing(null); setDetailRow(r) }}>{r.status === 'pending' && canDecideRow(ap, me, r) && !readOnly ? 'ตรวจ / รับรอง' : 'ดูรายละเอียดเต็ม'}</button>
             {allowReopenApproved && r.status === 'approved' && canDecideRow(ap, me, r) && (ap.role !== 'admin' || String(ap.username || '').trim() === '11450') && !readOnly &&
               <button type="button" className="btn sec !py-0.5 !border-amber-300 !text-amber-800 hover:!bg-amber-50" onClick={async e => { e.stopPropagation(); await reopenOwnApproval(r) }}>แก้ไขการรับรอง</button>}
           </>}
-          {r.status === 'pending' && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}
+          {r.status === 'pending' && isCommitteeRejected(r) && <span className="text-xs font-medium text-amber-800">รอเจ้าหน้าที่แก้ไขก่อนส่งให้หัวหน้ารับรอง</span>}{r.status === 'pending' && !isCommitteeRejected(r) && !canDecideRow(ap, me, r) && <span className="text-xs text-stone-500">ล็อก · รอ{approverLabel(ap?.personLevel?.[r.person_id] ?? 0)}รับรอง</span>}
         </div></td>
         </tr>
         {isOpen && <tr><td colSpan={colCount} className={band + ' border-t border-t-stone-100 px-3 pb-3 pt-1'}>
