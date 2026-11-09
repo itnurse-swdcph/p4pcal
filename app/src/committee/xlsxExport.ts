@@ -90,7 +90,7 @@ const sheetXml = (spec: SheetSpec) => {
   const pane = fr ? `<pane${fr.col ? ` xSplit="${fr.col}"` : ''}${fr.row ? ` ySplit="${fr.row}"` : ''} topLeftCell="${colName(fr.col + 1)}${fr.row + 1}" activePane="${fr.row && fr.col ? 'bottomRight' : fr.row ? 'bottomLeft' : 'topRight'}" state="frozen"/>` : ''
   const merges = spec.merges?.length ? `<mergeCells count="${spec.merges.length}">${spec.merges.map(m => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : ''
   const filter = fr?.row >= 3 && spec.rows.length > fr.row && spec.colWidths.length ? `<autoFilter ref="A${fr.row}:${colName(spec.colWidths.length)}${spec.rows.length}"/>` : ''
-  return `${XML}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0" showGridLines="0">${pane}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${cols}</cols><sheetData>${rowsXml}</sheetData>${merges}${filter}<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToHeight="0"/></worksheet>`
+  return `${XML}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0" showGridLines="0">${pane}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${cols}</cols><sheetData>${rowsXml}</sheetData>${filter}${merges}<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToHeight="0"/></worksheet>`
 }
 
 export function buildXlsx(spec: SheetSpec): Uint8Array {
