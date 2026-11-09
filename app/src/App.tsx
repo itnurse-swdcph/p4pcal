@@ -1525,7 +1525,7 @@ export function LogTable({ sb, rows: allRows, reload, onActivitySaved, canApprov
     if (savedMonth && savedMonth !== month && typeof setMonth === 'function') setMonth(savedMonth)
     setFilterFrom(''); setFilterTo('')
     reload()
-    appAlert('บันทึกการแก้ไขเรียบร้อยแล้ว รายการและวันที่ล่าสุดได้รับการปรับปรุง'); onActivitySaved?.()
+    appAlert(editing.status === 'pending' && String(editing.reject_reason || '').trim() ? 'บันทึกการแก้ไขแล้ว และส่งรายการกลับเข้าคิวหัวหน้างานเพื่อรับรองอีกครั้ง' : 'บันทึกการแก้ไขเรียบร้อยแล้ว รายการและวันที่ล่าสุดได้รับการปรับปรุง'); onActivitySaved?.()
   }
   return <div className="card overflow-x-auto p-0">
     <div className="flex flex-wrap items-end gap-3 border-b border-stone-200 p-3">
