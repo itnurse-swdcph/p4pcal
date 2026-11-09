@@ -102,6 +102,14 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
     specs.push(sheet('03_ค้างรับรอง', 'บุคลากรที่มีรายการค้างรับรอง', month,
       ['กลุ่มงาน', 'หน่วยงาน', 'ชื่อเจ้าหน้าที่', 'ตำแหน่ง', 'จำนวนรายการค้างรับรอง'], notReadyUnits.filter((u: any) => u.submitted && Number(u.pending || 0) > 0).flatMap((u: any) => (u.lines || []).filter((p: any) => Number(p.pending || 0) > 0).map((p: any) => [u.group, u.name, p.name, p.position, p.pending])), [28, 32, 30, 28, 24]))
     addActivities(notReadyUnits, 'กิจกรรมของหน่วยงานที่ยังไม่พร้อม', '04_รายละเอียดกิจกรรม')
+    for (const u of notReadyUnits) {
+      const rows = (u.lines || []).filter((p: any) => !u.submitted || Number(p.pending || 0) > 0).map((p: any) => {
+        const status = statusRows.find((x: any) => String(x.person_id) === String(p.id)) || {}
+        return [p.name || p.person_name, p.position, !u.submitted ? 'ยังไม่ส่งผลงาน' : 'ค้างรับรอง', status.pending || p.pending || 0, status.approved || 0, status.rejected || 0]
+      })
+      specs.push(sheet(u.name, `ติดตามความพร้อม · ${u.name}`, month,
+        ['ชื่อเจ้าหน้าที่', 'ตำแหน่ง', 'สาเหตุที่ยังไม่พร้อม', 'ค้างรับรอง', 'รับรองแล้ว', 'ไม่รับรอง'], rows, [32, 28, 24, 14, 14, 14]))
+    }
   } else {
     addSummary(checkedUnits, 'หน่วยงานที่ตรวจครบแล้ว')
     addPeople(checkedUnits, 'บุคลากรในหน่วยงานที่ตรวจครบแล้ว')
