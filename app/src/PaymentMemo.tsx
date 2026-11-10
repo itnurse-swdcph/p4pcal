@@ -133,7 +133,20 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     setAmountTextTouched(false); setError('')
   }
   const field = (key: string, value: any) => setForm((v: any) => ({ ...v, [key]: value }))
-  const openHistory = (row: any) => { setForm({ ...(row.payload || {}), id: row.id }); setAmountTextTouched(true); setError('') }
+  const openHistory = (row: any) => {
+    const payload = { ...(row.payload || {}) }
+    // รองรับบันทึกข้อความเดิม: หากมีผู้ลงนามเพียงคนเดียว ให้ย้ายช่องชื่อไปแสดงฝั่งขวา
+    if (unitName && !(payload.authorName && payload.groupHeadName)) {
+      payload.singleSigner = true
+      if (!payload.groupHeadName && payload.authorName) {
+        payload.groupHeadName = payload.authorName
+        payload.groupHeadPosition = payload.authorPosition
+        payload.groupHeadRole = payload.authorRole
+      }
+      payload.authorName = ''; payload.authorPosition = ''; payload.authorRole = ''
+    }
+    setForm({ ...payload, id: row.id }); setAmountTextTouched(true); setError('')
+  }
   const save = async () => {
     if (!form) return
     setBusy(true); setError('')
