@@ -2376,10 +2376,8 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const staffKey = String(p.staff_directory_id ?? p.directory_source_row ?? '')
     const eligibilityNote = String(eligibilityNotes[String(p.id)] || '').trim()
     const otherNote = String(leaveDrafts[staffKey]?.other_notes || '').trim()
-    // รายงานพิมพ์ต้องแสดงเหตุผลไม่มีสิทธิ์ และหมายเหตุที่บันทึกไว้ของบุคลากรในเดือนนั้น
-    const reportNote = !paymentEligible
-      ? (eligibilityNote || otherNote ? `ไม่มีสิทธิ์รับเงิน: ${eligibilityNote || otherNote}` : 'ไม่มีสิทธิ์รับเงิน')
-      : (eligibilityNote || otherNote)
+    // รายงานพิมพ์แสดงเฉพาะหมายเหตุที่บันทึกไว้ โดยไม่เติมข้อความสถานะสิทธิ์รับเงิน
+    const reportNote = eligibilityNote || otherNote
     return { p, reportNote, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, submittedPoints, pendingWorkDays, workPoints: displayedWorkPoints, performancePoints, roleGuarantee, excess, days, rate: effectiveRate, basePay, payout, g, appr: displayedWorkPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
