@@ -1707,18 +1707,20 @@ body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row)
 /* Unit report print refinements: wider position column and a hard 20-person page limit. */
 .unit-report-table .unit-col-order { width: 3% !important; }
 .unit-report-table .unit-col-name { width: 11% !important; }
-.unit-report-table .unit-col-position { width: 18% !important; }
+.unit-report-table .unit-col-position { width: 14% !important; }
+.unit-report-table .unit-col-note { width: 12% !important; }
 .unit-report-table .unit-col-guarantee { width: 5% !important; }
 .unit-report-table .unit-col-days { width: 4% !important; }
 .unit-report-table .unit-col-role-guarantee { width: 5% !important; }
 .unit-report-table .unit-col-work { width: 6% !important; }
 .unit-report-table .unit-col-performance-total { width: 6% !important; }
-.unit-report-table .unit-col-excess { width: 8% !important; }
-.unit-report-table .unit-col-rate { width: 6% !important; }
-.unit-report-table .unit-col-base-pay { width: 6% !important; }
-.unit-report-table .unit-col-payout { width: 7% !important; }
+.unit-report-table .unit-col-excess { width: 7% !important; }
+.unit-report-table .unit-col-rate { width: 5% !important; }
+.unit-report-table .unit-col-base-pay { width: 5% !important; }
+.unit-report-table .unit-col-payout { width: 6% !important; }
 .unit-report-table .unit-col-signature { width: 5% !important; }
-.unit-report-table .unit-col-date { width: 10% !important; }
+.unit-report-table .unit-col-date { width: 8% !important; }
+.unit-report-table td.unit-report-note { white-space: normal !important; overflow-wrap: anywhere !important; word-break: break-word !important; font-size: 7pt !important; text-align: left !important; vertical-align: top !important; }
 
 @media print {
   /* Repeat the column headings and start a fresh page before personnel row 21, 41, 61, ... */
