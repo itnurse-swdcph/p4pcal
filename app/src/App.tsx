@@ -1230,17 +1230,15 @@ function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, act
   const roleGuarantee = roleGuaranteeForPosition(position, positions, orgRole)
   const october2026 = String(month || '').slice(0, 7) === '2026-10'
   const rawActivityPoints = Math.max(0, Number(activityPoints || 0))
-  // เดือน ต.ค. 2569 จำกัดแต้มกิจกรรมแยกจากแต้มการันตีตามบทบาท
-  // เพื่อให้การ์ดแต้มปฏิบัติงาน/แต้มยืนยันแสดงไม่เกินเพดานเดียวกับยอดผลงานรวม
-  // Keep the individual and group reports aligned with p4p_calc person caps.
-  // Normal months: total performance is capped at 1.5x insurance.
-  // October 2569: special retrospective cap is insurance + 10 points.
-  const totalPerformanceCap = october2026 ? insurance + 10 : insurance * 1.5
+  // v_logs คำนวณและตัดเพดานรายบุคคลของเดือนตุลาคมไว้แล้ว
+  // ห้ามนำคะแนนที่ผ่านการตัดเพดานจากฐานข้อมูลมาตัดซ้ำในหน้าเว็บ
+  // เดือนอื่นยังใช้เพดานรวม 1.5 เท่าของแต้มประกันตามกติกาปกติ
+  const totalPerformanceCap = october2026 ? Number.POSITIVE_INFINITY : insurance * 1.5
   const activityCap = Math.max(0, totalPerformanceCap - roleGuarantee)
   const cappedActivityPoints = Math.min(rawActivityPoints, activityCap)
   const rawPerformance = rawActivityPoints + roleGuarantee
   const performance = Math.min(rawPerformance, totalPerformanceCap)
-  const excess = Math.min(Math.max(0, performance - insurance), october2026 ? 10 : insurance * 0.5)
+  const excess = Math.max(0, performance - insurance)
   return { insurance, roleGuarantee, activityPoints: cappedActivityPoints, performance, excess }
 }
 
