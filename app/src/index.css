@@ -1791,3 +1791,52 @@ table.activity-table td { font-size: .875rem !important; line-height: 1.35 !impo
 table.activity-table td.text-xs { font-size: .75rem !important; }
 table.activity-table tr:last-child td { border-bottom: 0; }
 
+
+
+/* Final typography and layout for the unit payment summary printout. */
+.unit-report-heading-row h1,
+.unit-report-heading-row .unit-report-subtitle {
+  font-size: 8.5pt !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  text-align: center !important;
+}
+.unit-report-heading-row h1 { margin: 0 0 1.2mm !important; }
+.unit-report-heading-row .unit-report-subtitle {
+  display: block !important;
+  margin: 0 !important;
+  white-space: normal !important;
+}
+.unit-report-table thead tr:not(.unit-report-heading-row) th {
+  font-weight: 400 !important;
+}
+.unit-report-approval-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 8mm;
+  margin-top: 8mm;
+  page-break-inside: avoid;
+  font-size: 8.5pt;
+  line-height: 1.45;
+}
+.unit-report-committee-sign { text-align: center; }
+.unit-report-approval-row .unit-report-approver {
+  margin: 0 !important;
+  text-align: center !important;
+  line-height: 1.45 !important;
+}
+@media print {
+  body.print-unit-report .unit-report-heading-row h1,
+  body.print-unit-report .unit-report-heading-row .unit-report-subtitle {
+    font-size: 8.5pt !important;
+    font-weight: 700 !important;
+  }
+  body.print-unit-report .unit-report-table thead tr:not(.unit-report-heading-row) th {
+    font-weight: 400 !important;
+  }
+  body.print-unit-report .unit-report-approval-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
