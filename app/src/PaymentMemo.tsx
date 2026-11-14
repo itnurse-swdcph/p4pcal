@@ -137,7 +137,13 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     setInitializing(true); setForm(null); setError('')
     try {
       const signers = await loadSignerDefaults()
-      setForm({ docNo: prefixData?.prefix || '', date: '', phone: prefixData?.phone || '', work: unitName || profile?.staff_group || '', group: groupName || profile?.nursing_group || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: defaultBodyText, ...fixedSigners, ...signers, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ', committeeRole: 'รักษาการหัวหน้าภารกิจด้านการพยาบาล' })
+      const initialWork = unitName || profile?.staff_group || ''
+      const initialGroup = groupName || profile?.nursing_group || ''
+      const initialBodyOffice = unitName
+        ? [officeUnitName(initialWork, 'งาน'), officeUnitName(initialGroup, 'กลุ่มงาน')].filter(Boolean).join(' ')
+        : officeUnitName(initialGroup, 'กลุ่มงาน')
+      const initialBodyText = [`ด้วย${initialBodyOffice || '................................'} ภารกิจด้านการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข`,`ประจำเดือน ${monthLabel(month)} จำนวนเงิน ${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${moneyText(n)}) ตามรายละเอียดที่แนบมาพร้อมนี้`].join(' ')
+      setForm({ docNo: prefixData?.prefix || '', date: '', phone: prefixData?.phone || '', work: initialWork, group: initialGroup, monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: initialBodyText, ...fixedSigners, ...signers, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ', committeeRole: 'รักษาการหัวหน้าภารกิจด้านการพยาบาล' })
       setAmountTextTouched(false)
     } catch (e: any) {
       setError(`โหลดข้อมูลผู้ลงนามไม่สำเร็จ: ${e?.message || 'กรุณาลองใหม่'}`)
