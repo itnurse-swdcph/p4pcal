@@ -1936,3 +1936,58 @@ table.activity-table tr:last-child td { border-bottom: 0; }
     text-indent: 24mm !important;
   }
 }
+
+
+/* ปรับตำแหน่งบล็อกอนุมัติตามข้อแก้ไขล่าสุด */
+.memo-paper .memo-approval-pair {
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) !important;
+  column-gap: 12mm !important;
+}
+.memo-paper .memo-approval-pair > .memo-approval:first-child {
+  min-width: 0;
+}
+.memo-paper .memo-approval-pair > .memo-approval:last-child {
+  margin-left: 4mm;
+}
+.memo-paper .memo-approval-heading {
+  white-space: nowrap !important;
+  overflow: visible !important;
+}
+.memo-paper .memo-approval-heading .memo-fit-wrap,
+.memo-paper .memo-approval-heading .memo-fit-inner {
+  display: inline !important;
+  width: auto !important;
+  white-space: nowrap !important;
+  transform: none !important;
+}
+.memo-paper .memo-final-approval {
+  margin-top: 8mm !important;
+  padding-top: 2mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.memo-paper .memo-final-approval .memo-approval-aside-stack {
+  margin-top: 7mm !important;
+}
+.memo-paper .memo-final-approval .memo-approver-sign {
+  margin-top: 2mm !important;
+}
+.memo-paper .memo-final-approval .memo-approver-sign .memo-sign-space {
+  height: 14mm !important;
+}
+@media print {
+  body.print-payment-memo .memo-paper .memo-approval-pair {
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) !important;
+    column-gap: 12mm !important;
+  }
+  body.print-payment-memo .memo-paper .memo-final-approval {
+    margin-top: 8mm !important;
+    padding-top: 2mm !important;
+  }
+  body.print-payment-memo .memo-paper .memo-final-approval .memo-approval-aside-stack {
+    margin-top: 7mm !important;
+  }
+  body.print-payment-memo .memo-paper .memo-final-approval .memo-approver-sign .memo-sign-space {
+    height: 14mm !important;
+  }
+}
