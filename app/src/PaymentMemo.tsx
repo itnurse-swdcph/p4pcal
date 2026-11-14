@@ -184,7 +184,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     : officeUnitName(form?.group, 'กลุ่มงาน')
   const officialLine = `โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน${officeName ? ` ${officeName}` : ''}${form?.phone ? ` โทร. ${form.phone}` : ''}`
   const setAmount = (value: string) => { setForm((old: any) => ({ ...old, amount: value, ...(!amountTextTouched ? { amountText: moneyText(Number(value)) } : {}) })) }
-  const defaultBodyText = [`ด้วย${bodyOfficeName || '................................'} กลุ่มการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข`,`ประจำเดือน ${form?.monthText || '................'} จำนวนเงิน ${money.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${form?.amountText || moneyText(money)}) ตามรายละเอียดที่แนบมาพร้อมนี้`].join(' ')
+  const defaultBodyText = [`ด้วย${bodyOfficeName || '................................'} ภารกิจด้านการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข`,`ประจำเดือน ${form?.monthText || '................'} จำนวนเงิน ${money.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${form?.amountText || moneyText(money)}) ตามรายละเอียดที่แนบมาพร้อมนี้`].join(' ')
   const textInput = (label: string, key: string, placeholder = '') => <label className="memo-field"><span>{label}</span><input value={form?.[key] ?? ''} onChange={e => { if (key === 'amountText') setAmountTextTouched(true); field(key, e.target.value) }} placeholder={placeholder} /></label>
   const signEdit = (label: string, nameKey: string, posKey: string, roleKey?: string) => <div className="memo-signer-fields"><b>{label}</b><div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{textInput('ชื่อ-สกุล', nameKey)}{textInput('ตำแหน่งวิชาชีพ', posKey)}{roleKey && <div className="sm:col-span-2">{textInput('ตำแหน่งบริหาร (บรรทัดต่อจากตำแหน่งวิชาชีพ)', roleKey)}</div>}</div></div>
   return <>
@@ -215,7 +215,19 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             </div>
             <div className="memo-line memo-subject"><b>เรื่อง</b><span className="memo-line-value"><ThaiText text="ขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน (ฉ.12)" /></span></div>
             <p className="memo-to"><b>เรียน</b> <ThaiText text="ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" /></p>
-            <div className="memo-body">{String(toThaiDigits(form.bodyText ?? defaultBodyText)).split('\n').map((line: string, i: number, all: string[]) => <span key={i} className={'memo-body-line' + (i < all.length - 1 && line.trim().length >= BODY_JUSTIFY_MIN_CHARS ? ' memo-body-line-flush' : '')}>{line || '\u00a0'}</span>)}</div>
+            <div className="memo-body">{String(toThaiDigits(form.bodyText ?? defaultBodyText)).replace(/กลุ่มการพยาบาล/g, 'ภารกิจด้านการพยาบาล').split('\n').map((line: string, i: number, all: string[]) => {
+              const boldParts = [\`${bodyOfficeName || '................................'} ภารกิจด้านการพยาบาล\`, \`ประจำเดือน ${form.monthText || '................'}\`, \`จำนวนเงิน ${money.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${form.amountText || moneyText(money)})\`]
+              const pieces: string[] = [line]
+              boldParts.forEach(bold => {
+                for (let p = 0; p < pieces.length; p++) {
+                  if (!pieces[p].includes(bold)) continue
+                  const split = pieces[p].split(bold)
+                  pieces.splice(p, 1, ...split.flatMap((part, n) => n < split.length - 1 ? [part, bold] : [part]))
+                  p += split.length - 1
+                }
+              })
+              return <span key={i} className={'memo-body-line' + (i < all.length - 1 && line.trim().length >= BODY_JUSTIFY_MIN_CHARS ? ' memo-body-line-flush' : '')}>{pieces.map((part, j) => boldParts.includes(part) ? <strong key={j}>{part}</strong> : part)}{!line ? '\u00a0' : null}</span>
+            })}</div>
             <p className="memo-closing">จึงเรียนมาเพื่อโปรดพิจารณา</p>
             <div className="memo-signers">
               <div>{unitName && !form.singleSigner ? <MemoSign name={form.authorName} position={form.authorPosition} role={form.authorRole} /> : null}</div>
@@ -223,10 +235,10 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             </div>
             <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว\nเห็นควรพิจารณาอนุมัติ" name={form.committeeName} position={form.committeePosition} role={form.committeeRole} />
             <div className="memo-approval-pair">
-              <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note={'ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว\nเห็นควรพิจารณาอนุมัติ'} name={form.directorName} position={form.directorPosition} />
+              <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.directorName} position={form.directorPosition} />
               <ApprovalBlock heading="เรียน รองผู้อำนวยการฝ่ายบริหาร" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.deputyName} position={form.deputyPosition} />
             </div>
-            <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณาอนุมัติ" name={form.adminName} position={form.adminPosition} aside={<><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ</span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" fitPosition /></>} />
+            <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.adminName} position={form.adminPosition} aside={<><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ</span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" fitPosition /></>} />
           </div></div>}
         </div>
       </div>
@@ -237,19 +249,14 @@ function MemoSign({ name, position, role = '', className = '', fitPosition = fal
 function ApprovalBlock({ heading, note, name, position, role = '', aside = null }: any) {
   return (
     <section className="memo-approval">
-      <p><ThaiText text={heading} /></p>
+      <p className="memo-approval-heading"><FitLine text={heading} /></p>
       {String(note).split('\n').map((line, index) => (
         <p key={index} className="memo-approval-note">
           {'\u00a0'.repeat(8)}- <ThaiText text={line} />
         </p>
       ))}
-      {aside
-        ? <div className="memo-approval-row">
-            <div><MemoSign name={name} position={position} role={role} /></div>
-            <div className="memo-approval-aside">{aside}</div>
-          </div>
-        : <MemoSign name={name} position={position} role={role} />}
+      <MemoSign name={name} position={position} role={role} />
+      {aside ? <div className="memo-approval-aside-stack">{aside}</div> : null}
     </section>
   )
 }
-
