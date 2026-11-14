@@ -1840,3 +1840,35 @@ table.activity-table tr:last-child td { border-bottom: 0; }
     grid-template-columns: 1fr 1fr !important;
   }
 }
+
+
+/* ลายเซ็นผู้อำนวยการและรองผู้อำนวยการให้อยู่บรรทัดเดียวกันในเอกสารบันทึกข้อความ */
+.memo-paper .memo-approval-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 8mm;
+  align-items: start;
+  width: 100%;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.memo-paper .memo-approval-pair > .memo-approval {
+  min-width: 0;
+  margin-top: 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.memo-paper .memo-approval-pair .memo-sign {
+  width: auto;
+  margin-left: 0;
+  margin-right: 0;
+}
+@media print {
+  body.print-payment-memo .memo-paper .memo-approval-pair {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    column-gap: 8mm !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
