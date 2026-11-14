@@ -85,22 +85,28 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const [open, setOpen] = useState(false)
   const [history, setHistory] = useState<any[]>([])
   const [busy, setBusy] = useState(false)
+  const [initializing, setInitializing] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState<any>(null)
   const [amountTextTouched, setAmountTextTouched] = useState(false)
   const prefixName = unitName || groupName
   const prefixData = useMemo(() => MEMO_PREFIXES.find(x => x.name === prefixName) || MEMO_PREFIXES.find(x => x.name === groupName), [prefixName, groupName])
   const loadHistory = async () => {
-    const { data, error: e } = await sb.from('p4p_payment_memos').select('*').eq('group_name', groupName).eq('month', `${month}-01`).order('updated_at', { ascending: false })
-    if (e) setError(e.message); else setHistory(data || [])
+    setHistoryLoading(true)
+    try {
+      const { data, error: e } = await sb.from('p4p_payment_memos').select('*').eq('group_name', groupName).eq('month', `${month}-01`).order('updated_at', { ascending: false })
+      if (e) setError(e.message); else setHistory(data || [])
+    } finally { setHistoryLoading(false) }
   }
   useEffect(() => { if (open) loadHistory() }, [open, groupName, month])
   const signerName = (d: any) => d?.full_name || `${d?.prefix || ''}${d?.first_name || ''} ${d?.last_name || ''}`.trim()
   const loadSignerDefaults = async () => {
-    const { data } = await sb.from('staff_directory')
+    const { data, error: loadError } = await sb.from('staff_directory')
       .select('prefix,first_name,last_name,position,org_role,unit_name,extra_unit_names,nursing_group,extra_nursing_group_names')
       .eq('active', true)
       .or('org_role.ilike.%หัวหน้างาน%,org_role.ilike.%หัวหน้ากลุ่มงาน%,org_role.ilike.%หัวหน้าพยาบาล%,org_role.ilike.%ภารกิจด้านการพยาบาล%')
+    if (loadError) throw loadError
     const people = data || []
     const includesName = (value: any, expected: string) => String(value || '').split(/[,;|]/).some(name => name.trim() === expected)
     const unitHead = unitName
@@ -128,9 +134,14 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   }
   const newMemo = async () => {
     const n = Number(amount || 0)
-    const signers = await loadSignerDefaults()
-    setForm({ docNo: prefixData?.prefix || '', date: '', phone: prefixData?.phone || '', work: unitName || profile?.staff_group || '', group: groupName || profile?.nursing_group || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: defaultBodyText, ...fixedSigners, ...signers, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ', committeeRole: 'รักษาการหัวหน้าภารกิจด้านการพยาบาล' })
-    setAmountTextTouched(false); setError('')
+    setInitializing(true); setForm(null); setError('')
+    try {
+      const signers = await loadSignerDefaults()
+      setForm({ docNo: prefixData?.prefix || '', date: '', phone: prefixData?.phone || '', work: unitName || profile?.staff_group || '', group: groupName || profile?.nursing_group || '', monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: defaultBodyText, ...fixedSigners, ...signers, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ', committeeRole: 'รักษาการหัวหน้าภารกิจด้านการพยาบาล' })
+      setAmountTextTouched(false)
+    } catch (e: any) {
+      setError(`โหลดข้อมูลผู้ลงนามไม่สำเร็จ: ${e?.message || 'กรุณาลองใหม่'}`)
+    } finally { setInitializing(false) }
   }
   const field = (key: string, value: any) => setForm((v: any) => ({ ...v, [key]: value }))
   const openHistory = (row: any) => {
@@ -188,13 +199,14 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const textInput = (label: string, key: string, placeholder = '') => <label className="memo-field"><span>{label}</span><input value={form?.[key] ?? ''} onChange={e => { if (key === 'amountText') setAmountTextTouched(true); field(key, e.target.value) }} placeholder={placeholder} /></label>
   const signEdit = (label: string, nameKey: string, posKey: string, roleKey?: string) => <div className="memo-signer-fields"><b>{label}</b><div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{textInput('ชื่อ-สกุล', nameKey)}{textInput('ตำแหน่งวิชาชีพ', posKey)}{roleKey && <div className="sm:col-span-2">{textInput('ตำแหน่งบริหาร (บรรทัดต่อจากตำแหน่งวิชาชีพ)', roleKey)}</div>}</div></div>
   return <>
-    <button type="button" className="btn sec" onClick={() => { setOpen(true); newMemo() }}><FilePlus2 size={16} className="inline mr-1 -mt-0.5" />บันทึกข้อความขออนุมัติจ่ายเงิน</button>
+    <button type="button" className="btn sec" onClick={() => { setOpen(true); void newMemo() }}><FilePlus2 size={16} className="inline mr-1 -mt-0.5" />บันทึกข้อความขออนุมัติจ่ายเงิน</button>
     {open && createPortal(<div className="memo-overlay no-print">
       <div className="memo-dialog">
         <header className="memo-head"><div><h2>บันทึกข้อความขออนุมัติจ่ายเงิน</h2><p>แก้ไขข้อมูลได้ และดูตัวอย่างเอกสาร A4 แบบเรียลไทม์</p></div><button className="btn sec" onClick={() => setOpen(false)}><X size={16} />ปิด</button></header>
         <div className="memo-workspace">
+          {initializing && <div className="memo-loading-overlay" role="status" aria-live="polite"><span className="memo-loading-spinner" />กำลังโหลดข้อมูลผู้ลงนามและเตรียมเอกสาร กรุณารอสักครู่…</div>}
           <aside className="memo-editor">
-            <div className="memo-action-row"><button type="button" className="btn" onClick={newMemo}><FilePlus2 size={15} />สร้างฉบับใหม่</button><button type="button" className="btn" disabled={busy} onClick={save}><Save size={15} />{busy ? 'กำลังบันทึก…' : 'บันทึกฉบับนี้'}</button><button type="button" className="btn sec" onClick={print}><Printer size={15} />พิมพ์ A4</button></div>
+            <div className="memo-action-row"><button type="button" className="btn" disabled={initializing} onClick={() => { void newMemo() }}><FilePlus2 size={15} />สร้างฉบับใหม่</button><button type="button" className="btn" disabled={busy} onClick={save}><Save size={15} />{busy ? 'กำลังบันทึก…' : 'บันทึกฉบับนี้'}</button><button type="button" className="btn sec" onClick={print}><Printer size={15} />พิมพ์ A4</button></div>
             {error && <p className="memo-error">{error}</p>}
             <section className="memo-section"><h3>ข้อมูลหนังสือและยอดเงิน</h3><div className="grid grid-cols-2 gap-2">{textInput('เลขที่หนังสือ (Prefix จากไฟล์)', 'docNo')}{textInput('โทรศัพท์', 'phone')}
               <label className="memo-field"><span>วันที่</span><input type="date" value={form?.date || ''} onChange={e => field('date', e.target.value)} /></label>
@@ -204,7 +216,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             </div><button type="button" className="memo-link" onClick={() => { setAmount(String(Number(amount || 0).toFixed(2))); setAmountTextTouched(false); field('amountText', moneyText(Number(amount || 0))) }}>ดึงยอดรวมล่าสุดจากรายงาน: {Number(amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</button>
               <label className="memo-field memo-body-editor"><span>เนื้อความในบันทึกข้อความ (แก้ไขและขึ้นบรรทัดใหม่ได้)</span><textarea rows={7} value={form?.bodyText ?? defaultBodyText} onChange={e => field('bodyText', e.target.value)} placeholder="พิมพ์เนื้อความที่ต้องการแสดงในบันทึกข้อความ" /></label></section>
             <section className="memo-section"><h3>ผู้จัดทำและผู้ตรวจสอบ</h3>{unitName ? (form?.singleSigner ? signEdit('ผู้ลงนาม (ลงชื่อฝั่งขวา)', 'groupHeadName', 'groupHeadPosition', 'groupHeadRole') : <>{signEdit('หัวหน้างาน (ลงชื่อฝั่งซ้าย)', 'authorName', 'authorPosition', 'authorRole')}{signEdit('หัวหน้ากลุ่มงาน (ลงชื่อฝั่งขวา)', 'groupHeadName', 'groupHeadPosition', 'groupHeadRole')}</>) : signEdit('หัวหน้ากลุ่มงาน (ผู้เสนอขออนุมัติ · ลงชื่อฝั่งขวา)', 'authorName', 'authorPosition', 'authorRole')}{signEdit('คณะกรรมการตรวจสอบค่าคะแนน', 'committeeName', 'committeePosition', 'committeeRole')}{signEdit('ผู้อำนวยการ · ตรวจสอบและเห็นควรอนุมัติ', 'directorName', 'directorPosition')}{signEdit('รองผู้อำนวยการฝ่ายบริหาร', 'deputyName', 'deputyPosition')}{signEdit('ผู้ตรวจสอบเอกสาร', 'adminName', 'adminPosition')}{signEdit('ผู้อนุมัติ', 'approverName', 'approverPosition')}</section>
-            <section className="memo-section"><h3><Clock3 size={15} className="inline mr-1" />ประวัติเอกสารของเดือนนี้</h3>{history.length ? <div className="memo-history">{history.map(row => <button key={row.id} type="button" className={'memo-history-item ' + (form?.id === row.id ? 'selected' : '')} onClick={() => openHistory(row)}><b>{row.doc_no || 'ไม่ระบุเลขที่'}</b><span>{row.memo_date ? dateThai(row.memo_date) : ''} · แก้ไขล่าสุด {row.updated_at ? new Date(row.updated_at).toLocaleString('th-TH') : ''}{Number(row.revision || 1) > 1 ? ` · รุ่น ${row.revision}` : ''}</span><span>{Number(row.amount ?? row.payload?.amount ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</span></button>)}</div> : <p className="text-xs text-stone-500">ยังไม่มีประวัติที่บันทึกไว้ในเดือนนี้</p>}</section>
+            <section className="memo-section"><h3><Clock3 size={15} className="inline mr-1" />ประวัติเอกสารของเดือนนี้</h3>{historyLoading ? <p className="text-xs text-stone-500">กำลังโหลดประวัติเอกสาร…</p> : history.length ? <div className="memo-history">{history.map(row => <button key={row.id} type="button" className={'memo-history-item ' + (form?.id === row.id ? 'selected' : '')} onClick={() => openHistory(row)}><b>{row.doc_no || 'ไม่ระบุเลขที่'}</b><span>{row.memo_date ? dateThai(row.memo_date) : ''} · แก้ไขล่าสุด {row.updated_at ? new Date(row.updated_at).toLocaleString('th-TH') : ''}{Number(row.revision || 1) > 1 ? ` · รุ่น ${row.revision}` : ''}</span><span>{Number(row.amount ?? row.payload?.amount ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท</span></button>)}</div> : <p className="text-xs text-stone-500">ยังไม่มีประวัติที่บันทึกไว้ในเดือนนี้</p>}</section>
           </aside>
           {form && <div className="memo-preview-wrap"><div className="memo-paper" lang="th">
             <div className="memo-letterhead"><img src="/garuda-emblem.png" alt="" className="memo-garuda" /><h1>บันทึกข้อความ</h1></div>
@@ -238,7 +250,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
               <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note={'ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว\nเห็นควรพิจารณาอนุมัติ'} name={form.directorName} position={form.directorPosition} />
               <ApprovalBlock heading="เรียน รองผู้อำนวยการฝ่ายบริหาร" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.deputyName} position={form.deputyPosition} />
             </div>
-            <ApprovalBlock className="memo-final-approval" heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.adminName} position={form.adminPosition} aside={<><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ</span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" fitPosition /></>} />
+            <ApprovalBlock className="memo-final-approval" heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.adminName} position={form.adminPosition} aside={<><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ&nbsp;.....</span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" fitPosition /></>} />
           </div></div>}
         </div>
       </div>
