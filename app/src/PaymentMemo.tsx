@@ -216,7 +216,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             <div className="memo-line memo-subject"><b>เรื่อง</b><span className="memo-line-value"><ThaiText text="ขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน (ฉ.12)" /></span></div>
             <p className="memo-to"><b>เรียน</b> <ThaiText text="ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" /></p>
             <div className="memo-body">{String(toThaiDigits(form.bodyText ?? defaultBodyText)).replace(/กลุ่มการพยาบาล/g, 'ภารกิจด้านการพยาบาล').split('\n').map((line: string, i: number, all: string[]) => {
-              const boldParts = [`${bodyOfficeName || '................................'} ภารกิจด้านการพยาบาล`, `ประจำเดือน ${form.monthText || '................'}`, `จำนวนเงิน ${money.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${form.amountText || moneyText(money)})`]
+              const boldParts = [toThaiDigits(`${bodyOfficeName || '................................'} ภารกิจด้านการพยาบาล`), toThaiDigits(`ประจำเดือน ${form.monthText || '................'}`), toThaiDigits(`จำนวนเงิน ${money.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${form.amountText || moneyText(money)})`)]
               const pieces: string[] = [line]
               boldParts.forEach(bold => {
                 for (let p = 0; p < pieces.length; p++) {
