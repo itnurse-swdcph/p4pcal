@@ -233,12 +233,12 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
               <div>{unitName && !form.singleSigner ? <MemoSign name={form.authorName} position={form.authorPosition} role={form.authorRole} /> : null}</div>
               <div><MemoSign name={unitName ? form.groupHeadName : form.authorName} position={unitName ? form.groupHeadPosition : form.authorPosition} role={unitName ? form.groupHeadRole : form.authorRole} /></div>
             </div>
-            <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว\nเห็นควรพิจารณาอนุมัติ" name={form.committeeName} position={form.committeePosition} role={form.committeeRole} />
+            <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.committeeName} position={form.committeePosition} role={form.committeeRole} />
             <div className="memo-approval-pair">
-              <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.directorName} position={form.directorPosition} />
+              <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note={'ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว\nเห็นควรพิจารณาอนุมัติ'} name={form.directorName} position={form.directorPosition} />
               <ApprovalBlock heading="เรียน รองผู้อำนวยการฝ่ายบริหาร" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.deputyName} position={form.deputyPosition} />
             </div>
-            <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.adminName} position={form.adminPosition} aside={<><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ</span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" fitPosition /></>} />
+            <ApprovalBlock className="memo-final-approval" heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.adminName} position={form.adminPosition} aside={<><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ</span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" fitPosition /></>} />
           </div></div>}
         </div>
       </div>
@@ -246,7 +246,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   </>
 }
 function MemoSign({ name, position, role = '', className = '', fitPosition = false }: any) { return <div className={`memo-sign ${className}`}><div className="memo-sign-space" aria-hidden="true" /><div>(<ThaiText text={name || '................................................'} />)</div><div>{fitPosition ? <FitLine text={position || 'ตำแหน่ง................................................'} /> : <ThaiText text={position || 'ตำแหน่ง................................................'} />}</div>{role && <div><ThaiText text={role} /></div>}</div> }
-function ApprovalBlock({ heading, note, name, position, role = '', aside = null }: any) {
+function ApprovalBlock({ heading, note, name, position, role = '', aside = null, className = '' }: any) {
   return (
     <section className="memo-approval">
       <p className="memo-approval-heading"><FitLine text={heading} /></p>
