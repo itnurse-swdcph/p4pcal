@@ -248,7 +248,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
 function MemoSign({ name, position, role = '', className = '', fitPosition = false }: any) { return <div className={`memo-sign ${className}`}><div className="memo-sign-space" aria-hidden="true" /><div>(<ThaiText text={name || '................................................'} />)</div><div>{fitPosition ? <FitLine text={position || 'ตำแหน่ง................................................'} /> : <ThaiText text={position || 'ตำแหน่ง................................................'} />}</div>{role && <div><ThaiText text={role} /></div>}</div> }
 function ApprovalBlock({ heading, note, name, position, role = '', aside = null, className = '' }: any) {
   return (
-    <section className={\`memo-approval \${className}\`}>
+    <section className={"memo-approval " + className}>
       <p className="memo-approval-heading"><ThaiText text={heading} /></p>
       {String(note).split('\n').map((line, index) => (
         <p key={index} className="memo-approval-note">
