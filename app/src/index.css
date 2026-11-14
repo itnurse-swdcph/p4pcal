@@ -1872,3 +1872,67 @@ table.activity-table tr:last-child td { border-bottom: 0; }
     page-break-inside: avoid !important;
   }
 }
+
+
+/* ปรับบันทึกข้อความตามแบบที่ตรวจจากภาพตัวอย่าง */
+.memo-paper .memo-closing {
+  text-indent: 24mm !important;
+  padding-left: 0 !important;
+}
+.memo-paper .memo-body-line strong {
+  font-weight: 700 !important;
+}
+.memo-paper .memo-approval-heading {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+}
+.memo-paper .memo-approval-heading .memo-fit-wrap {
+  display: block !important;
+  width: 100% !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+.memo-paper .memo-approval-heading .memo-fit-inner {
+  display: inline-block !important;
+  white-space: nowrap !important;
+}
+.memo-paper .memo-approval-aside-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin-top: 1mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.memo-paper .memo-approval-aside-stack .memo-decision-options {
+  display: flex;
+  justify-content: center;
+  gap: 12mm;
+  width: 100%;
+  margin: 0 0 1mm;
+}
+.memo-paper .memo-approval-aside-stack .memo-approver-sign {
+  width: 100% !important;
+  margin: 0 !important;
+  text-align: center !important;
+}
+.memo-paper .memo-approval-aside-stack .memo-approver-sign .memo-sign-space {
+  height: 0 !important;
+}
+@media print {
+  body.print-payment-memo .memo-paper .memo-approval-heading {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+  }
+  body.print-payment-memo .memo-paper .memo-approval-aside-stack {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  body.print-payment-memo .memo-paper .memo-closing {
+    text-indent: 24mm !important;
+  }
+}
