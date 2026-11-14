@@ -2082,7 +2082,8 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
     const payout = basePay + excess * unitRate
     const approvedDays = new Set(approved.map((r: any) => String(r.work_date || ''))).size
-    const insurancePay = allocation * 0.77
+    const reserveRate = month === '2026-10' ? 0 : 0.03
+    const insurancePay = allocation * (1 - reserveRate) * 0.77
     const extraPay = payout - insurancePay
     return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, performancePoints, roleGuarantee, excess, days, approvedDays, rate: unitRate, basePay, payout, insurancePay, extraPay, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
