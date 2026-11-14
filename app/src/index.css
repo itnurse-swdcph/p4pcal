@@ -2014,3 +2014,74 @@ table.activity-table tr:last-child td { border-bottom: 0; }
     margin-top: 2mm !important;
   }
 }
+
+
+/* ปรับเอกสารบันทึกข้อความตามภาพล่าสุด: ขยับรองผู้อำนวยการเข้าซ้าย
+   และลดพื้นที่ช่วงผู้อนุมัติเพื่อไม่ให้ลายเซ็นตกขอบหน้า */
+.memo-paper .memo-approval-pair {
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1.1fr) !important;
+  column-gap: 2mm !important;
+}
+.memo-paper .memo-approval-pair > .memo-approval:last-child {
+  margin-left: -2mm !important;
+}
+.memo-paper .memo-final-approval {
+  margin-top: 3mm !important;
+  padding-top: 1mm !important;
+}
+.memo-paper .memo-final-approval .memo-approval-aside-stack {
+  margin-top: 1mm !important;
+}
+.memo-paper .memo-final-approval .memo-approver-sign {
+  margin-top: .5mm !important;
+}
+.memo-paper .memo-final-approval .memo-approver-sign .memo-sign-space {
+  height: 7mm !important;
+}
+.memo-paper .memo-final-approval .memo-decision-options {
+  margin-bottom: .5mm !important;
+}
+.memo-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .7rem;
+  padding: 1.5rem;
+  background: rgba(255,255,255,.94);
+  color: #244458;
+  font-size: .95rem;
+  font-weight: 650;
+  text-align: center;
+}
+.memo-loading-spinner {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex: 0 0 auto;
+  border: 2px solid #cbd5e1;
+  border-top-color: #0f766e;
+  border-radius: 50%;
+  animation: memo-spin .75s linear infinite;
+}
+@keyframes memo-spin { to { transform: rotate(360deg); } }
+@media print {
+  body.print-payment-memo .memo-paper .memo-approval-pair {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1.1fr) !important;
+    column-gap: 2mm !important;
+  }
+  body.print-payment-memo .memo-paper .memo-approval-pair > .memo-approval:last-child {
+    margin-left: -2mm !important;
+  }
+  body.print-payment-memo .memo-paper .memo-final-approval {
+    margin-top: 3mm !important;
+    padding-top: 1mm !important;
+  }
+  body.print-payment-memo .memo-paper .memo-final-approval .memo-approval-aside-stack {
+    margin-top: 1mm !important;
+  }
+  body.print-payment-memo .memo-paper .memo-final-approval .memo-approver-sign .memo-sign-space {
+    height: 7mm !important;
+  }
+}
