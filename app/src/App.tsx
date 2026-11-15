@@ -2782,9 +2782,10 @@ function PayGroupsCard({ sb }: any) {
     { label: 'พยาบาลวิชาชีพหัวหน้างาน', guarantee: 1200, key: 'supervisor', roleGuarantee: 120 },
     { label: 'พยาบาลวิชาชีพ ผู้ปฏิบัติ', guarantee: 1200, key: 'staff', roleGuarantee: 0 },
   ]
-  const minimumPay = (g: any) => Number((Number(g.full_amount) * 0.77).toFixed(2))
+  const minimumPay = (g: any) => truncateMoney2(Number(g.full_amount || 0) * 0.97 * 0.77)
+  const thresholdPay = (g: any) => truncateMoney2(Number(g.full_amount || 0) * 0.97)
   return <div className="card xl:col-span-2 space-y-3">
-    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ยอดจ่ายขั้นต่ำ = 77% ของยอดจัดสรรต่อคน เมื่อคะแนนต่ำกว่าแต้มประกัน · เมื่อคะแนนถึงเกณฑ์จ่าย 97% · เงินกันเฉลี่ยคืน 3% และยกเลิกการกันเงินคุณภาพ</p></div>
+    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">เงินจ่ายขั้นต่ำ = (ยอดจัดสรรต่อคน − เงินกัน 3%) × 77% เมื่อคะแนนต่ำกว่าแต้มประกัน · เมื่อคะแนนถึงแต้มประกันได้รับ 97% ของยอดจัดสรร · คะแนนเกินได้รับเงินเพิ่มตามแต้ม</p></div>
     <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ / ประเภทบุคลากร</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>เงินจ่ายขั้นต่ำ (บาท)</th><th>แต้มการันตี</th><th>จัดการ</th></tr></thead>
       <tbody>{gs.map(g => {
         const rows = g.id === 1 ? groupOneRows : [{ label: g.name, guarantee: Number(g.guarantee), key: 'group' }]
@@ -2804,9 +2805,9 @@ function PayGroupsCard({ sb }: any) {
     {editing && draft && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="pay-group-edit-title">
       <div className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl space-y-4">
         <div className="flex items-start gap-3"><div className="flex-1"><h3 id="pay-group-edit-title" className="text-lg font-bold">แก้ไขรายละเอียดค่าตอบแทน</h3><p className="text-sm text-stone-600">{editing.row.label}</p></div><button type="button" className="btn sec" onClick={() => { setEditing(null); setDraft(null) }}>ปิด</button></div>
-        <div className="rounded-xl bg-stone-50 p-3 text-sm"><div><b>กลุ่มวิชาชีพ:</b> {editing.name}</div><div><b>แต้มประกันของแถวนี้:</b> {nf(editing.row.guarantee, 0)} แต้ม</div><div><b>แต้มการันตีตามบทบาท:</b> {nf(editing.row.roleGuarantee || 0, 0)} แต้ม</div><div><b>แต้มการันตีตามบทบาท:</b> {nf(editing.row.roleGuarantee || 0, 0)} แต้ม</div><div><b>เงินจ่ายขั้นต่ำ:</b> {nf(Number(draft.full_amount) * 0.77)} บาท</div><p className="mt-1 text-xs text-stone-500">การแก้ไขข้อมูลกลุ่มจะมีผลกับการคำนวณของกลุ่มวิชาชีพนี้</p></div>
+        <div className="rounded-xl bg-stone-50 p-3 text-sm"><div><b>กลุ่มวิชาชีพ:</b> {editing.name}</div><div><b>แต้มประกันของแถวนี้:</b> {nf(editing.row.guarantee, 0)} แต้ม</div><div><b>แต้มการันตีตามบทบาท:</b> {nf(editing.row.roleGuarantee || 0, 0)} แต้ม</div><div><b>แต้มการันตีตามบทบาท:</b> {nf(editing.row.roleGuarantee || 0, 0)} แต้ม</div><div><b>เงินจ่ายขั้นต่ำ:</b> {nf(minimumPay(draft))} บาท</div><div><b>เงินเมื่อถึงแต้มประกัน (97%):</b> {nf(thresholdPay(draft))} บาท</div><p className="mt-1 text-xs text-stone-500">การแก้ไขข้อมูลกลุ่มจะมีผลกับการคำนวณของกลุ่มวิชาชีพนี้</p></div>
         <div className="grid sm:grid-cols-2 gap-3">{fields.map(([k, label]) => <label key={k} className="field-label">{label}<input className="inp mt-1" type="number" min="0.01" step={k === 'rate' ? '0.001' : '0.01'} value={draft[k] ?? ''} onChange={e => setDraft({ ...draft, [k]: e.target.value })} /></label>)}</div>
-        <label className="field-label block">เงินจ่ายขั้นต่ำ (บาท)<input className="inp mt-1" type="number" min="0.01" step="0.01" value={Number((Number(draft.full_amount) * 0.77).toFixed(2))} readOnly /><span className="field-hint">คำนวณอัตโนมัติจากยอดจัดสรรต่อคน × 77%</span></label>
+        <label className="field-label block">เงินจ่ายขั้นต่ำ (บาท)<input className="inp mt-1" type="number" min="0.01" step="0.01" value={minimumPay(draft)} readOnly /><span className="field-hint">คำนวณอัตโนมัติ: (ยอดจัดสรรต่อคน − 3%) × 77%</span></label>
         <div className="flex justify-end gap-2"><button className="btn sec" disabled={busy} onClick={() => { setEditing(null); setDraft(null) }}>ยกเลิก</button><button className="btn" disabled={busy} onClick={save}>{busy ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button></div>
       </div>
     </div>}
