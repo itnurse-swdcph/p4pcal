@@ -25,7 +25,7 @@ const sheet = (sheetName: string, title: string, month: string, headers: string[
   colWidths: widths, freeze: { row: 3, col: 0 }
 })
 
-export default function P4PCommitteeExport({ open, onClose, onPrepare, month, units = [], lines = [], groups = [], statusRows = [], returnedPeopleByUnit }: any) {
+export default function P4PCommitteeExport({ open, onClose, onPrepare, month, units = [], lines = [], groups = [], statusRows = [], returnedPeopleByUnit, positions = [], scoreBreakdown, unitMeta = [], closed = false }: any) {
   const [selected, setSelected] = useState<ReportKey>('all')
   const [prepared, setPrepared] = useState<{ activityRows: any[]; auditHistory: any[] } | null>(null)
   const [preparing, setPreparing] = useState(false)
@@ -106,45 +106,63 @@ export default function P4PCommitteeExport({ open, onClose, onPrepare, month, un
       ],
       colWidths: [9, 30, 38, 13, 12, 16, 18, 22, 18], freeze: { row: 3, col: 0 }
     })
+    const round2 = (v: any) => Math.floor((Math.max(0, Number(v) || 0) + 1e-8) * 100) / 100
+    const eligible = (p: any) => !!p.eligible && Number(p.work_days ?? p.days ?? 1) > 0
     for (const { unit: u, tab } of tabs) {
-      const status = u.submissionStatus === 'returned' ? 'รอแก้ไข' : u.reviewed ? 'ตรวจแล้ว' : !u.submitted ? 'ยังไม่ส่งผลงาน' : u.ready ? 'พร้อมตรวจ' : 'ยังไม่พร้อม'
-      const reviewStatus = u.reviewed ? 'ตรวจแล้ว' : 'ยังไม่ตรวจ'
+      const unitName = String(u.name || '')
+      const groupName = String(u.group || '')
+      const reportLines = (u.lines || []).filter(eligible)
+      const prepared = reportLines.map((p: any) => {
+        const meta = unitMeta.find((x: any) => Number(x.id) === Number(p.unit_id ?? u.key)) || {}
+        const positionInfo = positions.find((x: any) => String(x.name || '').replace(/\\s+/g, '').trim() === String(p.position || '').replace(/\\s+/g, '').trim()) || {}
+        const scoring = typeof scoreBreakdown === 'function'
+          ? scoreBreakdown(p.position, positions, p.org_role, Number(p.points ?? p.counted ?? 0), month, meta.name || unitName)
+          : null
+        const payGroup = payGroupById.get(Number(p.pay_group ?? positionInfo.pay_group)) || {}
+        const insurancePoints = Number(scoring?.insurance ?? positionInfo.guarantee ?? payGroup.guarantee ?? 0)
+        const rolePoints = Number(scoring?.roleGuarantee ?? p.role_guarantee ?? p.roleGuarantee ?? 0)
+        const workPoints = Number(scoring?.activityPoints ?? p.activity_points ?? p.points ?? p.counted ?? 0)
+        const performancePoints = Number(scoring?.performance ?? p.performance_points ?? p.counted ?? (workPoints + rolePoints))
+        const excessPoints = Number(scoring?.excess ?? p.excess_points ?? Math.max(0, performancePoints - insurancePoints))
+        const allocation = Number(payGroup.full_amount || 0)
+        // ให้เหมือนเอกสารพิมพ์สรุปรายหน่วยงานทุกช่อง
+        const insurancePay = round2(allocation * 0.97 * 0.77)
+        const payout = Number(p.total || 0)
+        const extraPay = Math.max(0, payout - insurancePay)
+        return { p, insurancePoints, rolePoints, workPoints, performancePoints, excessPoints, insurancePay, extraPay, payout }
+      })
+      const sum = (key: string) => prepared.reduce((v: number, x: any) => v + Number(x[key] || 0), 0)
+      const pending = closed !== true
       const rows: XCell[][] = [
-        [{ v: `สรุปผลการจัดสรร · ${u.name}`, s: 'title' }],
-        [{ v: `กลุ่มงาน ${u.group} · เดือน${monthLabel(month)}`, s: 'subtitle' }],
-        ['ลำดับ','ชื่อ-สกุล','ตำแหน่งที่ปฏิบัติงาน','แต้มประกัน/เดือน','จำนวนเงินประกันต่อเดือน','แต้มการันตี','แต้มการปฏิบัติงาน','รวมผลการปฏิบัติงาน','แต้มที่ได้มากกว่าแต้มประกัน','จำนวนเงินที่ได้มากกว่าแต้มประกัน','จำนวนเงินตามผลงาน','จำนวนเงินที่ได้รับ'].map(x => cell(x, 'header')),
-        ...(u.lines || []).map((p: any, i: number) => {
-          const payGroup = payGroupById.get(Number(p.pay_group)) || {}
-          // counted คือแต้มหลังใช้เพดานรายบุคคลจาก p4p_alloc แล้ว
-          // ใช้ค่านี้ในรายงานแต้มทุกช่อง เพื่อไม่ให้แต้มดิบเกินเพดานหรือแสดงแต้มของผู้ไม่มีสิทธิ์
-          const counted = p.eligible ? Math.max(0, Number(p.counted ?? p.points ?? 0)) : 0
-          const guarantee = Number(p.guarantee || 0)
-          const excessPoints = p.eligible ? Math.max(0, counted - guarantee) : 0
-          return [
-            numericCell(i + 1, 'center'),
-            cell(p.name || p.person_name, 'labelStrong'),
-            cell(p.position),
-            scoreCell(payGroup.guarantee || 0),
-            numericCell(payGroup.full_amount || 0, 'money'),
-            scoreCell(guarantee),
-            scoreCell(counted),
-            scoreCell(counted),
-            scoreCell(excessPoints),
-            numericCell(p.extra || 0, 'money'),
-            numericCell(p.activity || 0, 'money'),
-            numericCell(p.total || 0, 'money')
-          ]
-        }),
+        [{ v: 'หลักฐานการจ่ายค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข/แบบสรุปผลการปฏิบัติงาน', s: 'title' }],
+        [{ v: `งาน${unitName.replace(/^งาน/, '')} กลุ่มงาน${groupName.replace(/^กลุ่มงาน/, '')} กลุ่มการพยาบาล ประจำเดือน ${monthLabel(month)}`, s: 'subtitle' }],
+        [{ v: 'ลำดับ', s: 'header' }, { v: 'ชื่อ-สกุล', s: 'header' }, { v: 'ตำแหน่งที่ปฏิบัติงาน', s: 'header' }, { v: 'แต้มประกัน/เดือน', s: 'header' }, { v: 'จำนวนเงินประกันต่อเดือน', s: 'header' }, { v: 'ผลการปฏิบัติงาน/เดือน', s: 'header' }, { v: '', s: 'header' }, { v: 'รวมผลการปฏิบัติงาน', s: 'header' }, { v: 'แต้มที่ได้มากกว่าแต้มประกัน', s: 'header' }, { v: 'จำนวนเงินที่ได้มากกว่าแต้มประกัน', s: 'header' }, { v: 'จำนวนเงินตามผลงาน', s: 'header' }, { v: 'จำนวนเงินที่ได้รับ', s: 'header' }, { v: 'ลายมือชื่อผู้รับเงิน', s: 'header' }, { v: 'วัน/เดือน/ปีที่ได้รับเงิน', s: 'header' }],
+        [{ v: '', s: 'header' }, { v: '', s: 'header' }, { v: '', s: 'header' }, { v: '', s: 'header' }, { v: '', s: 'header' }, { v: 'แต้มการันตี', s: 'header' }, { v: 'แต้มการปฏิบัติงาน', s: 'header' }, ...Array.from({ length: 7 }, () => ({ v: '', s: 'header' } as XCell))],
+        ...prepared.map((x: any, i: number) => [
+          numericCell(i + 1, 'center'), cell(x.p.name || x.p.person_name, 'labelStrong'), cell(x.p.position),
+          scoreCell(x.insurancePoints), numericCell(x.insurancePay, 'money'), scoreCell(x.rolePoints), scoreCell(x.workPoints),
+          scoreCell(x.performancePoints), scoreCell(x.excessPoints),
+          pending ? cell('รอผล', 'center') : numericCell(x.extraPay, 'money'),
+          pending ? cell('รอผล', 'center') : numericCell(x.insurancePay + x.extraPay, 'money'),
+          pending ? cell('รอผล', 'center') : numericCell(x.payout, 'money'),
+          cell(''), cell('')
+        ]),
         [
-          { v: 'รวมยอดหน่วยงาน', s: 'labelStrong' },
-          ...Array.from({ length: 9 }, () => ({ v: '', s: 'plain' } as XCell)),
-          numericCell((u.lines || []).reduce((sum: number, p: any) => sum + Number(p.extra || 0), 0), 'moneyStrong'),
-          numericCell((u.lines || []).reduce((sum: number, p: any) => sum + Number(p.activity || 0), 0), 'moneyStrong'),
-          numericCell(u.total || 0, 'moneyStrong')
+          { v: 'รวม', s: 'labelStrong' }, { v: '', s: 'plain' }, { v: '', s: 'plain' },
+          scoreCell(sum('insurancePoints')), numericCell(sum('insurancePay'), 'moneyStrong'),
+          scoreCell(sum('rolePoints')), scoreCell(sum('workPoints')), scoreCell(sum('performancePoints')), scoreCell(sum('excessPoints')),
+          pending ? cell('รอผล', 'center') : numericCell(sum('extraPay'), 'moneyStrong'),
+          pending ? cell('รอผล', 'center') : numericCell(sum('insurancePay') + sum('extraPay'), 'moneyStrong'),
+          pending ? cell('รอผล', 'center') : numericCell(sum('payout'), 'moneyStrong'),
+          cell(''), cell('')
         ],
-        [{ v: 'กลับไปสารบัญ', s: 'labelStrong', hyperlink: "'00_สารบัญ'!A1" }]
+        [{ v: `รวม ${pending ? 'รอผล' : sum('payout').toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' บาท'}`, s: 'labelStrong' }]
       ]
-      specs.push({ sheetName: tab, rows, colWidths: [9, 30, 30, 16, 22, 15, 18, 18, 22, 24, 22, 22], freeze: { row: 3, col: 0 } })
+      specs.push({
+        sheetName: tab, rows,
+        merges: ['A1:N1', 'A2:N2', 'F3:G3', 'A4:A3', 'B4:B3', 'C4:C3', 'D4:D3', 'E4:E3', 'H4:H3', 'I4:I3', 'J4:J3', 'K4:K3', 'L4:L3', 'M4:M3', 'N4:N3', `A${rows.length}:N${rows.length}`],
+        colWidths: [8, 30, 30, 16, 22, 15, 18, 18, 22, 24, 22, 22, 22, 18], freeze: { row: 4, col: 0 }
+      })
     }
   }
   const addSummary = (list: any[], name: string) => specs.push(sheet('01_สรุปหน่วยงาน', name, month,
