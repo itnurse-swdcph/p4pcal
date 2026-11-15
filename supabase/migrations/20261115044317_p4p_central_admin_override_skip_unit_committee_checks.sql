@@ -1,0 +1,2 @@
+-- The central-admin override's complete current implementation is consolidated in
+-- 20261115044057_p4p_central_admin_override_close_with_note.sql for fresh installs.
