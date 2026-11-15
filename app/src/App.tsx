@@ -658,7 +658,7 @@ function Main({ sb, session }: any) {
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
     {cur === 'settings' && <SettingsPage sb={sb} />}
-    {cur === 'funds' && <P4PFundManagement sb={sb} month={month} setMonth={setMonth} units={directoryUnits} isCentralAdmin={isCentralAdminAccount} canDecide={isCentralAdminAccount || role === 'committee'} />}
+    {cur === 'funds' && <P4PFundManagement sb={sb} month={month} setMonth={setMonth} units={directoryUnits} isCentralAdmin={isCentralAdminAccount} canDecide={isCentralAdminAccount || role === 'committee'} canRequest={isCentralAdminAccount || isHeadRole} />}
     {cur === 'activities' && <ActivityLibrary myLine={positions.find((x: any) => x.name === profile.position)?.grp} seeAll={role !== 'staff'} sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
     {cur === 'audit' && <P4PCommitteePage sb={sb} month={month} setMonth={setMonth} isAdmin={role === 'admin'} isCentralAdminAccount={isCentralAdminAccount} currentUserId={session.user.id} PrintSheet={PrintSheet} appUnits={units} appPositions={positions} scoreBreakdown={scoreBreakdown} openEvidence={openEvidence} />}
       </main>
