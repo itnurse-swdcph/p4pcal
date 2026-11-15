@@ -1318,7 +1318,7 @@ function ActivitySummary({ sb, rows, person, positions, month, units = [] }: any
         {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!paymentEligible ? 'ไม่มีสิทธิ์รับเงินตามจำนวนวันทำการที่ได้รับการรับรอง · ยอดเงิน 0 บาท' : !closed ? 'เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังคณะกรรมการ P4P อนุมัติครบและปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · อัตรา {nf(payoutResult.rate_per_point, 2)} บาท/แต้ม</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
       </div>)}
     </div>
-    <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: จำนวนเงินตามผลงานเป็นยอดประมาณการจากคะแนนที่บันทึกไว้ (รวมรายการรอรับรอง) โดยใช้เกณฑ์ 97% หรือ 77%; เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังปิดงวด</p>
+    <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: จำนวนเงินตามผลงานเป็นยอดประมาณการจากคะแนนที่บันทึกไว้ (รวมรายการรอรับรอง) เดือนปกติคิดจาก (เงินรายหัว − 3%) × 77% เมื่อแต้มต่ำกว่าเกณฑ์ และ 97% เมื่อแต้มถึงเกณฑ์; เดือนตุลาคม 2569 ใช้หลักเกณฑ์เฉพาะ เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังปิดงวด</p>
   </div>
 }
 function Totals({ rows, people, positions }: any) {
