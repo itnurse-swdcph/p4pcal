@@ -3,13 +3,14 @@ import { Download, FileSpreadsheet, X } from 'lucide-react'
 import { downloadXlsxWorkbook, type SheetSpec, type XCell } from './committee/xlsxExport'
 import { monthLabel } from './committee/utils'
 
-type ReportKey = 'all' | 'ready' | 'returned' | 'notready' | 'checked'
+type ReportKey = 'all' | 'ready' | 'returned' | 'notready' | 'checked' | 'allocation'
 const REPORTS: { key: ReportKey; label: string; detail: string }[] = [
   { key: 'all', label: 'รายงานทั้งหมด', detail: 'ทุกหน่วยงานและสถานะล่าสุด พร้อมประวัติแยกต่างหาก' },
   { key: 'ready', label: 'พร้อมตรวจ', detail: 'หน่วยงานที่ส่งผลงานครบและไม่มีรายการค้างรับรอง' },
   { key: 'returned', label: 'รอแก้ไข', detail: 'ผู้ถูกส่งกลับและรายการที่ยังอยู่ระหว่างแก้ไข แยกแท็บตามหน่วยงาน' },
   { key: 'notready', label: 'ยังไม่พร้อม', detail: 'ผู้ยังไม่ส่งผลงานและผู้ที่ยังค้างรับรอง แยกประเภท' },
   { key: 'checked', label: 'ตรวจแล้ว', detail: 'เฉพาะหน่วยงานที่กรรมการตรวจครบทุกคนและทุกรายการ' },
+  { key: 'allocation', label: 'ผลการจัดสรรเพื่อเผยแพร่บุคลากร', detail: 'สรุปผลตามตารางสรุปหน่วยงาน แยกชีตหน่วยงาน พร้อมสารบัญกดไปยังแต่ละหน่วยงาน' },
 ]
 const cell = (v: any, s: XCell['s'] = 'label'): XCell => ({ v: v == null ? '' : String(v), s })
 const dateTH = (v: any) => v ? new Date(String(v).length === 10 ? `${v}T00:00:00` : v).toLocaleDateString('th-TH') : '—'
@@ -34,7 +35,7 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
     const returned = units.filter((u: any) => u.submissionStatus === 'returned' || (returnedPeopleByUnit?.get(u.key) || []).length)
     const notready = units.filter((u: any) => !u.reviewed && u.submissionStatus !== 'returned' && (!u.submitted || Number(u.pending || 0) > 0))
     const checked = units.filter((u: any) => !!u.reviewed)
-    return { all: units.length, ready: ready.length, returned: returned.length, notready: notready.length, checked: checked.length }
+    return { all: units.length, ready: ready.length, returned: returned.length, notready: notready.length, checked: checked.length, allocation: units.length }
   }, [units, returnedPeopleByUnit])
   if (!open) return null
 
@@ -59,13 +60,64 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
   const notReadyUnits = units.filter((u: any) => !u.reviewed && u.submissionStatus !== 'returned' && (!u.submitted || Number(u.pending || 0) > 0))
   const checkedUnits = units.filter((u: any) => !!u.reviewed)
   const specs: SheetSpec[] = []
+  const safeTabName = (raw: string, used: Set<string>) => {
+    const base = raw.replace(/[\\\\/?*:[\\]]/g, ' ').trim().slice(0, 31) || 'หน่วยงาน'
+    let name = base, n = 2
+    while (used.has(name.toLowerCase())) { const suffix = ` (${n++})`; name = base.slice(0, 31 - suffix.length) + suffix }
+    used.add(name.toLowerCase())
+    return name
+  }
+  const addAllocationReport = () => {
+    const used = new Set<string>(['00_สารบัญ'])
+    const tabs = units.map((u: any) => ({ unit: u, tab: safeTabName(`U${u.key}_${u.name}`, used) }))
+    const indexRows: XCell[][] = [
+      [{ v: 'ลำดับ', s: 'header' }, { v: 'กลุ่มงาน', s: 'header' }, { v: 'หน่วยงาน', s: 'header' }, { v: 'บุคลากร', s: 'header' }, { v: 'มีสิทธิ์', s: 'header' }, { v: 'ถึงแต้มประกัน', s: 'header' }, { v: 'ต่ำกว่าแต้มประกัน', s: 'header' }, { v: 'ยอดจัดสรร (บาท)', s: 'header' }, { v: 'เปิดชีต', s: 'header' }],
+      ...tabs.map(({ unit: u, tab }: any, i: number) => [
+        cell(i + 1, 'center'), cell(u.group), cell(u.name, 'labelStrong'), cell(u.lines?.length || 0, 'int'),
+        cell(u.eligible || 0, 'int'), cell(u.reached || 0, 'int'), cell(u.below || 0, 'int'),
+        { v: Number(u.total || 0), s: 'moneyStrong' } as XCell,
+        { v: 'ดูรายละเอียด', s: 'labelStrong', hyperlink: `'${tab.replace(/'/g, "''")}'!A1` } as XCell
+      ])
+    ]
+    specs.push({
+      sheetName: '00_สารบัญ',
+      rows: [
+        [{ v: 'รายงานผลการจัดสรรค่าตอบแทน P4P เพื่อเผยแพร่บุคลากร', s: 'title' }],
+        [{ v: `โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน · เดือน${monthLabel(month)} · คลิกชื่อหน่วยงานหรือ “ดูรายละเอียด” เพื่อเปิดชีต`, s: 'subtitle' }],
+        ...indexRows
+      ],
+      colWidths: [9, 30, 38, 13, 12, 16, 18, 22, 18], freeze: { row: 3, col: 0 }
+    })
+    for (const { unit: u, tab } of tabs) {
+      const status = u.submissionStatus === 'returned' ? 'รอแก้ไข' : u.reviewed ? 'ตรวจแล้ว' : !u.submitted ? 'ยังไม่ส่งผลงาน' : u.ready ? 'พร้อมตรวจ' : 'ยังไม่พร้อม'
+      const reviewStatus = u.reviewed ? 'ตรวจแล้ว' : 'ยังไม่ตรวจ'
+      const rows = [
+        [{ v: `สรุปผลการจัดสรร · ${u.name}`, s: 'title' }],
+        [{ v: `กลุ่มงาน ${u.group} · เดือน${monthLabel(month)}`, s: 'subtitle' }],
+        ['ลำดับ','ชื่อ-นามสกุล','ตำแหน่ง','แต้มกิจกรรม','คะแนนรวม','มีสิทธิ์','สถานะแต้มประกัน','ยอดจัดสรร (บาท)','สถานะส่งผลงาน','สถานะตรวจ'].map(x => cell(x, 'header')),
+        ...(u.lines || []).map((p: any, i: number) => [
+          cell(i + 1, 'center'), cell(p.name || p.person_name, 'labelStrong'), cell(p.position),
+          cell(Number(p.activity || 0), 'rate'), cell(Number(p.counted || 0), 'rate'),
+          cell(p.eligible ? 'มีสิทธิ์' : 'ไม่มีสิทธิ์'),
+          cell(!p.eligible ? 'ไม่มีสิทธิ์' : p.below ? 'ต่ำกว่าแต้มประกัน' : 'ถึงแต้มประกัน'),
+          { v: Number(p.total || 0), s: 'money' } as XCell,
+          cell(status), cell(reviewStatus)
+        ]),
+        [{ v: 'รวมยอดจัดสรรหน่วยงาน', s: 'labelStrong' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }, { v: Number(u.total || 0), s: 'moneyStrong' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }],
+        [{ v: 'กลับไปสารบัญ', s: 'labelStrong', hyperlink: "'00_สารบัญ'!A1" }]
+      ]
+      specs.push({ sheetName: tab, rows, colWidths: [9, 30, 28, 15, 15, 12, 22, 22, 22, 18], freeze: { row: 3, col: 0 } })
+    }
+  }
   const addSummary = (list: any[], name: string) => specs.push(sheet('01_สรุปหน่วยงาน', name, month,
     ['กลุ่มงาน', 'หน่วยงาน', 'บุคลากร', 'มีสิทธิ์', 'ค้างรับรอง', 'รับรองแล้ว', 'ไม่รับรอง', 'สถานะส่งผลงาน', 'สถานะตรวจ'], unitRows(list), [30, 34, 12, 12, 14, 14, 14, 22, 18]))
   const addPeople = (list: any[], name: string) => specs.push(sheet('02_รายละเอียดบุคลากร', name, month,
     ['กลุ่มงาน', 'หน่วยงาน', 'ชื่อ-นามสกุล', 'ตำแหน่ง', 'แต้มกิจกรรม', 'คะแนนรวม', 'รอรับรอง', 'รับรองแล้ว', 'ไม่รับรอง', 'สถานะหน่วยงาน'], peopleRows(list), [28, 32, 30, 28, 14, 14, 12, 12, 12, 22]))
   const addActivities = (list: any[], name: string, sheetName = '03_รายละเอียดกิจกรรม') => specs.push(sheet(sheetName, name, month,
     ['กลุ่มงาน', 'หน่วยงาน', 'ชื่อเจ้าหน้าที่', 'ตำแหน่ง', 'วันที่', 'รหัสกิจกรรม', 'ชื่อกิจกรรม', 'จำนวน', 'คะแนน', 'สถานะล่าสุด', 'เหตุผล'], activityExportRows(list), [28, 32, 30, 26, 16, 16, 42, 12, 12, 18, 48]))
-  if (selected === 'all') {
+  if (selected === 'allocation') {
+    addAllocationReport()
+  } else if (selected === 'all') {
     specs.push(sheet('00_ภาพรวม', 'ภาพรวมสถานะ P4P ทุกหน่วยงาน', month, ['สถานะ', 'จำนวนหน่วยงาน'], [
       ['พร้อมตรวจ', readyUnits.length], ['รอแก้ไข', returnedUnits.length], ['ยังไม่พร้อม', notReadyUnits.length], ['ตรวจแล้ว', checkedUnits.length], ['ทั้งหมด', allUnits.length]
     ], [32, 20]))
