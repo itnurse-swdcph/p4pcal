@@ -2503,6 +2503,15 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     {logsState.error && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800" role="alert"><div className="font-semibold">โหลดรายการกิจกรรมไม่สำเร็จ</div><div className="mt-1 break-words">{logsState.error}</div><button type="button" className="btn sec mt-2" onClick={reload}>ลองโหลดอีกครั้ง</button></div>}
     {month === '2026-10' && octoberPayoutLines === null && <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800" role="status">กำลังโหลดผลจัดสรรเงินเดือนตุลาคมจากฐานข้อมูล…</div>}
     {month === '2026-10' && !!octoberPayoutError && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800" role="alert">ไม่สามารถอ่านผลจัดสรรเงินเดือนตุลาคมได้ จึงปิดการพิมพ์รายงานชั่วคราวเพื่อป้องกันยอดคลาดเคลื่อน: {octoberPayoutError}</div>}
+    {certificationOnly && <div className="space-y-3">
+      <div className="card space-y-3">
+        <div><h2 className="text-lg font-bold">รายการกิจกรรมที่รอรับรอง</h2><p className="text-sm text-stone-600">หน่วยงาน {unitName || '—'} · ประจำเดือน {monthText} · แสดงเฉพาะรายการที่อยู่ในขอบเขตสิทธิ์รับรองของบัญชีนี้</p></div>
+        <input className="inp w-full" type="search" value={certificationSearch} onChange={e => setCertificationSearch(e.target.value)} placeholder="ค้นหาชื่อเจ้าหน้าที่หรือผู้บันทึก" />
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span>บุคลากรในหน่วยงาน {roster.length.toLocaleString('th-TH')} คน · รายการที่คุณรับรองได้ {certificationRows.length.toLocaleString('th-TH')} รายการ</span><button type="button" className="btn sec" onClick={() => setCertificationSearch('')}>ล้างคำค้นหา</button></div>
+        {!logsState.loading && !logsState.error && certificationRows.length === 0 && <p className="rounded-lg bg-stone-50 p-3 text-sm text-stone-600">ไม่พบรายการกิจกรรมที่รอรับรองในขอบเขตสิทธิ์ของคุณ</p>}
+      </div>
+      <LogTable sb={sb} rows={certificationRows} reload={reload} canApprove={true} acts={acts} positions={positions} people={roster} month={month} />
+    </div>}
     {!certificationOnly && <>
       {!reportOnly && <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         {stat('บุคลากร', roster.length)}{stat('รายการไม่นับแต้ม', rows.filter((r: any) => r.errors.length).length)}{stat('รายการต้องตรวจทาน', rows.filter((r: any) => r.warnings.length).length)}
