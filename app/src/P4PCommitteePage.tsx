@@ -365,7 +365,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       {tab === 'roster' && isAdmin && <RosterAdmin sb={sb} members={members} roster={roster} version={version} busy={busy} runAction={runAction} setError={setError} />}
     </>}
 
-    <P4PCommitteeExport open={exportOpen} onClose={() => setExportOpen(false)} onPrepare={prepareExportReport} month={month} units={overviewUnits} lines={linesWithOrg} groups={groups} statusRows={statusRows} returnedPeopleByUnit={returnedPeopleByUnit} />
+    <P4PCommitteeExport open={exportOpen} onClose={() => setExportOpen(false)} onPrepare={prepareExportReport} month={month} units={overviewUnits} lines={linesWithOrg} groups={groups} statusRows={statusRows} returnedPeopleByUnit={returnedPeopleByUnit} positions={appPositions} scoreBreakdown={scoreBreakdown} unitMeta={unitsMeta} closed={!!viewCalc?.closed} />
 
     {panel && <ActivityPanel sb={sb} monthDate={monthDate} person={panel.person} randomUnitId={panel.randomUnitId} canAudit={canAudit} lockedReason={lockedReason} PrintSheet={PrintSheet} units={appUnits} positions={appPositions} scoreBreakdown={scoreBreakdown} openEvidence={openEvidence}
       onClose={() => setPanel(null)} onChanged={refresh} />}
