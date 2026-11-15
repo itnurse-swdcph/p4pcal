@@ -28,6 +28,7 @@ type Col = {
   extraPaid: number
   sumExcess: number
   rate: number
+  guarantee: number
   carryOut: number
   balanceDiff: number
 }
@@ -60,7 +61,7 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
         commonPool: reserve + belowDiff,
         poolDistributable: Number(g.pool_extra || 0),
         activityPaid, extraPaid, sumExcess: Number(g.sum_excess || 0),
-        rate: Number(g.rate_per_point || 0), carryOut,
+        rate: Number(g.rate_per_point || 0), guarantee: Number(g.guarantee || 0), carryOut,
         // เงินผู้ไม่มีสิทธิ์ที่ยังไม่ถูกจัดสรรคงแยกไว้ ไม่ปะปนกับเงินกองกลางปกติ
         balanceDiff: total100 + carryIn - (activityPaid + extraPaid + carryOut + ineligibleRemaining),
       }
@@ -79,6 +80,7 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       sumExcess: sum(perGroup.map(c => c.sumExcess)),
       // อัตราเฉลี่ยถ่วงน้ำหนัก = เงินกองกลางที่นำไปแบ่งของกลุ่มที่มีแต้มส่วนเกิน / แต้มส่วนเกินรวม
       rate: (() => { const ex = sum(perGroup.map(c => c.sumExcess)); return ex > 0 ? sum(perGroup.filter(c => c.sumExcess > 0).map(c => c.poolDistributable)) / ex : 0 })(),
+      guarantee: 0,
       carryOut: sum(perGroup.map(c => c.carryOut)), balanceDiff: sum(perGroup.map(c => c.balanceDiff)),
     }
     return [all, ...perGroup]
@@ -116,6 +118,7 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       { label: 'รวมจัดสรรและยกไป', kind: 'money', strong: true, hint: 'ควรเท่ากับ วงเงิน 100% + เงินยกยอด', get: c => r2(c.activityPaid + c.extraPaid + c.carryOut) },
     ] },
     { code: 'ง', title: 'เกณฑ์การแบ่งเงินเพิ่ม', rows: [
+      { label: 'แต้มประกันของกลุ่ม (คะแนน)', kind: 'int', hint: 'กลุ่ม 5 กำหนด 960 คะแนน', get: c => c.key === 'all' ? null : c.guarantee },
       { label: 'ผู้ที่คะแนนไม่ถึงเกณฑ์ (คน)', kind: 'int', get: c => c.nBelow },
       { label: 'ผู้ที่คะแนนเกินเกณฑ์ (คน)', kind: 'int', get: c => c.nAbove },
       { label: 'แต้มส่วนเกินรวม', kind: 'money', get: c => r2(c.sumExcess) },
