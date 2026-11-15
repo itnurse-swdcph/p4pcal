@@ -21,8 +21,11 @@ const sheet = (sheetName: string, title: string, month: string, headers: string[
   colWidths: widths, freeze: { row: 3, col: 0 }
 })
 
-export default function P4PCommitteeExport({ open, onClose, month, units = [], lines = [], statusRows = [], activityRows = [], auditHistory = [], returnedPeopleByUnit }: any) {
+export default function P4PCommitteeExport({ open, onClose, onPrepare, month, units = [], lines = [], statusRows = [], returnedPeopleByUnit }: any) {
   const [selected, setSelected] = useState<ReportKey>('all')
+  const [prepared, setPrepared] = useState<{ activityRows: any[]; auditHistory: any[] } | null>(null)
+  const [preparing, setPreparing] = useState(false)
+  const [prepareError, setPrepareError] = useState('')
   const unitByKey = useMemo(() => new Map(units.map((u: any) => [Number(u.key), u])), [units])
   const personById = useMemo(() => new Map(lines.map((p: any) => [String(p.id), p])), [lines])
   const getPerson = (row: any) => personById.get(String(row.person_id)) || lines.find((p: any) => String(p.staff_directory_id) === String(row.staff_directory_id)) || {}
@@ -39,6 +42,8 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
     return { all: units.length, ready: ready.length, returned: returned.length, notready: notready.length, checked: checked.length, allocation: units.length }
   }, [units, returnedPeopleByUnit])
   if (!open) return null
+  const activityRows = prepared?.activityRows || []
+  const auditHistory = prepared?.auditHistory || []
 
   const unitRows = (list: any[]) => list.map((u: any) => [
     u.group, u.name, u.lines?.length || 0, u.eligible || 0, u.pending || 0, u.approved || 0, u.rejected || 0,
@@ -167,19 +172,35 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
       }).filter(Boolean), [22, 30, 16, 24, 16, 16, 50]))
   }
   const count = counts[selected]
-  const exportReport = () => downloadXlsxWorkbook(specs, `P4P_${REPORTS.find(r => r.key === selected)?.label}_${month}.xlsx`)
+  const exportReport = async () => {
+    if (!prepared) {
+      setPreparing(true)
+      setPrepareError('')
+      try {
+        const result = await onPrepare(selected)
+        setPrepared(result || { activityRows: [], auditHistory: [] })
+      } catch (e: any) {
+        setPrepareError(e?.message || 'เตรียมข้อมูลรายงานไม่สำเร็จ กรุณาลองใหม่')
+      } finally {
+        setPreparing(false)
+      }
+      return
+    }
+    downloadXlsxWorkbook(specs, `P4P_${REPORTS.find(r => r.key === selected)?.label}_${month}.xlsx`)
+  }
   const current = REPORTS.find(r => r.key === selected)!
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-3" role="dialog" aria-modal="true" aria-label="Export รายงาน P4P">
     <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
       <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-lg font-bold"><FileSpreadsheet className="text-emerald-700"/>Export รายงาน P4P</div><button type="button" className="btn sec !px-2" onClick={onClose} aria-label="ปิด"><X size={17}/></button></div>
       <p className="mt-1 text-sm text-stone-500">ประจำเดือน{monthLabel(month)} · Excel (.xlsx)</p>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">{REPORTS.map(r => <button key={r.key} type="button" onClick={() => setSelected(r.key)} className={`rounded-lg border p-3 text-left ${selected === r.key ? 'border-teal-700 bg-teal-50 ring-1 ring-teal-700' : 'border-stone-200 hover:bg-stone-50'}`}><span className="font-semibold">{r.label}</span><span className="mt-1 block text-xs text-stone-600">{r.detail}</span></button>)}</div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">{REPORTS.map(r => <button key={r.key} type="button" onClick={() => { setSelected(r.key); setPrepared(null); setPrepareError('') }} className={`rounded-lg border p-3 text-left ${selected === r.key ? 'border-teal-700 bg-teal-50 ring-1 ring-teal-700' : 'border-stone-200 hover:bg-stone-50'}`}><span className="font-semibold">{r.label}</span><span className="mt-1 block text-xs text-stone-600">{r.detail}</span></button>)}</div>
       <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-4">
         <div className="flex items-center justify-between"><b>ตัวอย่างรายงาน: {current.label}</b><span className="text-sm tabular-nums text-stone-600">{count} หน่วยงาน</span></div>
-        <p className="mt-1 text-sm text-stone-600">ระบบจะสร้าง {specs.length} แท็บ ตามรายละเอียดของรายงานที่เลือก</p>
+        <p className="mt-1 text-sm text-stone-600">{prepared ? `เตรียมข้อมูลแล้ว · สร้าง ${specs.length} แท็บตามรายงานที่เลือก` : 'เลือกประเภทรายงานก่อน แล้วกดเตรียมข้อมูลเพื่อเริ่มดึงเฉพาะข้อมูลที่จำเป็น'}</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{specs.map(s => <li key={s.sheetName}>{s.sheetName}</li>)}</ul>
       </div>
-      <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className="btn sec" onClick={onClose}>ยกเลิก</button><button type="button" className="btn" onClick={exportReport}><Download size={16}/>ดาวน์โหลด Excel</button></div>
+      {prepareError && <p role="alert" className="mt-3 text-sm text-red-700">{prepareError}</p>}
+      <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className="btn sec" onClick={onClose}>ยกเลิก</button><button type="button" className="btn" disabled={preparing} onClick={exportReport}>{preparing ? <><Download size={16}/>กำลังเตรียมข้อมูล…</> : prepared ? <><Download size={16}/>ดาวน์โหลด Excel</> : <><Download size={16}/>เตรียมรายงานที่เลือก</>}</button></div>
     </div>
   </div>
 }
