@@ -114,8 +114,9 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
     { code: 'ค', title: 'ยอดจัดสรร', rows: [
       { label: 'เงินจ่ายตามผลการปฏิบัติงาน', kind: 'money', get: c => r2(c.activityPaid) },
       { label: 'เงินเพิ่มจากแต้มส่วนเกิน', kind: 'money', get: c => r2(c.extraPaid) },
+      { label: 'เงินผู้ไม่มีสิทธิ์คงเหลือแยกไว้', kind: 'money', get: c => r2(c.ineligibleRemaining) },
       { label: 'เงินเหลือยกไปเดือนถัดไป', kind: 'money', get: c => r2(c.carryOut) },
-      { label: 'รวมจัดสรรและยกไป', kind: 'money', strong: true, hint: 'ควรเท่ากับ วงเงิน 100% + เงินยกยอด', get: c => r2(c.activityPaid + c.extraPaid + c.carryOut) },
+      { label: 'รวมจัดสรร แยกเงินผู้ไม่มีสิทธิ์ และยกไป', kind: 'money', strong: true, hint: 'ควรเท่ากับวงเงิน 100% + เงินยกยอด', get: c => r2(c.activityPaid + c.extraPaid + c.ineligibleRemaining + c.carryOut) },
     ] },
     { code: 'ง', title: 'เกณฑ์การแบ่งเงินเพิ่ม', rows: [
       { label: 'แต้มประกันของกลุ่ม (คะแนน)', kind: 'int', hint: 'กลุ่ม 5 กำหนด 960 คะแนน', get: c => c.key === 'all' ? null : c.guarantee },
