@@ -163,7 +163,7 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
                 <td className="border-b px-3 py-2"><b>{p.name}</b><span className="block text-xs text-stone-500">{p.position || '—'}</span></td>
                 <td className="border-b px-3 py-2 text-right tabular-nums">{Number(p.insurance_points || 0).toLocaleString('th-TH')}</td>
                 <td className="border-b px-3 py-2 text-right tabular-nums">{Number(p.role_points || 0).toLocaleString('th-TH')}</td>
-                <td className="border-b px-3 py-2 text-right font-semibold tabular-nums">{Number(p.performance_points || 0).toLocaleString('th-TH', {maximumFractionDigits:2})}</td>
+                <td className="border-b px-3 py-2 text-right font-semibold tabular-nums">{(Number(p.insurance_points || 0) + Number(p.role_points || 0)).toLocaleString('th-TH', {maximumFractionDigits:2})}</td>
               </tr>)}</tbody>
             </table>
           </div>
