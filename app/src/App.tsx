@@ -3,12 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 import PersonnelPage from './PersonnelPage'
 import PaymentMemo from './PaymentMemo'
 import P4PCommitteePage from './P4PCommitteePage'
+import P4PFundManagement from './P4PFundManagement'
 import P4PSubmissionControl from './P4PSubmissionControl'
 import NotificationBell from './NotificationBell'
 import AppDialogHost, { appAlert, appConfirm } from './AppDialog'
 import { createPortal } from 'react-dom'
 import { DateCell, ShiftBadge, SubActivityEvidence } from './ActivityRows'
-import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardList, LibraryBig, ClipboardCheck, Users, Settings, LogOut, ChevronLeft, CalendarDays, Building2, Shield, ChevronDown, Paperclip } from 'lucide-react'
+import { Eye, EyeOff, Printer, ShieldCheck, Menu, X, LayoutDashboard, ClipboardList, LibraryBig, ClipboardCheck, Users, Settings, LogOut, ChevronLeft, CalendarDays, Building2, Shield, ChevronDown, Paperclip, Coins } from 'lucide-react'
 
 declare const __P4P_BUILD_ID__: string
 const CURRENT_BUILD_ID = typeof __P4P_BUILD_ID__ !== 'undefined' ? __P4P_BUILD_ID__ : 'unknown-build'
@@ -569,7 +570,7 @@ function Main({ sb, session }: any) {
   if (noProfile) return <div className="p-8 space-y-3"><p>ไม่พบข้อมูลบัญชีของคุณในระบบ (บัญชีอาจถูกลบแล้ว) กรุณาออกจากระบบแล้วลงทะเบียนใหม่</p><button className="btn" onClick={() => sb.auth.signOut({ scope: 'local' })}>ออกจากระบบ</button></div>
   if (!profile) return <p className="p-8">กำลังโหลดโปรไฟล์…</p>
   const role = profile.role; const isRev = role === 'committee' || role === 'admin'; const isHeadRole = role === 'head' || role === 'group_head'
-  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ...(isHeadRole || role === 'admin' ? [['certify', 'รับรองกิจกรรม']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(isHeadRole || role === 'admin' ? [['review', 'สรุปรายงานหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : [])]
+  const tabs = [...(role !== 'committee' ? [['log', 'บันทึกกิจกรรม']] : []), ...(isHeadRole || role === 'admin' ? [['certify', 'รับรองกิจกรรม']] : []), ...(isRev ? [['audit', 'คกก. P4P ตรวจสอบ']] : []), ...(isHeadRole || role === 'admin' ? [['review', 'สรุปรายงานหน่วยงาน']] : []), ...(role === 'admin' ? [['people', 'บุคลากร']] : []), ['activities', 'คลังกิจกรรม'], ...(role === 'admin' ? [['users', 'จัดการผู้ใช้'], ['settings', 'ตั้งค่า']] : []), ...((isHeadRole || (role === 'admin' && String(profile?.username || '').trim() === '11450')) ? [['funds', 'เงินกองกลาง/เงินผู้ไม่มีสิทธิ์']] : [])]
   const cur = tab || (role === 'admin' ? 'review' : role === 'committee' ? 'audit' : tabs[0]?.[0])  // แสดงเฉพาะหน่วยงานที่มีอยู่ใน staff_directory ล่าสุด และจับคู่ชื่อแบบตรงตัวกับ units
   // ไม่สร้าง/เปลี่ยน unit_id และไม่แก้หรือรวมข้อมูลในฐานข้อมูล
   // ซ่อนชื่อหน่วยงานเดิมเสมอ แม้โหลด staff_directory ไม่สำเร็จหรือมีข้อมูลเก่าค้างใน units
@@ -584,7 +585,7 @@ function Main({ sb, session }: any) {
   const isCentralAdminAccount = role === 'admin' && String(profile?.username || '').trim() === '11450'
   const isExecutiveNurseLeader = !isCentralAdminAccount && (Number(profile?.staff_directory_id) === 2 || ['หัวหน้าพยาบาล','รักษาการหัวหน้าพยาบาล','หัวหน้าพยาบาล(รักษาการ)'].includes(String(profile?.position || '').normalize('NFC').replace(/[\s　]/g, '')))
   const scope = people.filter(p => (isCentralAdminAccount || Number(p.staff_directory_id ?? p.directory_source_row) !== 2) && (isCentralAdminAccount && cur === 'log' ? true : (role === 'admin' && cur === 'log' ? p.user_id === session.user.id : (isRev || isHeadRole ? (unit != null ? Number(p.unit_id) === Number(unit) : (cur === 'review' && !!reviewGroup && p.unit_id == null && String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))) : p.user_id === session.user.id))))
-  const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users }
+  const navIcons: Record<string, any> = { log: ClipboardList, activities: LibraryBig, certify: ShieldCheck, review: ClipboardCheck, people: Users, audit: Shield, users: Users, settings: Settings, personal: Users, funds: Coins }
   const pageTitle = tabs.find(([k]) => k === cur)?.[1] || 'ภาพรวมระบบ'
   const navigation = <>{tabs.map(([k, l]) => { const Icon = navIcons[k] || LayoutDashboard; return <button type="button" key={k} title={compactNav ? l : undefined} onClick={() => { void checkForUpdate(); if (k === 'log') setLogPageActivation(v => v + 1); setTab(k); setMobileNav(false) }} className={'sidebar-link ' + (cur === k ? 'active' : '')}><Icon size={19} strokeWidth={1.9}/><span>{l}</span>{cur === k && <span className="sidebar-active-dot"/>}</button> })}</>
   return <MeCtx.Provider value={session.user.id}><AppDialogHost/><ApproverCtx.Provider value={{ role, level: myLevel, username: profile?.username, staffDirectoryId: profile?.staff_directory_id, position: profile?.position, orgRole: profile?.org_role, myUnits, personUser: Object.fromEntries(people.map((p: any) => [p.id, p.user_id])), personUnit: Object.fromEntries(people.map((p: any) => [p.id, p.unit_id])), personLevel }}><div className={'p4p-shell ' + (compactNav ? 'nav-compact' : '')}>
@@ -657,6 +658,7 @@ function Main({ sb, session }: any) {
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
     {cur === 'settings' && <SettingsPage sb={sb} />}
+    {cur === 'funds' && <P4PFundManagement sb={sb} month={month} setMonth={setMonth} units={directoryUnits} isCentralAdmin={isCentralAdminAccount} />}
     {cur === 'activities' && <ActivityLibrary myLine={positions.find((x: any) => x.name === profile.position)?.grp} seeAll={role !== 'staff'} sb={sb} acts={acts} positions={positions} isAdmin={role === 'admin'} reloadActs={reloadActs} />}
     {cur === 'audit' && <P4PCommitteePage sb={sb} month={month} setMonth={setMonth} isAdmin={role === 'admin'} isCentralAdminAccount={isCentralAdminAccount} currentUserId={session.user.id} PrintSheet={PrintSheet} appUnits={units} appPositions={positions} scoreBreakdown={scoreBreakdown} openEvidence={openEvidence} />}
       </main>
