@@ -1142,6 +1142,10 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
   const buddhistYear = monthStart.getFullYear() + 543
   const groupName = String(person.nursing_group || person.group_name || person.staff_group || '').trim() || String(unit?.parent_group || '').trim()
   const unitName = unit?.name || person.unit_name || person.sub_unit || ''
+  const printInsurance = guaranteeForPosition(person.position, positions, person.org_role)
+  const printRoleGuarantee = roleGuaranteeForPosition(person.position, positions, person.org_role)
+  const printTotalCap = String(month || '').slice(0, 7) === '2026-10' ? printInsurance + 10 : printInsurance * 1.5
+  const printActivityCap = Math.max(0, printTotalCap - printRoleGuarantee)
   const groups = useMemo(() => {
     const map = new Map<string, any>()
     rows.forEach((r: any) => {
@@ -1200,7 +1204,10 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
             <td className="r">{n2(g.qty)}</td><td className="r">{nf(g.points)}</td>
           </tr>)}
           {!groups.length && <tr><td colSpan={dayCount+9} className="c">ไม่มีรายการกิจกรรมที่ผ่านการรับรองในเดือนนี้</td></tr>}
-          {groups.length>0 && <tr className="b"><td colSpan={dayCount+7} className="r">รวมทั้งหมด</td><td className="r">{n2(groups.reduce((v,g)=>v+g.qty,0))}</td><td className="r">{nf(groups.reduce((v,g)=>v+g.points,0))}</td></tr>}
+          {groups.length>0 && <>
+            <tr className="b"><td colSpan={dayCount+7} className="r">รวมคะแนนที่คีย์ทั้งหมด</td><td className="r">{n2(groups.reduce((v,g)=>v+g.qty,0))}</td><td className="r">{nf(groups.reduce((v,g)=>v+g.points,0))}</td></tr>
+            <tr className="b"><td colSpan={dayCount+8} className="r">คะแนนปรับตามเงื่อนไข (เพดาน {nf(printTotalCap)} คะแนน)</td><td className="r">{nf(Math.min(groups.reduce((v,g)=>v+g.points,0), printActivityCap))}</td></tr>
+          </>}
         </tbody>
       </table>
       <div className="ps-certification">ขอรับรองว่าผู้มีรายนามข้างต้นได้ปฏิบัติงานจริง</div>
