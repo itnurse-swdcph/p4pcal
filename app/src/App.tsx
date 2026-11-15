@@ -1206,7 +1206,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
           {!groups.length && <tr><td colSpan={dayCount+9} className="c">ไม่มีรายการกิจกรรมที่ผ่านการรับรองในเดือนนี้</td></tr>}
           {groups.length>0 && <>
             <tr className="b"><td colSpan={dayCount+7} className="r">รวมคะแนนที่คีย์ทั้งหมด</td><td className="r">{n2(groups.reduce((v,g)=>v+g.qty,0))}</td><td className="r">{nf(groups.reduce((v,g)=>v+g.points,0))}</td></tr>
-            <tr className="b"><td colSpan={dayCount+8} className="r">คะแนนปรับตามเงื่อนไข (เพดาน {nf(printTotalCap)} คะแนน)</td><td className="r">{nf(Math.min(groups.reduce((v,g)=>v+g.points,0), printActivityCap))}</td></tr>
+            <tr className="b"><td colSpan={dayCount+8} className="r">คะแนนปรับตามเงื่อนไข</td><td className="r">{nf(Math.min(groups.reduce((v,g)=>v+g.points,0), printActivityCap))}</td></tr>
           </>}
         </tbody>
       </table>
@@ -1234,13 +1234,14 @@ function roleGuaranteeForPosition(position: any, positions: any[] = [], orgRole?
   if (role.includes('หัวหน้างาน') || name.includes('หัวหน้าหอผู้ป่วย') || name.includes('หัวหน้างาน')) return 120
   return 0
 }
-function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, activityPoints = 0, _month?: string) {
+function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, activityPoints = 0, month?: string) {
   const insurance = guaranteeForPosition(position, positions, orgRole)
   const roleGuarantee = roleGuaranteeForPosition(position, positions, orgRole)
   const rawActivityPoints = Math.max(0, Number(activityPoints || 0))
-  // แสดงแต้มรวมผลการปฏิบัติงานโดยตัดส่วนเกินตามเพดานรายบุคคลทุกเดือน
-  // รวมถึงเดือนตุลาคม 2569 เพื่อให้สรุปรายบุคคล สรุปหน่วยงาน และไฟล์ส่งออกใช้ยอดเดียวกัน
-  const totalPerformanceCap = insurance * 1.5
+  // ตุลาคม 2569 ใช้เพดานแต้มประกัน + 10 คะแนน (กลุ่ม 1 = 1,210)
+  // เดือนอื่นใช้เพดาน 1.5 เท่าของแต้มประกัน (กลุ่ม 1 = 1,800)
+  const october2026 = String(month || '').slice(0, 7) === '2026-10'
+  const totalPerformanceCap = october2026 ? insurance + 10 : insurance * 1.5
   const activityCap = Math.max(0, totalPerformanceCap - roleGuarantee)
   const cappedActivityPoints = Math.min(rawActivityPoints, activityCap)
   const rawPerformance = rawActivityPoints + roleGuarantee
