@@ -49,6 +49,8 @@ export default function P4PFundManagement({ sb, month, setMonth, units = [], isC
   const selected = ineligible.find((x: any) => String(x.staff_directory_id) === staffId && String(x.unit_id) === unitId)
   const pendingTotal = requests.filter((q: any) => q.status === 'pending').reduce((n: number,q: any) => n+Number(q.requested_amount || 0),0)
   const approvedTotal = requests.filter((q: any) => q.status === 'approved').reduce((n: number,q: any) => n+Number(q.approved_amount || 0),0)
+  const distributedTotal = recipients.reduce((n: number,x: any) => n+Number(x.unit_fund_extra || 0),0)
+  const unusedApproved = Math.max(0, approvedTotal - distributedTotal)
 
   const submit = async () => {
     if (!selected || !(Number(amount)>0) || !reason.trim()) { setMessage('กรุณาเลือกบุคลากร ระบุจำนวนเงิน และเหตุผล'); return }
@@ -80,11 +82,11 @@ export default function P4PFundManagement({ sb, month, setMonth, units = [], isC
     </div>
     {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {message && <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">{message}</div>}
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <div className="card"><div className="flex items-center gap-2 text-sm text-stone-500"><Coins size={16}/> เงินกองกลางปกติ</div><div className="mt-2 text-2xl font-bold">{money(regularPool)} บาท</div><p className="mt-1 text-xs text-stone-500">เงินกัน 3% และส่วนต่างผู้มีสิทธิ์คะแนนต่ำกว่าเกณฑ์</p></div>
       <div className="card"><div className="text-sm text-stone-500">เงินผู้ไม่มีสิทธิ์เต็มจำนวน</div><div className="mt-2 text-2xl font-bold">{money(totalIneligible)} บาท</div><p className="mt-1 text-xs text-stone-500">{ineligible.length} รายการ แยกจากกองกลางปกติ</p></div>
       <div className="card"><div className="text-sm text-stone-500">คำขอรอพิจารณา</div><div className="mt-2 text-2xl font-bold">{money(pendingTotal)} บาท</div></div>
-      <div className="card"><div className="text-sm text-stone-500">ยอดอนุมัติให้นำไปใช้</div><div className="mt-2 text-2xl font-bold">{money(approvedTotal)} บาท</div><p className="mt-1 text-xs text-stone-500">ใช้ได้เฉพาะหน่วยงานต้นทาง</p></div>
+      <div className="card"><div className="text-sm text-stone-500">ยอดอนุมัติให้นำไปใช้</div><div className="mt-2 text-2xl font-bold">{money(approvedTotal)} บาท</div><p className="mt-1 text-xs text-stone-500">ใช้ได้เฉพาะหน่วยงานต้นทาง</p></div>\n      <div className="card"><div className="text-sm text-stone-500">ยอดอนุมัติที่ยังไม่ถูกจัดสรร</div><div className="mt-2 text-2xl font-bold">{money(unusedApproved)} บาท</div><p className="mt-1 text-xs text-stone-500">ไม่ยกยอดไปเดือนถัดไป</p></div>
     </div>
     <section className="card space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold">ทะเบียนเงินผู้ไม่มีสิทธิ์</h3><p className="text-xs text-stone-500">ยอดจัดสรรรายบุคคลเต็มจำนวนก่อนหักเงินใด ๆ</p></div>
