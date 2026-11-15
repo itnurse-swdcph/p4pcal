@@ -358,8 +358,11 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
           onViewPerson={line => setPanel({ person: line })} onRandomAudit={() => setPanel({ person: null, randomUnitId: unit.key })} />
         : <UnitOverview units={overviewUnits} onOpen={openUnit} showReview={reviewOk} />)}
       {tab === 'budget' && <BudgetPanel groups={groups} lines={lines} month={month} monthText={monthLabel(month)} closed={!!viewCalc?.closed} />}
-      {tab === 'close' && <ClosePanel review={review} votes={votes} roster={roster} currentUserId={currentUserId} isMember={isMember} activeCount={activeMembers.length}
-        units={statusOk ? overviewUnits : []} groups={groups} totals={totals} busy={busy} reviewGate={reviewOk} onStart={startReview} onVote={castVote} onOpenUnit={openUnit} />}
+      {tab === 'close' && <ClosePanel review={review} votes={votes} roster={roster} currentUserId={currentUserId} isMember={isMember} isCentralAdminAccount={isCentralAdminAccount} activeCount={activeMembers.length}
+        units={statusOk ? overviewUnits : []} groups={groups} totals={totals} busy={busy} reviewGate={reviewOk} onStart={startReview} onVote={castVote} onAdminClose={async (note: string) => {
+          if (!(await appConfirm(`ยืนยันให้แอดมินกลางเริ่มรับรอง อนุมัติ และปิดยอด P4P ประจำเดือน${monthLabel(month)} แทนกรรมการทุกคน?\n\nหมายเหตุ: ${note}`, 'ยืนยันอนุมัติและปิดยอดแทนกรรมการ'))) return false
+          return runAction('แอดมินกลางอนุมัติและปิดยอดแทนกรรมการเรียบร้อยแล้ว', () => sb.rpc('p4p_admin_close_month', { p_month: monthDate, p_note: note.trim() }))
+        }} onOpenUnit={openUnit} />}
       {tab === 'roster' && isAdmin && <RosterAdmin sb={sb} members={members} roster={roster} version={version} busy={busy} runAction={runAction} setError={setError} />}
     </>}
 
