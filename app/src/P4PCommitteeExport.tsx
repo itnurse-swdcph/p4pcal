@@ -14,6 +14,10 @@ const REPORTS: { key: ReportKey; label: string; detail: string }[] = [
 ]
 const cell = (v: any, s: XCell['s'] = 'label'): XCell => ({ v: v == null ? '' : String(v), s })
 const numericCell = (v: any, s: XCell['s'] = 'int'): XCell => ({ v: Number(v || 0), s })
+const scoreCell = (v: any): XCell => {
+  const n = Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100
+  return { v: n.toLocaleString('th-TH', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }), s: 'rate' }
+}
 const dateTH = (v: any) => v ? new Date(String(v).length === 10 ? `${v}T00:00:00` : v).toLocaleDateString('th-TH') : '—'
 const sheet = (sheetName: string, title: string, month: string, headers: string[], rows: any[][], widths: number[]): SheetSpec => ({
   sheetName,
@@ -111,19 +115,21 @@ export default function P4PCommitteeExport({ open, onClose, onPrepare, month, un
         ['ลำดับ','ชื่อ-สกุล','ตำแหน่งที่ปฏิบัติงาน','แต้มประกัน/เดือน','จำนวนเงินประกันต่อเดือน','แต้มการันตี','แต้มการปฏิบัติงาน','รวมผลการปฏิบัติงาน','แต้มที่ได้มากกว่าแต้มประกัน','จำนวนเงินที่ได้มากกว่าแต้มประกัน','จำนวนเงินตามผลงาน','จำนวนเงินที่ได้รับ'].map(x => cell(x, 'header')),
         ...(u.lines || []).map((p: any, i: number) => {
           const payGroup = payGroupById.get(Number(p.pay_group)) || {}
-          const counted = Number(p.counted || 0)
+          // counted คือแต้มหลังใช้เพดานรายบุคคลจาก p4p_alloc แล้ว
+          // ใช้ค่านี้ในรายงานแต้มทุกช่อง เพื่อไม่ให้แต้มดิบเกินเพดานหรือแสดงแต้มของผู้ไม่มีสิทธิ์
+          const counted = p.eligible ? Math.max(0, Number(p.counted ?? p.points ?? 0)) : 0
           const guarantee = Number(p.guarantee || 0)
           const excessPoints = p.eligible ? Math.max(0, counted - guarantee) : 0
           return [
             numericCell(i + 1, 'center'),
             cell(p.name || p.person_name, 'labelStrong'),
             cell(p.position),
-            numericCell(payGroup.guarantee || 0, 'rate'),
+            scoreCell(payGroup.guarantee || 0),
             numericCell(payGroup.full_amount || 0, 'money'),
-            numericCell(guarantee, 'rate'),
-            numericCell(p.points ?? p.activity ?? 0, 'rate'),
-            numericCell(counted, 'rate'),
-            numericCell(excessPoints, 'rate'),
+            scoreCell(guarantee),
+            scoreCell(counted),
+            scoreCell(counted),
+            scoreCell(excessPoints),
             numericCell(p.extra || 0, 'money'),
             numericCell(p.activity || 0, 'money'),
             numericCell(p.total || 0, 'money')
