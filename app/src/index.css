@@ -2141,3 +2141,21 @@ table.activity-table tr:last-child td { border-bottom: 0; }
   .unit-report-grand-total { margin-top: 2mm !important; }
   .unit-report-certification { margin-top: 2mm !important; }
 }
+
+
+@media print {
+  .unit-report-signature-page-row > td {
+    padding: .65mm .55mm !important;
+    font-size: 7.2pt !important;
+    line-height: 1.05 !important;
+  }
+  .unit-report-total > td {
+    padding-top: .7mm !important;
+    padding-bottom: .7mm !important;
+    font-size: 7.3pt !important;
+  }
+  .unit-report-signatures { margin-top: 2.5mm !important; gap: 3mm !important; }
+  .unit-report-signatures > div { line-height: 1.1 !important; font-size: 7.5pt !important; }
+  .unit-report-approval-row { margin-top: 2mm !important; font-size: 7.5pt !important; line-height: 1.1 !important; }
+  .unit-report-grand-total, .unit-report-certification { margin-top: 1.5mm !important; font-size: 8pt !important; }
+}
