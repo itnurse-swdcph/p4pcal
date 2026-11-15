@@ -19,6 +19,7 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
   const [data, setData] = useState<any>({ staff: [], appeals: [], role: 'staff', is_admin: false, month_closed: false })
   const [selected, setSelected] = useState<number[]>([])
   const [unitFilter, setUnitFilter] = useState('')
+  const [staffSearch, setStaffSearch] = useState('')
   const [reason, setReason] = useState('')
   const [details, setDetails] = useState('')
   const [direct, setDirect] = useState(false)
@@ -40,8 +41,15 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
   const appeals = data.appeals || []
   const canDecide = !!data.is_admin || data.role === 'committee'
   const unitOptions = useMemo(() => Array.from(new Map<string, any>(staff.filter((p: any) => p.unit_id != null).map((p: any) => [String(p.unit_id), { id: String(p.unit_id), name: p.unit_name || 'หน่วยงาน' }])).values()), [staff])
-  const visibleStaff = useMemo(() => unitFilter ? staff.filter((p: any) => String(p.unit_id ?? '') === unitFilter) : staff, [staff, unitFilter])
-  useEffect(() => { if (!unitFilter && unitOptions.length) setUnitFilter(unitOptions[0].id) }, [unitFilter, unitOptions])
+  const visibleStaff = useMemo(() => {
+    const q = staffSearch.trim().toLocaleLowerCase()
+    return staff.filter((p: any) => {
+      const inUnit = data.is_admin || !unitFilter || String(p.unit_id ?? '') === unitFilter
+      const haystack = [p.name, p.position, p.unit_name].filter(Boolean).join(' ').toLocaleLowerCase()
+      return inUnit && (!q || haystack.includes(q))
+    })
+  }, [staff, unitFilter, staffSearch, data.is_admin])
+  useEffect(() => { if (!data.is_admin && !unitFilter && unitOptions.length) setUnitFilter(unitOptions[0].id) }, [unitFilter, unitOptions, data.is_admin])
 
   const submit = async () => {
     if (!selected.length || reason.trim().length < 5) { setError('กรุณาเลือกรายชื่อและระบุเหตุผลอย่างน้อย 5 ตัวอักษร'); return }
@@ -103,9 +111,10 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
       {message && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</div>}
       {data.month_closed && staff.length > 0 && <div className="space-y-3 border-t border-stone-200 pt-3">
         <div className="flex items-center gap-2 font-semibold text-stone-800"><FilePlus2 size={17}/>ยื่นอุทธรณ์ / ขอเปิดสิทธิ์บันทึกคะแนนเพิ่มเติม</div>
-        <p className="text-xs text-stone-500">{data.is_admin ? 'Admin กลางสามารถเลือกเจ้าหน้าที่และเปิดสิทธิ์ได้ทันที' : data.role === 'head' || data.role === 'group_head' ? 'หัวหน้าหน่วยงานเลือกเจ้าหน้าที่ในขอบเขตที่รับผิดชอบได้หลายคน' : 'เจ้าหน้าที่สามารถยื่นอุทธรณ์คะแนนของตนเองได้'}</p>
-        {unitOptions.length > 1 && <label className="block space-y-1 text-sm"><span className="font-semibold">เลือกหน่วยงาน (หนึ่งคำขอต่อหนึ่งหน่วยงาน)</span><select className="inp w-full" value={unitFilter} onChange={e => { setUnitFilter(e.target.value); setSelected([]) }}><option value="">เลือกหน่วยงาน</option>{unitOptions.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>}
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500"><span>เลือกแล้ว {selected.length} รายชื่อ</span><div className="flex gap-2"><button type="button" className="underline" onClick={() => setSelected(visibleStaff.map((p: any) => Number(p.staff_directory_id)))}>เลือกทั้งหมดในหน่วยงาน</button><button type="button" className="underline" onClick={() => setSelected([])}>ล้างรายชื่อ</button></div></div>
+        <p className="text-xs text-stone-500">{data.is_admin ? 'Admin กลางค้นหาและเลือกเจ้าหน้าที่ข้ามหน่วยงานได้ในคำอุทธรณ์ครั้งเดียว' : data.role === 'head' || data.role === 'group_head' ? 'หัวหน้าหน่วยงานเลือกเจ้าหน้าที่ในขอบเขตที่รับผิดชอบได้หลายคน' : 'เจ้าหน้าที่สามารถยื่นอุทธรณ์คะแนนของตนเองได้'}</p>
+        {!data.is_admin && unitOptions.length > 1 && <label className="block space-y-1 text-sm"><span className="font-semibold">เลือกหน่วยงาน (หัวหน้ายื่นได้เฉพาะหน่วยงานที่รับผิดชอบ)</span><select className="inp w-full" value={unitFilter} onChange={e => { setUnitFilter(e.target.value); setSelected([]) }}><option value="">เลือกหน่วยงาน</option>{unitOptions.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>}
+        {data.is_admin && <label className="block space-y-1 text-sm"><span className="font-semibold">ค้นหาชื่อเจ้าหน้าที่ทุกหน่วยงาน</span><input className="inp w-full" value={staffSearch} onChange={e => setStaffSearch(e.target.value)} placeholder="พิมพ์ชื่อ นามสกุล ตำแหน่ง หรือหน่วยงาน…"/></label>}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500"><span>เลือกแล้ว {selected.length} รายชื่อ · พบ {visibleStaff.length} รายชื่อ</span><div className="flex gap-2"><button type="button" className="underline" onClick={() => setSelected(old => [...new Set([...old, ...visibleStaff.map((p: any) => Number(p.staff_directory_id))])])}>เลือกทั้งหมดที่แสดง</button><button type="button" className="underline" onClick={() => setSelected([])}>ล้างรายชื่อ</button></div></div>
         <div className="max-h-64 overflow-auto rounded-xl border border-stone-200 p-2 space-y-1">
           {visibleStaff.map((p: any) => <label key={p.staff_directory_id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-stone-50 text-sm">
             <input type="checkbox" className="mt-1" checked={selected.includes(Number(p.staff_directory_id))}
