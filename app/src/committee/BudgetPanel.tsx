@@ -48,8 +48,9 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       const carryIn = isOctober ? 0 : Number(g.carry_extra_in || 0)
       const reserve = Number(g.reserve || 0) * el
       const ineligible = full * inel
-      const ineligibleDistributed = sum(glines.map((l: any) => Number(l.unit_fund_extra || 0)))
-      const ineligibleRemaining = Math.max(0, ineligible - ineligibleDistributed)
+      // เงินผู้ไม่มีสิทธิ์อาจจัดสรรให้ผู้รับต่างกลุ่มจ่ายเงินได้ จึงสรุปยอดใช้/คงเหลือเฉพาะภาพรวม
+      const ineligibleDistributed = 0
+      const ineligibleRemaining = 0
       const belowDiff = Number(g.below_threshold_difference || 0)
       const activityPaid = sum(glines.map((l: any) => Number(l.activity || 0)))
       const extraPaid = sum(glines.map((l: any) => Number(l.extra || 0)))
@@ -63,7 +64,7 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
         activityPaid, extraPaid, sumExcess: Number(g.sum_excess || 0),
         rate: Number(g.rate_per_point || 0), guarantee: Number(g.guarantee || 0), carryOut,
         // เงินผู้ไม่มีสิทธิ์ที่ยังไม่ถูกจัดสรรคงแยกไว้ ไม่ปะปนกับเงินกองกลางปกติ
-        balanceDiff: total100 + carryIn - (activityPaid + extraPaid + carryOut + ineligibleRemaining),
+        balanceDiff: 0, // ตรวจสมดุลเฉพาะภาพรวม เพราะเงินผู้ไม่มีสิทธิ์อาจกระจายข้ามกลุ่มจ่ายเงิน
       }
     })
     const all: Col = {
@@ -72,8 +73,8 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       nBelow: sum(perGroup.map(c => c.nBelow)), nAbove: sum(perGroup.map(c => c.nAbove)),
       total100: sum(perGroup.map(c => c.total100)), carryIn: sum(perGroup.map(c => c.carryIn)), reserve: sum(perGroup.map(c => c.reserve)),
       ineligible: sum(perGroup.map(c => c.ineligible)),
-      ineligibleDistributed: sum(perGroup.map(c => c.ineligibleDistributed)),
-      ineligibleRemaining: sum(perGroup.map(c => c.ineligibleRemaining)),
+      ineligibleDistributed: sum(lines.map((l: any) => Number(l.unit_fund_extra || 0))),
+      ineligibleRemaining: Math.max(0, sum(perGroup.map(c => c.ineligible)) - sum(lines.map((l: any) => Number(l.unit_fund_extra || 0)))),
       belowDiff: sum(perGroup.map(c => c.belowDiff)),
       commonPool: sum(perGroup.map(c => c.commonPool)), poolDistributable: sum(perGroup.map(c => c.poolDistributable)),
       activityPaid: sum(perGroup.map(c => c.activityPaid)), extraPaid: sum(perGroup.map(c => c.extraPaid)),
@@ -81,7 +82,10 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       // อัตราเฉลี่ยถ่วงน้ำหนัก = เงินกองกลางที่นำไปแบ่งของกลุ่มที่มีแต้มส่วนเกิน / แต้มส่วนเกินรวม
       rate: (() => { const ex = sum(perGroup.map(c => c.sumExcess)); return ex > 0 ? sum(perGroup.filter(c => c.sumExcess > 0).map(c => c.poolDistributable)) / ex : 0 })(),
       guarantee: 0,
-      carryOut: sum(perGroup.map(c => c.carryOut)), balanceDiff: sum(perGroup.map(c => c.balanceDiff)),
+      carryOut: sum(perGroup.map(c => c.carryOut)),
+      balanceDiff: sum(perGroup.map(c => c.total100)) + sum(perGroup.map(c => c.carryIn))
+        - (sum(perGroup.map(c => c.activityPaid)) + sum(perGroup.map(c => c.extraPaid)) + sum(perGroup.map(c => c.carryOut))
+          + Math.max(0, sum(perGroup.map(c => c.ineligible)) - sum(lines.map((l: any) => Number(l.unit_fund_extra || 0))))),
     }
     return [all, ...perGroup]
   }, [groups, lines, isOctober])
@@ -107,8 +111,8 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       { label: 'เงินเพิ่มจากผู้ที่คะแนนไม่ถึงเกณฑ์', kind: 'money', hint: 'ส่วนต่างระหว่างเงินเต็มกับเงินที่จ่ายผู้ที่แต้มไม่ถึงเกณฑ์', get: c => r2(c.belowDiff) },
       { label: 'รวมเงินกองกลางปกติ', kind: 'money', strong: true, hint: 'เงินกัน 3% + ส่วนต่างจากผู้มีสิทธิ์ที่คะแนนไม่ถึงเกณฑ์ ไม่รวมเงินผู้ไม่มีสิทธิ์', get: c => r2(c.commonPool) },
       { label: 'เงินผู้ไม่มีสิทธิ์ (แยกเต็มจำนวน ไม่หัก 3%)', kind: 'money', strong: true, hint: 'แยกออกจากเงินกองกลางปกติเต็มจำนวน', get: c => r2(c.ineligible) },
-      { label: 'เงินผู้ไม่มีสิทธิ์ที่อนุมัติและจัดสรรแล้ว', kind: 'money', get: c => r2(c.ineligibleDistributed) },
-      { label: 'เงินผู้ไม่มีสิทธิ์คงเหลือแยกไว้', kind: 'money', get: c => r2(c.ineligibleRemaining) },
+      { label: 'เงินผู้ไม่มีสิทธิ์ที่อนุมัติและจัดสรรแล้ว', kind: 'money', hint: 'แสดงยอดภาพรวม เนื่องจากผู้รับอาจอยู่คนละกลุ่มจ่ายเงินกับผู้เป็นแหล่งเงิน', get: c => c.key === 'all' ? r2(c.ineligibleDistributed) : null },
+      { label: 'เงินผู้ไม่มีสิทธิ์คงเหลือแยกไว้', kind: 'money', hint: 'แสดงยอดภาพรวมหลังหักยอดที่จัดสรรแล้ว', get: c => c.key === 'all' ? r2(c.ineligibleRemaining) : null },
       { label: 'เงินกองกลางรวมเงินยกยอด (นำไปแบ่งเป็นเงินเพิ่ม)', kind: 'money', strong: true, get: c => r2(c.poolDistributable) },
     ] },
     { code: 'ค', title: 'ยอดจัดสรร', rows: [
@@ -116,7 +120,7 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       { label: 'เงินเพิ่มจากแต้มส่วนเกิน', kind: 'money', get: c => r2(c.extraPaid) },
       { label: 'เงินผู้ไม่มีสิทธิ์คงเหลือแยกไว้', kind: 'money', get: c => r2(c.ineligibleRemaining) },
       { label: 'เงินเหลือยกไปเดือนถัดไป', kind: 'money', get: c => r2(c.carryOut) },
-      { label: 'รวมจัดสรร แยกเงินผู้ไม่มีสิทธิ์ และยกไป', kind: 'money', strong: true, hint: 'ควรเท่ากับวงเงิน 100% + เงินยกยอด', get: c => r2(c.activityPaid + c.extraPaid + c.ineligibleRemaining + c.carryOut) },
+      { label: 'รวมจัดสรร แยกเงินผู้ไม่มีสิทธิ์ และยกไป', kind: 'money', strong: true, hint: 'แสดงยอดภาพรวมและควรเท่ากับวงเงิน 100% + เงินยกยอด', get: c => c.key === 'all' ? r2(c.activityPaid + c.extraPaid + c.ineligibleRemaining + c.carryOut) : null },
     ] },
     { code: 'ง', title: 'เกณฑ์การแบ่งเงินเพิ่ม', rows: [
       { label: 'แต้มประกันของกลุ่ม (คะแนน)', kind: 'int', hint: 'กลุ่ม 5 กำหนด 960 คะแนน', get: c => c.key === 'all' ? null : c.guarantee },
@@ -126,7 +130,7 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       { label: 'อัตราเงินเพิ่มต่อแต้ม (บาท/แต้ม)', kind: 'rate', hint: isOctober ? 'เดือนตุลาคม 2569 แบ่งเท่ากันต่อคน ไม่คิดตามแต้ม' : 'ภาพรวม = ค่าเฉลี่ยถ่วงน้ำหนักของทุกกลุ่ม', get: c => (isOctober || c.rate <= 0) ? null : c.rate },
     ] },
     { code: 'จ', title: 'ตรวจสมดุล', rows: [
-      { label: 'ผลต่าง (วงเงิน + ยกยอด - จัดสรร - เหลือยกไป)', kind: 'money', hint: 'ควรเป็น 0.00', get: c => r2(c.balanceDiff) },
+      { label: 'ผลต่าง (วงเงิน + ยกยอด - จัดสรร - เงินแยกผู้ไม่มีสิทธิ์ - เหลือยกไป)', kind: 'money', hint: 'ตรวจสมดุลภาพรวม ควรเป็น 0.00', get: c => c.key === 'all' ? r2(c.balanceDiff) : null },
     ] },
   ]
 
