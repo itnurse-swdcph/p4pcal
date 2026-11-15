@@ -63,6 +63,17 @@ export default function P4PFundManagement({ sb, month, setMonth, units = [], isC
     if (e) setMessage('ส่งคำขอไม่สำเร็จ: ' + e.message)
     else { setMessage('ส่งคำขอเรียบร้อย รอผู้มีอำนาจพิจารณา'); setStaffId(''); setAmount(''); setReason(''); setVersion(v=>v+1) }
   }
+  const cancelApproved = async (q: any) => {
+    if (!window.confirm('ยืนยันยกเลิกคำขอที่อนุมัติแล้ว? เงินจะถูกถอนออกจากยอดจัดสรรและคืนเป็นยอดคงเหลือ')) return
+    setBusy(true); setMessage('')
+    const { error: e } = await sb.rpc('p4p_fund_request_cancel', {
+      p_request_id: q.id, p_reason: 'ยกเลิกตามคำขอผู้ดูแลระบบ'
+    })
+    setBusy(false)
+    if (e) setMessage('ยกเลิกรายการไม่สำเร็จ: ' + e.message)
+    else { setMessage('ยกเลิกรายการแล้ว ระบบจะคำนวณยอดจัดสรรใหม่'); setVersion(v=>v+1) }
+  }
+
   const decide = async (q: any, decision: string) => {
     const value = decision === 'approved' ? Number(reviewAmounts[q.id] || q.requested_amount) : 0
     if (decision === 'approved' && (!(value>0) || value>Number(q.requested_amount))) { setMessage('ยอดอนุมัติต้องมากกว่า 0 และไม่เกินยอดที่ขอ'); return }
@@ -113,8 +124,8 @@ export default function P4PFundManagement({ sb, month, setMonth, units = [], isC
     <section className="card space-y-3">
       <h3 className="font-bold">ประวัติคำขอและผลการพิจารณา</h3>
       <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr><th className="text-left">บุคลากร/หน่วยงาน</th><th className="text-left">เหตุผล</th><th className="text-right">ขอใช้</th><th className="text-right">อนุมัติ</th><th>สถานะ</th><th className="text-left">หมายเหตุ</th>{canDecide&&<th>ดำเนินการ</th>}</tr></thead><tbody>
-      {requests.map((q:any)=><tr key={q.id}><td>{q.staff_name}<div className="text-xs text-stone-500">{q.unit_name}</div></td><td className="max-w-64 whitespace-normal">{q.reason}</td><td className="text-right">{money(q.requested_amount)}</td><td className="text-right">{money(q.approved_amount)}</td><td>{q.status==='pending'?<span className="inline-flex items-center gap-1 text-amber-700"><Clock3 size={14}/> รอพิจารณา</span>:q.status==='approved'?<span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 size={14}/> อนุมัติ</span>:<span className="inline-flex items-center gap-1 text-red-700"><XCircle size={14}/> ไม่อนุมัติ</span>}</td><td className="whitespace-normal">{q.review_comment||'—'}</td>
-      {canDecide&&<td>{q.status==='pending'&&!calc?.closed?<div className="flex min-w-48 flex-col gap-1"><input className="inp w-full" type="number" min="0.01" max={q.requested_amount} step="0.01" value={reviewAmounts[q.id]??String(q.requested_amount)} onChange={e=>setReviewAmounts(old=>({...old,[q.id]:e.target.value}))}/><input className="inp w-full" placeholder="หมายเหตุ (ถ้ามี)" value={comments[q.id]||''} onChange={e=>setComments(old=>({...old,[q.id]:e.target.value}))}/><div className="flex gap-1"><button className="btn text-xs" disabled={busy} onClick={()=>void decide(q,'approved')}><CheckCircle2 size={13}/> อนุมัติ</button><button className="btn danger text-xs" disabled={busy} onClick={()=>void decide(q,'rejected')}><XCircle size={13}/> ไม่อนุมัติ</button></div></div>:'—'}</td>}
+      {requests.map((q:any)=><tr key={q.id}><td>{q.staff_name}<div className="text-xs text-stone-500">{q.unit_name}</div></td><td className="max-w-64 whitespace-normal">{q.reason}</td><td className="text-right">{money(q.requested_amount)}</td><td className="text-right">{money(q.approved_amount)}</td><td>{q.status==='pending'?<span className="inline-flex items-center gap-1 text-amber-700"><Clock3 size={14}/> รอพิจารณา</span>:q.status==='approved'?<span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 size={14}/> อนุมัติ</span>:q.status==='cancelled'?<span className="inline-flex items-center gap-1 text-stone-600"><XCircle size={14}/> ยกเลิก</span>:<span className="inline-flex items-center gap-1 text-red-700"><XCircle size={14}/> ไม่อนุมัติ</span>}</td><td className="whitespace-normal">{q.cancellation_reason || q.review_comment || '—'}</td>
+      {canDecide&&<td>{q.status==='approved'&&!calc?.closed?<div className="flex min-w-48 flex-col gap-1"><button className="btn danger text-xs" disabled={busy} onClick={()=>void cancelApproved(q)}><XCircle size={13}/> ยกเลิกการอนุมัติ</button></div>:q.status==='pending'&&!calc?.closed?<div className="flex min-w-48 flex-col gap-1"><input className="inp w-full" type="number" min="0.01" max={q.requested_amount} step="0.01" value={reviewAmounts[q.id]??String(q.requested_amount)} onChange={e=>setReviewAmounts(old=>({...old,[q.id]:e.target.value}))}/><input className="inp w-full" placeholder="หมายเหตุ (ถ้ามี)" value={comments[q.id]||''} onChange={e=>setComments(old=>({...old,[q.id]:e.target.value}))}/><div className="flex gap-1"><button className="btn text-xs" disabled={busy} onClick={()=>void decide(q,'approved')}><CheckCircle2 size={13}/> อนุมัติ</button><button className="btn danger text-xs" disabled={busy} onClick={()=>void decide(q,'rejected')}><XCircle size={13}/> ไม่อนุมัติ</button></div></div>:'—'}</td>}
       </tr>)}
       {!requests.length&&<tr><td colSpan={canDecide?7:6} className="py-5 text-center text-stone-500">ยังไม่มีคำขอในเดือนนี้</td></tr>}
       </tbody></table></div>
