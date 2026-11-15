@@ -8,6 +8,7 @@ type Props = {
   roster: any[]
   currentUserId: string
   isMember: boolean
+  isCentralAdminAccount?: boolean
   activeCount: number
   units: UnitStat[]
   groups: any[]
@@ -16,6 +17,7 @@ type Props = {
   reviewGate?: boolean
   onStart: () => void
   onVote: (decision: 'approved' | 'rejected', comment: string) => Promise<boolean>
+  onAdminClose?: (note: string) => Promise<boolean>
   onOpenUnit: (key: number) => void
 }
 
@@ -29,8 +31,9 @@ const Step = ({ n, state, title, children }: { n: number; state: 'done' | 'activ
     <div className="min-w-0 flex-1 pb-6"><h3 className={'font-semibold ' + (state === 'todo' ? 'text-stone-500' : 'text-stone-900')}>{title}</h3><div className="mt-2 space-y-2 text-sm">{children}</div></div>
   </li>
 
-export default function ClosePanel({ review, votes, roster, currentUserId, isMember, activeCount, units, groups, totals, busy, reviewGate = false, onStart, onVote, onOpenUnit }: Props) {
+export default function ClosePanel({ review, votes, roster, currentUserId, isMember, isCentralAdminAccount = false, activeCount, units, groups, totals, busy, reviewGate = false, onStart, onVote, onAdminClose, onOpenUnit }: Props) {
   const [comment, setComment] = useState('')
+  const [adminNote, setAdminNote] = useState('')
   const status: string = review?.status || 'none'
   const closed = status === 'closed'
   const reviewing = status === 'reviewing'
@@ -58,12 +61,12 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
   return <div className="space-y-4">
     {closed && <div className="card flex items-start gap-3 border-emerald-200 bg-emerald-50"><Megaphone className="mt-0.5 shrink-0 text-emerald-700" size={22} />
       <div><div className="font-bold text-emerald-900">ปิดงวดและประกาศผลเรียบร้อยแล้ว</div>
-        <p className="text-sm text-emerald-900">กรรมการอนุมัติครบ {num(expected.length, 0)} คน ระบบปิดยอดและเผยแพร่ผลให้บุคลากรเห็นแล้ว{review?.approved_at ? ` เมื่อ ${dateTime(review.approved_at)}` : ''}</p></div></div>}
+        <p className="text-sm text-emerald-900">{review?.admin_note ? 'แอดมินกลางบัญชี 11450 อนุมัติและปิดยอดแทนกรรมการ' : `กรรมการอนุมัติครบ ${num(expected.length, 0)} คน`} · ระบบปิดยอดและเผยแพร่ผลให้บุคลากรเห็นแล้ว{review?.approved_at ? ` เมื่อ ${dateTime(review.approved_at)}` : ''}</p>{review?.admin_note && <p className="mt-2 rounded bg-white/70 p-2 text-sm"><b>หมายเหตุการอนุมัติและปิดยอด:</b> {review.admin_note}</p>}</div></div>}
 
     <section className="card">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div><h2 className="text-lg font-bold">ขั้นตอนรับรองผลและปิดงวด</h2><p className="text-xs text-stone-600">กรรมการคนใดก็เริ่มกระบวนการได้ ไม่ต้องมีประธาน · เมื่ออนุมัติครบทุกคน ระบบปิดยอดและประกาศผลให้อัตโนมัติ</p></div>
-        {!isMember && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">ดูได้อย่างเดียว (ไม่ใช่กรรมการที่ปฏิบัติหน้าที่)</span>}
+        <div><h2 className="text-lg font-bold">ขั้นตอนรับรองผลและปิดงวด</h2><p className="text-xs text-stone-600">กรรมการคนใดก็เริ่มกระบวนการได้ และเมื่ออนุมัติครบ ระบบปิดยอดอัตโนมัติ</p></div>
+        {!isMember && !isCentralAdminAccount && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">ดูได้อย่างเดียว (ไม่ใช่กรรมการหรือแอดมินกลาง)</span>}
       </div>
       <ol>
         {!reviewGate && !reviewing && !closed && <div role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">ระบบไม่สามารถอ่านสถานะตรวจรายหน่วยงานได้ จึงปิดการเริ่มรับรองไว้ก่อน กรุณาตรวจสอบการอัปเดตฐานข้อมูลหรือแจ้งผู้ดูแลระบบ</div>}
@@ -110,6 +113,17 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
           </> : <p className="text-stone-500">เริ่มหลังจากขั้นตอนที่ 2</p>}
         </Step>
 
+        {isCentralAdminAccount && !closed && !reviewing && <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+          <div className="font-semibold text-amber-950">สิทธิ์แอดมินกลาง 11450: อนุมัติและปิดยอดแทนกรรมการ</div>
+          <p className="text-sm text-amber-900">เริ่มกระบวนการรับรอง อนุมัติ และปิดยอดได้ในครั้งเดียว โดยไม่ต้องรอมติกรรมการทุกคน ทั้งนี้ยังต้องตรวจครบทุกหน่วยงานและไม่มีรายการรอรับรอง</p>
+          <label className="block text-sm font-medium">หมายเหตุการอนุมัติและปิดยอด <span className="text-red-600">*</span>
+            <textarea className="inp mt-1 min-h-20 w-full" value={adminNote} onChange={e => setAdminNote(e.target.value)} placeholder="ระบุเหตุผลหรือรายละเอียดการอนุมัติและปิดยอดแทนกรรมการ (อย่างน้อย 5 ตัวอักษร)" />
+          </label>
+          <button type="button" className="btn" disabled={busy || !onAdminClose || adminNote.trim().length < 5 || !allReady || !allChecked || pending > 0 || !reviewGate}
+            onClick={async () => { if (await onAdminClose!(adminNote.trim())) setAdminNote('') }}>
+            <LockKeyhole size={16} />เริ่มรับรอง อนุมัติ และปิดยอดแทนกรรมการ
+          </button>
+        </div>}
         <Step n={4} state={s4} title="ปิดงวดและประกาศผล (อัตโนมัติ)">
           {closed ? <p className="flex items-center gap-1 text-emerald-800"><LockKeyhole size={15} />ปิดงวดแล้ว ผลการจัดสรรเผยแพร่ให้บุคลากรเรียบร้อย</p>
             : <p className="text-stone-500">เมื่อกรรมการอนุมัติครบทุกคน ({num(expected.length || activeCount, 0)} คน) ระบบจะปิดยอด บันทึกยอดยกไป และเผยแพร่ผลทันที ไม่ต้องกดยืนยันซ้ำ</p>}
