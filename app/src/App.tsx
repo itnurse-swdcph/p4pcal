@@ -2183,7 +2183,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     let alive = true
     if (month !== '2026-10') { setOctoberPayoutLines(null); setOctoberPayoutError(''); return () => { alive = false } }
     setOctoberPayoutLines(null); setOctoberPayoutError('')
-    sb.rpc('p4p_calc', { p_month: month + '-01' }).then(({ data, error }: any) => {
+    sb.rpc('p4p_report_lines', { p_month: month + '-01' }).then(({ data, error }: any) => {
       if (!alive) return
       if (error || !Array.isArray(data?.lines)) {
         setOctoberPayoutLines([])
