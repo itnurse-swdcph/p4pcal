@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Download, FileSpreadsheet, X } from 'lucide-react'
 import { downloadXlsxWorkbook, type SheetSpec, type XCell } from './committee/xlsxExport'
 import { monthLabel } from './committee/utils'
@@ -26,6 +26,13 @@ export default function P4PCommitteeExport({ open, onClose, onPrepare, month, un
   const [prepared, setPrepared] = useState<{ activityRows: any[]; auditHistory: any[] } | null>(null)
   const [preparing, setPreparing] = useState(false)
   const [prepareError, setPrepareError] = useState('')
+  useEffect(() => {
+    if (open) {
+      setSelected('all')
+      setPrepared(null)
+      setPrepareError('')
+    }
+  }, [open, month])
   const unitByKey = useMemo(() => new Map(units.map((u: any) => [Number(u.key), u])), [units])
   const personById = useMemo(() => new Map(lines.map((p: any) => [String(p.id), p])), [lines])
   const getPerson = (row: any) => personById.get(String(row.person_id)) || lines.find((p: any) => String(p.staff_directory_id) === String(row.staff_directory_id)) || {}
@@ -193,7 +200,7 @@ export default function P4PCommitteeExport({ open, onClose, onPrepare, month, un
     <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
       <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-lg font-bold"><FileSpreadsheet className="text-emerald-700"/>Export รายงาน P4P</div><button type="button" className="btn sec !px-2" onClick={onClose} aria-label="ปิด"><X size={17}/></button></div>
       <p className="mt-1 text-sm text-stone-500">ประจำเดือน{monthLabel(month)} · Excel (.xlsx)</p>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">{REPORTS.map(r => <button key={r.key} type="button" onClick={() => { setSelected(r.key); setPrepared(null); setPrepareError('') }} className={`rounded-lg border p-3 text-left ${selected === r.key ? 'border-teal-700 bg-teal-50 ring-1 ring-teal-700' : 'border-stone-200 hover:bg-stone-50'}`}><span className="font-semibold">{r.label}</span><span className="mt-1 block text-xs text-stone-600">{r.detail}</span></button>)}</div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">{REPORTS.map(r => <button key={r.key} type="button" disabled={preparing} onClick={() => { setSelected(r.key); setPrepared(null); setPrepareError('') }} className={`rounded-lg border p-3 text-left ${selected === r.key ? 'border-teal-700 bg-teal-50 ring-1 ring-teal-700' : 'border-stone-200 hover:bg-stone-50'}`}><span className="font-semibold">{r.label}</span><span className="mt-1 block text-xs text-stone-600">{r.detail}</span></button>)}</div>
       <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-4">
         <div className="flex items-center justify-between"><b>ตัวอย่างรายงาน: {current.label}</b><span className="text-sm tabular-nums text-stone-600">{count} หน่วยงาน</span></div>
         <p className="mt-1 text-sm text-stone-600">{prepared ? `เตรียมข้อมูลแล้ว · สร้าง ${specs.length} แท็บตามรายงานที่เลือก` : 'เลือกประเภทรายงานก่อน แล้วกดเตรียมข้อมูลเพื่อเริ่มดึงเฉพาะข้อมูลที่จำเป็น'}</p>
