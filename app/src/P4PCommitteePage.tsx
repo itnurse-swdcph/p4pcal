@@ -125,29 +125,31 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   }, [sb, monthDate, version])
 
   const loading = loadedFor !== monthDate
-  const openExportReport = async () => {
-    setExportLoading(true)
+  const openExportReport = () => {
+    // เปิดหน้าต่างให้เลือกประเภทรายงานก่อน ยังไม่ดึงข้อมูลกิจกรรมจำนวนมาก
+    setExportOpen(true)
     setError('')
-    try {
-      const loadAllRows = async (table: string) => {
-        const all: any[] = []
-        for (let from = 0; ; from += 1000) {
-          const page = await sb.from(table).select('*').eq('month', monthDate).order(table === 'v_logs' ? 'work_date' : 'created_at', { ascending: table === 'v_logs' }).range(from, from + 999)
-          if (page.error) throw page.error
-          all.push(...(page.data || []))
-          if ((page.data || []).length < 1000) break
-        }
-        return all
+  }
+  const prepareExportReport = async (reportKey: string) => {
+    const needsActivities = ['all', 'ready', 'notready', 'checked'].includes(reportKey)
+    const needsHistory = ['all', 'checked'].includes(reportKey)
+    const loadAllRows = async (table: string) => {
+      const all: any[] = []
+      for (let from = 0; ; from += 500) {
+        const page = await sb.from(table).select('*').eq('month', monthDate)
+          .order(table === 'v_logs' ? 'work_date' : 'created_at', { ascending: table === 'v_logs' })
+          .range(from, from + 499)
+        if (page.error) throw page.error
+        all.push(...(page.data || []))
+        if ((page.data || []).length < 500) break
       }
-      const [activityRows, historyRows] = await Promise.all([loadAllRows('v_logs'), loadAllRows('p4p_activity_audit_events')])
-      setReportActivityRows(activityRows)
-      setAuditHistory(historyRows)
-      setExportOpen(true)
-    } catch (e: any) {
-      setError(e?.message || 'โหลดข้อมูลสำหรับรายงานไม่สำเร็จ กรุณาลองใหม่')
-    } finally {
-      setExportLoading(false)
+      return all
     }
+    const [activityRows, historyRows] = await Promise.all([
+      needsActivities ? loadAllRows('v_logs') : Promise.resolve([]),
+      needsHistory ? loadAllRows('p4p_activity_audit_events') : Promise.resolve([])
+    ])
+    return { activityRows, auditHistory: historyRows }
   }
   const activeMembers = useMemo(() => members.filter(x => x.active), [members])
   const isMember = activeMembers.some(x => x.user_id === currentUserId)
@@ -366,7 +368,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
       {tab === 'roster' && isAdmin && <RosterAdmin sb={sb} members={members} roster={roster} version={version} busy={busy} runAction={runAction} setError={setError} />}
     </>}
 
-    <P4PCommitteeExport open={exportOpen} onClose={() => setExportOpen(false)} month={month} units={overviewUnits} lines={linesWithOrg} statusRows={statusRows} activityRows={reportActivityRows} auditHistory={auditHistory} returnedPeopleByUnit={returnedPeopleByUnit} />
+    <P4PCommitteeExport open={exportOpen} onClose={() => setExportOpen(false)} onPrepare={prepareExportReport} month={month} units={overviewUnits} lines={linesWithOrg} statusRows={statusRows} returnedPeopleByUnit={returnedPeopleByUnit} />
 
     {panel && <ActivityPanel sb={sb} monthDate={monthDate} person={panel.person} randomUnitId={panel.randomUnitId} canAudit={canAudit} lockedReason={lockedReason} PrintSheet={PrintSheet} units={appUnits} positions={appPositions} scoreBreakdown={scoreBreakdown} openEvidence={openEvidence}
       onClose={() => setPanel(null)} onChanged={refresh} />}
