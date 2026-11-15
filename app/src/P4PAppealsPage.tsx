@@ -18,6 +18,7 @@ const statusTone: Record<string, string> = {
 export default function P4PAppealsPage({ sb, month, setMonth }: any) {
   const [data, setData] = useState<any>({ staff: [], appeals: [], role: 'staff', is_admin: false, month_closed: false })
   const [selected, setSelected] = useState<number[]>([])
+  const [unitFilter, setUnitFilter] = useState('')
   const [reason, setReason] = useState('')
   const [details, setDetails] = useState('')
   const [direct, setDirect] = useState(false)
@@ -38,7 +39,9 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
   const staff = data.staff || []
   const appeals = data.appeals || []
   const canDecide = !!data.is_admin || data.role === 'committee'
-  const staffById = useMemo(() => new Map(staff.map((p: any) => [Number(p.staff_directory_id), p])), [staff])
+  const unitOptions = useMemo(() => [...new Map(staff.filter((p: any) => p.unit_id != null).map((p: any) => [String(p.unit_id), { id: String(p.unit_id), name: p.unit_name || 'หน่วยงาน' }])).values()], [staff])
+  const visibleStaff = useMemo(() => unitFilter ? staff.filter((p: any) => String(p.unit_id ?? '') === unitFilter) : staff, [staff, unitFilter])
+  useEffect(() => { if (!unitFilter && unitOptions.length) setUnitFilter(unitOptions[0].id) }, [unitFilter, unitOptions])
 
   const submit = async () => {
     if (!selected.length || reason.trim().length < 5) { setError('กรุณาเลือกรายชื่อและระบุเหตุผลอย่างน้อย 5 ตัวอักษร'); return }
@@ -101,8 +104,9 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
       {data.month_closed && staff.length > 0 && <div className="space-y-3 border-t border-stone-200 pt-3">
         <div className="flex items-center gap-2 font-semibold text-stone-800"><FilePlus2 size={17}/>ยื่นอุทธรณ์ / ขอเปิดสิทธิ์บันทึกคะแนนเพิ่มเติม</div>
         <p className="text-xs text-stone-500">{data.is_admin ? 'Admin กลางสามารถเลือกเจ้าหน้าที่และเปิดสิทธิ์ได้ทันที' : data.role === 'head' || data.role === 'group_head' ? 'หัวหน้าหน่วยงานเลือกเจ้าหน้าที่ในขอบเขตที่รับผิดชอบได้หลายคน' : 'เจ้าหน้าที่สามารถยื่นอุทธรณ์คะแนนของตนเองได้'}</p>
+        {unitOptions.length > 1 && <label className="block space-y-1 text-sm"><span className="font-semibold">เลือกหน่วยงาน (หนึ่งคำขอต่อหนึ่งหน่วยงาน)</span><select className="inp w-full" value={unitFilter} onChange={e => { setUnitFilter(e.target.value); setSelected([]) }}><option value="">เลือกหน่วยงาน</option>{unitOptions.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>}
         <div className="max-h-64 overflow-auto rounded-xl border border-stone-200 p-2 space-y-1">
-          {staff.map((p: any) => <label key={p.staff_directory_id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-stone-50 text-sm">
+          {visibleStaff.map((p: any) => <label key={p.staff_directory_id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-stone-50 text-sm">
             <input type="checkbox" className="mt-1" checked={selected.includes(Number(p.staff_directory_id))}
               onChange={e => setSelected(old => e.target.checked ? [...old, Number(p.staff_directory_id)] : old.filter(x => x !== Number(p.staff_directory_id)))}/>
             <span><b>{p.name}</b><span className="block text-xs text-stone-500">{p.position} · {p.unit_name || 'ไม่ระบุหน่วยงาน'}</span></span>
