@@ -4,7 +4,7 @@ import { CheckCircle2, Clock3, Coins, RefreshCw, Send, XCircle } from 'lucide-re
 const money = (v: any) => Number(v || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const monthDate = (m: string) => /^\d{4}-\d{2}$/.test(m) ? m + '-01' : m
 
-export default function P4PFundManagement({ sb, month, setMonth, units = [], isCentralAdmin = false }: any) {
+export default function P4PFundManagement({ sb, month, setMonth, units = [], isCentralAdmin = false, canDecide = false }: any) {
   const [calc, setCalc] = useState<any>(null)
   const [requests, setRequests] = useState<any[]>([])
   const [unitId, setUnitId] = useState('')
@@ -110,11 +110,11 @@ export default function P4PFundManagement({ sb, month, setMonth, units = [], isC
     </section>
     <section className="card space-y-3">
       <h3 className="font-bold">ประวัติคำขอและผลการพิจารณา</h3>
-      <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr><th className="text-left">บุคลากร/หน่วยงาน</th><th className="text-left">เหตุผล</th><th className="text-right">ขอใช้</th><th className="text-right">อนุมัติ</th><th>สถานะ</th><th className="text-left">หมายเหตุ</th>{isCentralAdmin&&<th>ดำเนินการ</th>}</tr></thead><tbody>
+      <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr><th className="text-left">บุคลากร/หน่วยงาน</th><th className="text-left">เหตุผล</th><th className="text-right">ขอใช้</th><th className="text-right">อนุมัติ</th><th>สถานะ</th><th className="text-left">หมายเหตุ</th>{canDecide&&<th>ดำเนินการ</th>}</tr></thead><tbody>
       {requests.map((q:any)=><tr key={q.id}><td>{q.staff_name}<div className="text-xs text-stone-500">{q.unit_name}</div></td><td className="max-w-64 whitespace-normal">{q.reason}</td><td className="text-right">{money(q.requested_amount)}</td><td className="text-right">{money(q.approved_amount)}</td><td>{q.status==='pending'?<span className="inline-flex items-center gap-1 text-amber-700"><Clock3 size={14}/> รอพิจารณา</span>:q.status==='approved'?<span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 size={14}/> อนุมัติ</span>:<span className="inline-flex items-center gap-1 text-red-700"><XCircle size={14}/> ไม่อนุมัติ</span>}</td><td className="whitespace-normal">{q.review_comment||'—'}</td>
-      {isCentralAdmin&&<td>{q.status==='pending'&&!calc?.closed?<div className="flex min-w-48 flex-col gap-1"><input className="inp w-full" type="number" min="0.01" max={q.requested_amount} step="0.01" value={reviewAmounts[q.id]??String(q.requested_amount)} onChange={e=>setReviewAmounts(old=>({...old,[q.id]:e.target.value}))}/><input className="inp w-full" placeholder="หมายเหตุ (ถ้ามี)" value={comments[q.id]||''} onChange={e=>setComments(old=>({...old,[q.id]:e.target.value}))}/><div className="flex gap-1"><button className="btn text-xs" disabled={busy} onClick={()=>void decide(q,'approved')}><CheckCircle2 size={13}/> อนุมัติ</button><button className="btn danger text-xs" disabled={busy} onClick={()=>void decide(q,'rejected')}><XCircle size={13}/> ไม่อนุมัติ</button></div></div>:'—'}</td>}
+      {canDecide&&<td>{q.status==='pending'&&!calc?.closed?<div className="flex min-w-48 flex-col gap-1"><input className="inp w-full" type="number" min="0.01" max={q.requested_amount} step="0.01" value={reviewAmounts[q.id]??String(q.requested_amount)} onChange={e=>setReviewAmounts(old=>({...old,[q.id]:e.target.value}))}/><input className="inp w-full" placeholder="หมายเหตุ (ถ้ามี)" value={comments[q.id]||''} onChange={e=>setComments(old=>({...old,[q.id]:e.target.value}))}/><div className="flex gap-1"><button className="btn text-xs" disabled={busy} onClick={()=>void decide(q,'approved')}><CheckCircle2 size={13}/> อนุมัติ</button><button className="btn danger text-xs" disabled={busy} onClick={()=>void decide(q,'rejected')}><XCircle size={13}/> ไม่อนุมัติ</button></div></div>:'—'}</td>}
       </tr>)}
-      {!requests.length&&<tr><td colSpan={isCentralAdmin?7:6} className="py-5 text-center text-stone-500">ยังไม่มีคำขอในเดือนนี้</td></tr>}
+      {!requests.length&&<tr><td colSpan={canDecide?7:6} className="py-5 text-center text-stone-500">ยังไม่มีคำขอในเดือนนี้</td></tr>}
       </tbody></table></div>
     </section>
     <section className="card space-y-2"><h3 className="font-bold">ผลการจัดสรรเงินที่อนุมัติแล้ว</h3><p className="text-xs text-stone-500">จัดสรรให้ผู้มีสิทธิ์ที่มีคะแนนเกินแต้มประกัน ภายในหน่วยงานต้นทางเท่านั้น</p><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-sm"><thead><tr><th className="text-left">ผู้รับจัดสรร</th><th className="text-left">หน่วยงาน</th><th className="text-right">เงินเพิ่ม</th></tr></thead><tbody>
