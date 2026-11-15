@@ -18,6 +18,28 @@ const scoreCell = (v: any): XCell => {
   const n = Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100
   return { v: n.toLocaleString('th-TH', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }), s: 'rate' }
 }
+const thaiBahtText = (value: number) => {
+  const digits = ['ศูนย์','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า']
+  const units = ['','สิบ','ร้อย','พัน','หมื่น','แสน','ล้าน']
+  const group = (n: number): string => {
+    if (!n) return ''
+    const str = String(n); let out = ''
+    for (let i = 0; i < str.length; i++) {
+      const d = Number(str[i]), pos = str.length - i - 1
+      if (!d) continue
+      if (pos === 0 && d === 1 && str.length > 1) out += 'เอ็ด'
+      else if (pos === 1 && d === 2) out += 'ยี่'
+      else if (pos === 1 && d === 1) out += ''
+      else out += digits[d]
+      out += units[pos]
+    }
+    return out
+  }
+  const read = (n: number): string => n >= 1000000 ? read(Math.floor(n / 1000000)) + 'ล้าน' + group(n % 1000000) : group(n)
+  const amount = Math.round(Math.max(0, Number(value) || 0) * 100) / 100
+  const baht = Math.floor(amount), satang = Math.round((amount - baht) * 100)
+  return read(baht) + 'บาท' + (satang ? read(satang) + 'สตางค์' : 'ถ้วน')
+}
 const dateTH = (v: any) => v ? new Date(String(v).length === 10 ? `${v}T00:00:00` : v).toLocaleDateString('th-TH') : '—'
 const sheet = (sheetName: string, title: string, month: string, headers: string[], rows: any[][], widths: number[]): SheetSpec => ({
   sheetName,
@@ -156,11 +178,15 @@ export default function P4PCommitteeExport({ open, onClose, onPrepare, month, un
           pending ? cell('รอผล', 'center') : numericCell(sum('payout'), 'moneyStrong'),
           cell(''), cell('')
         ],
-        [{ v: `รวม ${pending ? 'รอผล' : sum('payout').toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' บาท'}`, s: 'labelStrong' }]
+        [{ v: `รวม ${pending ? 'รอผล' : sum('payout').toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' บาท (' + thaiBahtText(sum('payout')) + ')'}`, s: 'labelStrong' }],
+        [{ v: 'ขอรับรองว่าผู้มีรายนามข้างต้น ได้ปฏิบัติงานจริง', s: 'labelStrong' }],
+        [{ v: 'ลงชื่อ ................................................  (................................................)  หัวหน้ากลุ่มงาน' }],
+        [{ v: 'ลงชื่อ ........................................................  (........................................................)  กรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน' }],
+        [{ v: 'ลงชื่อ ........................................................ ผู้อนุมัติ  (นายพันธ์นพ ควรดำรงธรรม)  ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน' }]
       ]
       specs.push({
         sheetName: tab, rows,
-        merges: ['A1:N1', 'A2:N2', 'F3:G3', 'A3:A4', 'B3:B4', 'C3:C4', 'D3:D4', 'E3:E4', 'H3:H4', 'I3:I4', 'J3:J4', 'K3:K4', 'L3:L4', 'M3:M4', 'N3:N4', `A${rows.length}:N${rows.length}`],
+        merges: ['A1:N1', 'A2:N2', 'F3:G3', 'A3:A4', 'B3:B4', 'C3:C4', 'D3:D4', 'E3:E4', 'H3:H4', 'I3:I4', 'J3:J4', 'K3:K4', 'L3:L4', 'M3:M4', 'N3:N4', `A${rows.length - 3}:N${rows.length - 3}`, `A${rows.length - 2}:N${rows.length - 2}`, `A${rows.length - 1}:N${rows.length - 1}`, `A${rows.length}:N${rows.length}`],
         colWidths: [8, 30, 30, 16, 22, 15, 18, 18, 22, 24, 22, 22, 22, 18], freeze: { row: 4, col: 0 }
       })
     }
