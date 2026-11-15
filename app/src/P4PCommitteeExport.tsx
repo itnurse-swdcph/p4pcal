@@ -186,7 +186,7 @@ export default function P4PCommitteeExport({ open, onClose, onPrepare, month, un
       ]
       specs.push({
         sheetName: tab, rows,
-        merges: ['A1:N1', 'A2:N2', 'F3:G3', 'A3:A4', 'B3:B4', 'C3:C4', 'D3:D4', 'E3:E4', 'H3:H4', 'I3:I4', 'J3:J4', 'K3:K4', 'L3:L4', 'M3:M4', 'N3:N4', `A${rows.length - 3}:N${rows.length - 3}`, `A${rows.length - 2}:N${rows.length - 2}`, `A${rows.length - 1}:N${rows.length - 1}`, `A${rows.length}:N${rows.length}`],
+        merges: ['A1:N1', 'A2:N2', 'F3:G3', 'A3:A4', 'B3:B4', 'C3:C4', 'D3:D4', 'E3:E4', 'H3:H4', 'I3:I4', 'J3:J4', 'K3:K4', 'L3:L4', 'M3:M4', 'N3:N4', `A${rows.length - 4}:N${rows.length - 4}`, `A${rows.length - 3}:N${rows.length - 3}`, `A${rows.length - 2}:N${rows.length - 2}`, `A${rows.length - 1}:N${rows.length - 1}`, `A${rows.length}:N${rows.length}`],
         colWidths: [8, 30, 30, 16, 22, 15, 18, 18, 22, 24, 22, 22, 22, 18], freeze: { row: 4, col: 0 }
       })
     }
