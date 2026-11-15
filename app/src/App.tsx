@@ -2174,23 +2174,17 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   const [dialysisFundApproved, setDialysisFundApproved] = useState(false)
   useEffect(() => {
     let alive = true
-    if (month !== '2026-10' || Number(unit) !== 13) { setDialysisFundApproved(false); return () => { alive = false } }
-    sb.from('p4p_ineligible_fund_requests').select('id').eq('month', '2026-10-01').eq('unit_id', 13).eq('status', 'approved').limit(1)
-      .then(({ data, error }: any) => { if (alive) setDialysisFundApproved(!error && Array.isArray(data) && data.length > 0) })
-    return () => { alive = false }
-  }, [sb, month, unit])
-  useEffect(() => {
-    let alive = true
-    if (month !== '2026-10') { setOctoberPayoutLines(null); setOctoberPayoutError(''); return () => { alive = false } }
+    if (month !== '2026-10') { setOctoberPayoutLines(null); setOctoberPayoutError(''); setDialysisFundApproved(false); return () => { alive = false } }
     setOctoberPayoutLines(null); setOctoberPayoutError('')
     sb.rpc('p4p_report_lines', { p_month: month + '-01' }).then(({ data, error }: any) => {
       if (!alive) return
       if (error || !Array.isArray(data?.lines)) {
         setOctoberPayoutLines([])
+        setDialysisFundApproved(false)
         setOctoberPayoutError(error?.message || 'ไม่พบผลจัดสรรเงินของเดือนตุลาคม')
-      } else setOctoberPayoutLines(data.lines)
+      } else { setOctoberPayoutLines(data.lines); setDialysisFundApproved(Number(data.dialysis_tier2_pool || 0) > 0) }
     }).catch((error: any) => {
-      if (alive) { setOctoberPayoutLines([]); setOctoberPayoutError(error?.message || 'โหลดผลจัดสรรเงินไม่สำเร็จ') }
+      if (alive) { setOctoberPayoutLines([]); setDialysisFundApproved(false); setOctoberPayoutError(error?.message || 'โหลดผลจัดสรรเงินไม่สำเร็จ') }
     })
     return () => { alive = false }
   }, [sb, month])
