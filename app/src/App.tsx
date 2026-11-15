@@ -2760,7 +2760,7 @@ function PayGroupsCard({ sb }: any) {
     if (Number(draft.reserve_pct) > 100) { setMsg('เงินกันเฉลี่ยคืนต้องไม่เกิน 100%'); return }
     if (Number(draft.cap_mult) > 10) { setMsg('เพดานคะแนนต้องไม่เกิน 10 เท่า'); return }
     setBusy(true); setMsg('')
-    if (editing.id === 1) body.fixed_pay = Math.round(Number(draft.full_amount) * 0.77 * 100) / 100
+    if (editing.id === 1) body.fixed_pay = truncateMoney2(Number(draft.full_amount) * 0.97 * 0.77)
     const { error } = await sb.from('pay_groups').update(body).eq('id', editing.id)
     if (error) { setBusy(false); setMsg('บันทึกไม่สำเร็จ: ' + error.message); return }
     const { error: rateError } = await sb.from('positions').update({ rate: Number(draft.rate) }).eq('pay_group', editing.id)
