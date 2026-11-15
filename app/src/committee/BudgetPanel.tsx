@@ -19,6 +19,8 @@ type Col = {
   carryIn: number
   reserve: number
   ineligible: number
+  ineligibleDistributed: number
+  ineligibleRemaining: number
   belowDiff: number
   commonPool: number
   poolDistributable: number
@@ -45,6 +47,8 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       const carryIn = isOctober ? 0 : Number(g.carry_extra_in || 0)
       const reserve = Number(g.reserve || 0) * el
       const ineligible = full * inel
+      const ineligibleDistributed = sum(glines.map((l: any) => Number(l.unit_fund_extra || 0)))
+      const ineligibleRemaining = Math.max(0, ineligible - ineligibleDistributed)
       const belowDiff = Number(g.below_threshold_difference || 0)
       const activityPaid = sum(glines.map((l: any) => Number(l.activity || 0)))
       const extraPaid = sum(glines.map((l: any) => Number(l.extra || 0)))
@@ -52,12 +56,13 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       return {
         key: String(g.pay_group), name: String(g.name || `กลุ่ม ${g.pay_group}`),
         nTotal: el + inel, nEligible: el, nIneligible: inel, nBelow: Number(g.n_below || 0), nAbove: Number(g.n_above || 0),
-        total100, carryIn, reserve, ineligible, belowDiff,
-        commonPool: reserve + ineligible + belowDiff,
+        total100, carryIn, reserve, ineligible, ineligibleDistributed, ineligibleRemaining, belowDiff,
+        commonPool: reserve + belowDiff,
         poolDistributable: Number(g.pool_extra || 0),
         activityPaid, extraPaid, sumExcess: Number(g.sum_excess || 0),
         rate: Number(g.rate_per_point || 0), carryOut,
-        balanceDiff: total100 + carryIn - (activityPaid + extraPaid + carryOut),
+        // เงินผู้ไม่มีสิทธิ์ที่ยังไม่ถูกจัดสรรคงแยกไว้ ไม่ปะปนกับเงินกองกลางปกติ
+        balanceDiff: total100 + carryIn - (activityPaid + extraPaid + carryOut + ineligibleRemaining),
       }
     })
     const all: Col = {
@@ -65,7 +70,10 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
       nTotal: sum(perGroup.map(c => c.nTotal)), nEligible: sum(perGroup.map(c => c.nEligible)), nIneligible: sum(perGroup.map(c => c.nIneligible)),
       nBelow: sum(perGroup.map(c => c.nBelow)), nAbove: sum(perGroup.map(c => c.nAbove)),
       total100: sum(perGroup.map(c => c.total100)), carryIn: sum(perGroup.map(c => c.carryIn)), reserve: sum(perGroup.map(c => c.reserve)),
-      ineligible: sum(perGroup.map(c => c.ineligible)), belowDiff: sum(perGroup.map(c => c.belowDiff)),
+      ineligible: sum(perGroup.map(c => c.ineligible)),
+      ineligibleDistributed: sum(perGroup.map(c => c.ineligibleDistributed)),
+      ineligibleRemaining: sum(perGroup.map(c => c.ineligibleRemaining)),
+      belowDiff: sum(perGroup.map(c => c.belowDiff)),
       commonPool: sum(perGroup.map(c => c.commonPool)), poolDistributable: sum(perGroup.map(c => c.poolDistributable)),
       activityPaid: sum(perGroup.map(c => c.activityPaid)), extraPaid: sum(perGroup.map(c => c.extraPaid)),
       sumExcess: sum(perGroup.map(c => c.sumExcess)),
@@ -94,9 +102,11 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
     ] },
     { code: 'ข', title: 'เงินกองกลาง', rows: [
       { label: 'เงินกัน 3%', kind: 'money', hint: isOctober ? 'เดือนตุลาคม 2569 ไม่หักเงินกัน 3%' : 'คิดจากผู้มีสิทธิ์ทุกคน', get: c => r2(c.reserve) },
-      { label: 'เงินของผู้ที่ไม่มีสิทธิ์ในเดือน', kind: 'money', hint: 'วงเงินเต็มของผู้ที่ไม่มีสิทธิ์', get: c => r2(c.ineligible) },
       { label: 'เงินเพิ่มจากผู้ที่คะแนนไม่ถึงเกณฑ์', kind: 'money', hint: 'ส่วนต่างระหว่างเงินเต็มกับเงินที่จ่ายผู้ที่แต้มไม่ถึงเกณฑ์', get: c => r2(c.belowDiff) },
-      { label: 'รวมเงินกองกลาง', kind: 'money', strong: true, hint: 'ผลรวม 3 รายการข้างต้น (ไม่รวมเงินยกยอด)', get: c => r2(c.commonPool) },
+      { label: 'รวมเงินกองกลางปกติ', kind: 'money', strong: true, hint: 'เงินกัน 3% + ส่วนต่างจากผู้มีสิทธิ์ที่คะแนนไม่ถึงเกณฑ์ ไม่รวมเงินผู้ไม่มีสิทธิ์', get: c => r2(c.commonPool) },
+      { label: 'เงินผู้ไม่มีสิทธิ์ (แยกเต็มจำนวน ไม่หัก 3%)', kind: 'money', strong: true, hint: 'แยกออกจากเงินกองกลางปกติเต็มจำนวน', get: c => r2(c.ineligible) },
+      { label: 'เงินผู้ไม่มีสิทธิ์ที่อนุมัติและจัดสรรแล้ว', kind: 'money', get: c => r2(c.ineligibleDistributed) },
+      { label: 'เงินผู้ไม่มีสิทธิ์คงเหลือแยกไว้', kind: 'money', get: c => r2(c.ineligibleRemaining) },
       { label: 'เงินกองกลางรวมเงินยกยอด (นำไปแบ่งเป็นเงินเพิ่ม)', kind: 'money', strong: true, get: c => r2(c.poolDistributable) },
     ] },
     { code: 'ค', title: 'ยอดจัดสรร', rows: [
@@ -188,18 +198,23 @@ export default function BudgetPanel({ groups, lines, month, monthText, closed }:
 
       <div className="space-y-2">
         <h4 className="text-sm font-bold text-teal-900">ก. วงเงินที่ได้รับ (ภาพรวมทั้งหมด)</h4>
-        <div className="grid gap-2 md:grid-cols-3">
+        <div className="grid gap-2 md:grid-cols-4">
           <Card title="วงเงินที่ได้รับทั้งหมดในเดือน (เงิน 100%)" value={all.total100} tone="bg-stone-50">
             <div className="mt-1 text-xs text-stone-500">ผู้ปฏิบัติงาน {num(all.nTotal, 0)} คน (มีสิทธิ์ {num(all.nEligible, 0)} / ไม่มีสิทธิ์ {num(all.nIneligible, 0)})</div>
           </Card>
           <Card title="เงินยกยอดจากเดือนก่อน" value={all.carryIn} tone="bg-stone-50">
             {isOctober && <div className="mt-1 text-xs text-stone-500">เดือนตุลาคม 2569 ไม่นำยอดยกมารวม</div>}
           </Card>
-          <Card title="เงินกองกลาง" value={all.commonPool} tone="bg-teal-50 border-teal-200">
+          <Card title="เงินกองกลางปกติ" value={all.commonPool} tone="bg-teal-50 border-teal-200">
             <div className="mt-2">
               <SubLine dot="bg-teal-600" label={isOctober ? 'เงินกัน 3% (ไม่หักเดือนนี้)' : 'เงินกัน 3%'} value={all.reserve} />
-              <SubLine dot="bg-stone-500" label="เงินของผู้ที่ไม่มีสิทธิ์ในเดือน" value={all.ineligible} />
-              <SubLine dot="bg-amber-500" label="เงินเพิ่มจากผู้ที่คะแนนไม่ถึงเกณฑ์" value={all.belowDiff} />
+              <SubLine dot="bg-amber-500" label="เงินเพิ่มจากผู้มีสิทธิ์คะแนนไม่ถึงเกณฑ์" value={all.belowDiff} />
+            </div>
+          </Card>
+          <Card title="เงินผู้ไม่มีสิทธิ์ (แยกเต็มจำนวน)" value={all.ineligible} tone="bg-amber-50 border-amber-200">
+            <div className="mt-2">
+              <SubLine dot="bg-emerald-600" label="อนุมัติและจัดสรรแล้ว" value={all.ineligibleDistributed} />
+              <SubLine dot="bg-stone-500" label="คงเหลือแยกไว้" value={all.ineligibleRemaining} />
             </div>
           </Card>
         </div>
