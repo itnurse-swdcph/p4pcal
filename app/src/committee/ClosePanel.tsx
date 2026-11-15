@@ -82,7 +82,7 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
 
         <Step n={2} state={s2} title="เริ่มกระบวนการรับรอง">
           {reviewing || closed
-            ? <p className="text-stone-700">เริ่มแล้ว{review?.started_by ? ` โดย ${nameOf(review.started_by)}` : ''}{review?.started_at ? ` · ${dateTime(review.started_at)}` : ''}<br /><span className="text-xs text-stone-500">ระบบเก็บผลคำนวณ ณ ตอนเริ่มไว้ให้กรรมการทุกคนอนุมัติจากตัวเลขชุดเดียวกัน</span></p>
+            ? <p className="text-stone-700">เริ่มแล้ว{review?.admin_note ? ' โดยแอดมินกลาง 11450' : review?.started_by ? ` โดย ${nameOf(review.started_by)}` : ''}{review?.started_at ? ` · ${dateTime(review.started_at)}` : ''}<br /><span className="text-xs text-stone-500">ระบบบันทึกผลคำนวณชุดที่ใช้อนุมัติและปิดยอดไว้เป็นหลักฐาน</span></p>
             : <>
               {status === 'rejected' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900"><b>รอบก่อนมีกรรมการไม่เห็นชอบ</b>{rejectedVote && <> — {nameOf(rejectedVote.user_id)}: "{rejectedVote.comment}"</>}<br />แก้ไขข้อมูลตามเหตุผลแล้วเริ่มรับรองใหม่ได้ (มติเดิมจะถูกล้าง)</div>}
               {status === 'stale' && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">ข้อมูลคะแนนหรือรายชื่อกรรมการเปลี่ยนหลังเริ่มรับรอง จึงต้องเริ่มรับรองใหม่</div>}
@@ -93,7 +93,7 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
               {allReady && !isMember && <p className="text-xs text-stone-500">เฉพาะกรรมการที่ปฏิบัติหน้าที่เท่านั้นที่เริ่มได้</p>}</>}
         </Step>
 
-        <Step n={3} state={s3} title={`กรรมการลงมติ${reviewing || closed ? ` (อนุมัติ ${approved}/${expected.length} คน)` : ''}`}>
+        <Step n={3} state={s3} title={review?.admin_note ? 'การอนุมัติแทนกรรมการ' : `กรรมการลงมติ${reviewing || closed ? ` (อนุมัติ ${approved}/${expected.length} คน)` : ''}`}>
           {reviewing || closed ? <>
             <div className="h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${expected.length ? (approved / expected.length) * 100 : 0}%` }} /></div>
             <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">{expected.map(id => { const v = voteOf(id); return <li key={id} className="flex items-center justify-between gap-2 rounded-lg border border-stone-200 p-2">
