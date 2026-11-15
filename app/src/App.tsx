@@ -1241,8 +1241,9 @@ function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, act
   // ตุลาคม 2569: พยาบาลงานการพยาบาลไตเทียมใช้เพดานพิเศษ 1,600 คะแนน
   // บุคลากรอื่นใช้เพดานเดิมตามหลักเกณฑ์เดือนตุลาคม; เดือนอื่นใช้ 1.5 เท่าของแต้มประกัน
   const october2026 = /^2026-10(?:-|$)/.test(String(month || '').trim())
-  const dialysisNurseOctober = october2026 && String(unitName || '').replace(/\s+/g, '').trim() === 'งานการพยาบาลไตเทียม' && String(position || '').includes('พยาบาล') && !String(orgRole || '').includes('หัวหน้า')
-  const totalPerformanceCap = dialysisNurseOctober ? 1600 : october2026 ? insurance + 10 : insurance * 1.5
+  const dialysisUnitOctober = october2026 && String(unitName || '').replace(/\s+/g, '').trim() === 'งานการพยาบาลไตเทียม' && String(position || '').includes('พยาบาล')
+  const dialysisNurseOctober = dialysisUnitOctober && !String(orgRole || '').includes('หัวหน้า')
+  const totalPerformanceCap = dialysisNurseOctober ? 1600 : dialysisUnitOctober ? insurance * 1.5 : october2026 ? insurance + 10 : insurance * 1.5
   const activityCap = Math.max(0, totalPerformanceCap - roleGuarantee)
   const cappedActivityPoints = Math.min(rawActivityPoints, activityCap)
   const rawPerformance = rawActivityPoints + roleGuarantee
