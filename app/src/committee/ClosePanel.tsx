@@ -113,7 +113,7 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
           </> : <p className="text-stone-500">เริ่มหลังจากขั้นตอนที่ 2</p>}
         </Step>
 
-        {isCentralAdminAccount && !closed && !reviewing && <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+        {isCentralAdminAccount && !closed && <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
           <div className="font-semibold text-amber-950">สิทธิ์แอดมินกลาง 11450: อนุมัติและปิดยอดแทนกรรมการ</div>
           <p className="text-sm text-amber-900">เริ่มกระบวนการรับรอง อนุมัติ และปิดยอดได้ในครั้งเดียว โดยไม่ต้องรอมติกรรมการทุกคน ทั้งนี้ยังต้องตรวจครบทุกหน่วยงานและไม่มีรายการรอรับรอง</p>
           <label className="block text-sm font-medium">หมายเหตุการอนุมัติและปิดยอด <span className="text-red-600">*</span>
