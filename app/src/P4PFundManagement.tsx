@@ -4,7 +4,7 @@ import { CheckCircle2, Clock3, Coins, RefreshCw, Send, XCircle } from 'lucide-re
 const money = (v: any) => Number(v || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const monthDate = (m: string) => /^\d{4}-\d{2}$/.test(m) ? m + '-01' : m
 
-export default function P4PFundManagement({ sb, month, setMonth, units = [], isCentralAdmin = false, canDecide = false }: any) {
+export default function P4PFundManagement({ sb, month, setMonth, units = [], isCentralAdmin = false, canDecide = false, canRequest = false }: any) {
   const [calc, setCalc] = useState<any>(null)
   const [requests, setRequests] = useState<any[]>([])
   const [unitId, setUnitId] = useState('')
@@ -93,10 +93,11 @@ export default function P4PFundManagement({ sb, month, setMonth, units = [], isC
       <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold">ทะเบียนเงินผู้ไม่มีสิทธิ์</h3><p className="text-xs text-stone-500">ยอดจัดสรรรายบุคคลเต็มจำนวนก่อนหักเงินใด ๆ</p></div>
       <select className="inp min-w-56" value={unitId} onChange={e=>{setUnitId(e.target.value);setStaffId('')}}><option value="">ทุกหน่วยงาน</option>{visibleUnits.map((u:any)=><option key={u.id} value={String(u.id)}>{u.name}</option>)}</select></div>
       <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead><tr><th className="text-left">บุคลากร</th><th className="text-left">หน่วยงาน</th><th className="text-right">เงินแยกเต็มจำนวน</th><th className="text-right">จอง/อนุมัติ</th><th className="text-right">คงเหลือขอใช้ได้</th><th></th></tr></thead><tbody>
-      {filtered.map((x:any)=><tr key={String(x.staff_directory_id)+'-'+String(x.unit_id)}><td>{x.name}<div className="text-xs text-stone-500">{x.position || ''}</div></td><td>{x.unit_name || 'ไม่ระบุ'}</td><td className="text-right">{money(x.ineligible_amount)}</td><td className="text-right">{money(reserved(x.staff_directory_id))}</td><td className="text-right font-semibold">{money(available(x))}</td><td className="text-right"><button className="text-sm underline disabled:opacity-40" disabled={available(x)<=0 || calc?.closed} onClick={()=>{setUnitId(String(x.unit_id));setStaffId(String(x.staff_directory_id));setAmount(String(available(x)));document.getElementById('fund-request-form')?.scrollIntoView({behavior:'smooth',block:'center'})}}>ขอใช้เงิน</button></td></tr>)}
+      {filtered.map((x:any)=><tr key={String(x.staff_directory_id)+'-'+String(x.unit_id)}><td>{x.name}<div className="text-xs text-stone-500">{x.position || ''}</div></td><td>{x.unit_name || 'ไม่ระบุ'}</td><td className="text-right">{money(x.ineligible_amount)}</td><td className="text-right">{money(reserved(x.staff_directory_id))}</td><td className="text-right font-semibold">{money(available(x))}</td><td className="text-right">{canRequest ? <button className="text-sm underline disabled:opacity-40" disabled={available(x)<=0 || calc?.closed} onClick={()=>{setUnitId(String(x.unit_id));setStaffId(String(x.staff_directory_id));setAmount(String(available(x)));document.getElementById('fund-request-form')?.scrollIntoView({behavior:'smooth',block:'center'})}}>ขอใช้เงิน</button> : '—'}</td></tr>)}
       {!filtered.length && <tr><td colSpan={6} className="py-6 text-center text-stone-500">ไม่พบเงินผู้ไม่มีสิทธิ์ในเดือนนี้</td></tr>}
       </tbody></table></div>
     </section>
+    {canRequest && <>
     <section id="fund-request-form" className="card space-y-3">
       <div><h3 className="font-bold">ส่งคำขอนำเงินกลับมาใช้ในหน่วยงาน</h3><p className="text-xs text-stone-500">เช่น บุคลากรลาศึกษาต่อและหน่วยงานไม่ได้ขออัตราทดแทน</p></div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -108,6 +109,7 @@ export default function P4PFundManagement({ sb, month, setMonth, units = [], isC
       <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-stone-500">{selected ? 'ยอดเงินต้นทาง '+money(selected.ineligible_amount)+' บาท · คงเหลือ '+money(available(selected))+' บาท' : 'เลือกบุคลากรเพื่อแสดงยอดเงินคงเหลือ'}</span><button className="btn" disabled={busy || calc?.closed} onClick={()=>void submit()}><Send size={15}/> ส่งคำขอให้พิจารณา</button></div>
       {calc?.closed && <p className="text-sm text-amber-700">งวดนี้ปิดแล้ว ไม่สามารถส่งคำขอได้</p>}
     </section>
+    </>}
     <section className="card space-y-3">
       <h3 className="font-bold">ประวัติคำขอและผลการพิจารณา</h3>
       <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr><th className="text-left">บุคลากร/หน่วยงาน</th><th className="text-left">เหตุผล</th><th className="text-right">ขอใช้</th><th className="text-right">อนุมัติ</th><th>สถานะ</th><th className="text-left">หมายเหตุ</th>{canDecide&&<th>ดำเนินการ</th>}</tr></thead><tbody>
