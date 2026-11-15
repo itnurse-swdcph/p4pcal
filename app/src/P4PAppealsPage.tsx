@@ -28,6 +28,7 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [snapshotReason, setSnapshotReason] = useState('')
 
   const load = useCallback(async () => {
     setError('')
@@ -91,6 +92,21 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
     finally { setBusy(false) }
   }
 
+  const recalculateSnapshot = async () => {
+    if (snapshotReason.trim().length < 5) { setError('กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร'); return }
+    setBusy(true); setError(''); setMessage('')
+    try {
+      const { data: result, error: actionError } = await sb.rpc('p4p_recalculate_closed_month', {
+        p_month: month + '-01', p_reason: snapshotReason.trim()
+      })
+      if (actionError) throw actionError
+      setMessage(`ปรับปรุง Snapshot เรียบร้อยแล้ว · ประวัติรายการที่ ${result?.history_id ?? 'บันทึกแล้ว'} · สถานะงวดยังคงปิด`)
+      setSnapshotReason('')
+      await load()
+    } catch (e: any) { setError(e?.message || 'ปรับปรุง Snapshot ไม่สำเร็จ') }
+    finally { setBusy(false) }
+  }
+
   const groupAppealPeople = (people: any[]) => {
     const grouped = new Map<string, any[]>()
     for (const person of people || []) {
@@ -140,6 +156,12 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
         <button type="button" className="btn" onClick={() => void submit()} disabled={busy || !selected.length || reason.trim().length < 5}><FilePlus2 size={16}/>{busy ? 'กำลังบันทึก…' : direct && data.is_admin ? 'ยื่นและเปิดสิทธิ์ทันที' : 'ส่งคำอุทธรณ์'}</button>
       </div>}
     </section>
+    {data.is_admin && data.month_closed && <section className="card space-y-3 border border-amber-200">
+      <div className="flex items-center gap-2 font-semibold text-amber-900"><RefreshCw size={17}/>ปรับปรุง Snapshot ของงวดที่ปิดแล้ว</div>
+      <p className="text-sm text-stone-600">คำนวณผลใหม่จากข้อมูลกิจกรรมและหลักเกณฑ์ปัจจุบัน พร้อมเก็บ Snapshot เดิมและประวัติการปรับปรุง โดยไม่เปิดงวดใหม่ ระบบจะป้องกันการทำรายการหากยังมีคำอุทธรณ์หรือกิจกรรมที่ยังไม่เสร็จ</p>
+      <label className="block space-y-1 text-sm"><span className="font-semibold">เหตุผลในการปรับปรุง</span><textarea className="inp min-h-16 w-full" value={snapshotReason} onChange={e => setSnapshotReason(e.target.value)} placeholder="เช่น ปรับผลคำนวณตามหลักเกณฑ์การจัดสรรเงินและเพดานคะแนนที่แก้ไขแล้ว"/></label>
+      <button type="button" className="btn" onClick={() => void recalculateSnapshot()} disabled={busy || snapshotReason.trim().length < 5}><RefreshCw size={16}/>{busy ? 'กำลังดำเนินการ…' : 'ตรวจสอบเงื่อนไขและปรับปรุง Snapshot'}</button>
+    </section>}
     <section className="card space-y-3">
       <div className="flex items-center gap-2 font-semibold text-stone-800"><Users size={18}/>รายการคำอุทธรณ์</div>
       {appeals.length === 0 ? <p className="text-sm text-stone-500">ยังไม่มีคำอุทธรณ์ในเดือนนี้</p> : appeals.map((a: any) => <article key={a.id} className="rounded-xl border border-stone-200 p-3 space-y-3">
