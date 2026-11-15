@@ -61,7 +61,7 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
   const checkedUnits = units.filter((u: any) => !!u.reviewed)
   const specs: SheetSpec[] = []
   const safeTabName = (raw: string, used: Set<string>) => {
-    const base = raw.replace(/[\\\\/?*:[\\]]/g, ' ').trim().slice(0, 31) || 'หน่วยงาน'
+    const base = raw.replace(/[\\/?*:[\]]/g, ' ').trim().slice(0, 31) || 'หน่วยงาน'
     let name = base, n = 2
     while (used.has(name.toLowerCase())) { const suffix = ` (${n++})`; name = base.slice(0, 31 - suffix.length) + suffix }
     used.add(name.toLowerCase())
@@ -73,7 +73,7 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
     const indexRows: XCell[][] = [
       [{ v: 'ลำดับ', s: 'header' }, { v: 'กลุ่มงาน', s: 'header' }, { v: 'หน่วยงาน', s: 'header' }, { v: 'บุคลากร', s: 'header' }, { v: 'มีสิทธิ์', s: 'header' }, { v: 'ถึงแต้มประกัน', s: 'header' }, { v: 'ต่ำกว่าแต้มประกัน', s: 'header' }, { v: 'ยอดจัดสรร (บาท)', s: 'header' }, { v: 'เปิดชีต', s: 'header' }],
       ...tabs.map(({ unit: u, tab }: any, i: number) => [
-        cell(i + 1, 'center'), cell(u.group), cell(u.name, 'labelStrong'), cell(u.lines?.length || 0, 'int'),
+        cell(i + 1, 'center'), cell(u.group), { v: String(u.name || ''), s: 'labelStrong', hyperlink: `'${tab.replace(/'/g, "''")}'!A1` } as XCell, cell(u.lines?.length || 0, 'int'),
         cell(u.eligible || 0, 'int'), cell(u.reached || 0, 'int'), cell(u.below || 0, 'int'),
         { v: Number(u.total || 0), s: 'moneyStrong' } as XCell,
         { v: 'ดูรายละเอียด', s: 'labelStrong', hyperlink: `'${tab.replace(/'/g, "''")}'!A1` } as XCell
