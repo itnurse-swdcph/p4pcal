@@ -13,6 +13,7 @@ const REPORTS: { key: ReportKey; label: string; detail: string }[] = [
   { key: 'allocation', label: 'ผลการจัดสรรเพื่อเผยแพร่บุคลากร', detail: 'สรุปผลตามตารางสรุปหน่วยงาน แยกชีตหน่วยงาน พร้อมสารบัญกดไปยังแต่ละหน่วยงาน' },
 ]
 const cell = (v: any, s: XCell['s'] = 'label'): XCell => ({ v: v == null ? '' : String(v), s })
+const numericCell = (v: any, s: XCell['s'] = 'int'): XCell => ({ v: Number(v || 0), s })
 const dateTH = (v: any) => v ? new Date(String(v).length === 10 ? `${v}T00:00:00` : v).toLocaleDateString('th-TH') : '—'
 const sheet = (sheetName: string, title: string, month: string, headers: string[], rows: any[][], widths: number[]): SheetSpec => ({
   sheetName,
@@ -73,8 +74,8 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
     const indexRows: XCell[][] = [
       [{ v: 'ลำดับ', s: 'header' }, { v: 'กลุ่มงาน', s: 'header' }, { v: 'หน่วยงาน', s: 'header' }, { v: 'บุคลากร', s: 'header' }, { v: 'มีสิทธิ์', s: 'header' }, { v: 'ถึงแต้มประกัน', s: 'header' }, { v: 'ต่ำกว่าแต้มประกัน', s: 'header' }, { v: 'ยอดจัดสรร (บาท)', s: 'header' }, { v: 'เปิดชีต', s: 'header' }],
       ...tabs.map(({ unit: u, tab }: any, i: number) => [
-        cell(i + 1, 'center'), cell(u.group), { v: String(u.name || ''), s: 'labelStrong', hyperlink: `'${tab.replace(/'/g, "''")}'!A1` } as XCell, cell(u.lines?.length || 0, 'int'),
-        cell(u.eligible || 0, 'int'), cell(u.reached || 0, 'int'), cell(u.below || 0, 'int'),
+        numericCell(i + 1, 'center'), cell(u.group), { v: String(u.name || ''), s: 'labelStrong', hyperlink: `'${tab.replace(/'/g, "''")}'!A1` } as XCell, numericCell(u.lines?.length || 0),
+        numericCell(u.eligible || 0), numericCell(u.reached || 0), numericCell(u.below || 0),
         { v: Number(u.total || 0), s: 'moneyStrong' } as XCell,
         { v: 'ดูรายละเอียด', s: 'labelStrong', hyperlink: `'${tab.replace(/'/g, "''")}'!A1` } as XCell
       ])
@@ -96,8 +97,8 @@ export default function P4PCommitteeExport({ open, onClose, month, units = [], l
         [{ v: `กลุ่มงาน ${u.group} · เดือน${monthLabel(month)}`, s: 'subtitle' }],
         ['ลำดับ','ชื่อ-นามสกุล','ตำแหน่ง','แต้มกิจกรรม','คะแนนรวม','มีสิทธิ์','สถานะแต้มประกัน','ยอดจัดสรร (บาท)','สถานะส่งผลงาน','สถานะตรวจ'].map(x => cell(x, 'header')),
         ...(u.lines || []).map((p: any, i: number) => [
-          cell(i + 1, 'center'), cell(p.name || p.person_name, 'labelStrong'), cell(p.position),
-          cell(Number(p.activity || 0), 'rate'), cell(Number(p.counted || 0), 'rate'),
+          numericCell(i + 1, 'center'), cell(p.name || p.person_name, 'labelStrong'), cell(p.position),
+          numericCell(p.activity, 'rate'), numericCell(p.counted, 'rate'),
           cell(p.eligible ? 'มีสิทธิ์' : 'ไม่มีสิทธิ์'),
           cell(!p.eligible ? 'ไม่มีสิทธิ์' : p.below ? 'ต่ำกว่าแต้มประกัน' : 'ถึงแต้มประกัน'),
           { v: Number(p.total || 0), s: 'money' } as XCell,
