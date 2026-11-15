@@ -115,11 +115,11 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
 
         {isCentralAdminAccount && !closed && <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
           <div className="font-semibold text-amber-950">สิทธิ์แอดมินกลาง 11450: อนุมัติและปิดยอดแทนกรรมการ</div>
-          <p className="text-sm text-amber-900">เริ่มกระบวนการรับรอง อนุมัติ และปิดยอดได้ในครั้งเดียว โดยไม่ต้องรอมติกรรมการทุกคน ทั้งนี้ยังต้องตรวจครบทุกหน่วยงานและไม่มีรายการรอรับรอง</p>
+          <p className="text-sm text-amber-900">แอดมินกลางสามารถเริ่มรับรอง อนุมัติ และปิดยอดแทนกรรมการได้ทันที โดยไม่ต้องรอกรรมการลงมติหรือตรวจสถานะรายหน่วยงาน ทั้งนี้ทุกหน่วยงานต้องส่งผลงานครบและต้องไม่มีรายการรอรับรอง</p>
           <label className="block text-sm font-medium">หมายเหตุการอนุมัติและปิดยอด <span className="text-red-600">*</span>
             <textarea className="inp mt-1 min-h-20 w-full" value={adminNote} onChange={e => setAdminNote(e.target.value)} placeholder="ระบุเหตุผลหรือรายละเอียดการอนุมัติและปิดยอดแทนกรรมการ (อย่างน้อย 5 ตัวอักษร)" />
           </label>
-          <button type="button" className="btn" disabled={busy || !onAdminClose || adminNote.trim().length < 5 || !allReady || !allChecked || pending > 0 || !reviewGate}
+          <button type="button" className="btn" disabled={busy || !onAdminClose || adminNote.trim().length < 5 || !allReady || pending > 0 || !reviewGate}
             onClick={async () => { if (await onAdminClose!(adminNote.trim())) setAdminNote('') }}>
             <LockKeyhole size={16} />เริ่มรับรอง อนุมัติ และปิดยอดแทนกรรมการ
           </button>
