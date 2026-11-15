@@ -70,11 +70,9 @@ const nf = (n: any, d = 2) => Number(n || 0).toLocaleString('th-TH', { maximumFr
 const truncateMoney2 = (value: number) => Math.floor((Math.max(0, Number(value) || 0) + 1e-8) * 100) / 100
 const basePayoutForMonth = (month: string, allocation: number, performancePoints: number, guarantee: number, eligible: boolean) => {
   if (!eligible) return 0
-  const october2026 = /^2026-10(?:-|$)/.test(String(month || '').trim())
-  // เดือนปกติหักเงินกัน 3% ก่อน: ต่ำกว่าแต้มประกันได้ 77% ของยอดหลังหัก,
-  // ถึงแต้มประกันได้ 97% ของเงินรายหัว (เท่ากับยอดหลังหัก 3%)
-  // ตุลาคม 2569 ใช้หลักเกณฑ์เฉพาะ: ไม่กัน 3%, ต่ำกว่าได้ 77%, ถึงเกณฑ์ได้ 100%
-  const ratio = performancePoints >= guarantee ? (october2026 ? 1 : 0.97) : (october2026 ? 0.77 : 0.97 * 0.77)
+  // ทุกเดือนรวมถึงตุลาคม 2569 หักเงินกัน 3%: ต่ำกว่าแต้มประกันรับ 77% ของยอดหลังหัก,
+  // ถึงหรือเกินแต้มประกันรับ 97% ของเงินรายหัว ส่วนเงินกันและส่วนต่างจัดสรรเป็นเงินเพิ่ม
+  const ratio = performancePoints >= guarantee ? 0.97 : 0.97 * 0.77
   return truncateMoney2(allocation * ratio)
 }
 const today = () => {
