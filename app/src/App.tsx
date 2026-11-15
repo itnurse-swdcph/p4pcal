@@ -1230,12 +1230,10 @@ function roleGuaranteeForPosition(position: any, positions: any[] = [], orgRole?
 function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, activityPoints = 0, month?: string) {
   const insurance = guaranteeForPosition(position, positions, orgRole)
   const roleGuarantee = roleGuaranteeForPosition(position, positions, orgRole)
-  const october2026 = String(month || '').slice(0, 7) === '2026-10'
   const rawActivityPoints = Math.max(0, Number(activityPoints || 0))
-  // v_logs คำนวณและตัดเพดานรายบุคคลของเดือนตุลาคมไว้แล้ว
-  // ห้ามนำคะแนนที่ผ่านการตัดเพดานจากฐานข้อมูลมาตัดซ้ำในหน้าเว็บ
-  // เดือนอื่นยังใช้เพดานรวม 1.5 เท่าของแต้มประกันตามกติกาปกติ
-  const totalPerformanceCap = october2026 ? Number.POSITIVE_INFINITY : insurance * 1.5
+  // แสดงแต้มรวมผลการปฏิบัติงานโดยตัดส่วนเกินตามเพดานรายบุคคลทุกเดือน
+  // รวมถึงเดือนตุลาคม 2569 เพื่อให้สรุปรายบุคคล สรุปหน่วยงาน และไฟล์ส่งออกใช้ยอดเดียวกัน
+  const totalPerformanceCap = insurance * 1.5
   const activityCap = Math.max(0, totalPerformanceCap - roleGuarantee)
   const cappedActivityPoints = Math.min(rawActivityPoints, activityCap)
   const rawPerformance = rawActivityPoints + roleGuarantee
