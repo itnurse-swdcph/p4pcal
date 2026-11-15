@@ -1234,23 +1234,24 @@ function roleGuaranteeForPosition(position: any, positions: any[] = [], orgRole?
   if (role.includes('หัวหน้างาน') || name.includes('หัวหน้าหอผู้ป่วย') || name.includes('หัวหน้างาน')) return 120
   return 0
 }
-function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, activityPoints = 0, month?: string) {
+function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, activityPoints = 0, month?: string, unitName?: string) {
   const insurance = guaranteeForPosition(position, positions, orgRole)
   const roleGuarantee = roleGuaranteeForPosition(position, positions, orgRole)
   const rawActivityPoints = Math.max(0, Number(activityPoints || 0))
-  // ตุลาคม 2569 ใช้เพดานแต้มประกัน + 10 คะแนน (กลุ่ม 1 = 1,210)
-  // เดือนอื่นใช้เพดาน 1.5 เท่าของแต้มประกัน (กลุ่ม 1 = 1,800)
+  // ตุลาคม 2569: พยาบาลงานการพยาบาลไตเทียมใช้เพดานพิเศษ 1,600 คะแนน
+  // บุคลากรอื่นใช้เพดานเดิมตามหลักเกณฑ์เดือนตุลาคม; เดือนอื่นใช้ 1.5 เท่าของแต้มประกัน
   const october2026 = /^2026-10(?:-|$)/.test(String(month || '').trim())
-  const totalPerformanceCap = october2026 ? insurance + 10 : insurance * 1.5
+  const dialysisNurseOctober = october2026 && String(unitName || '').replace(/\s+/g, '').trim() === 'งานการพยาบาลไตเทียม' && String(position || '').includes('พยาบาล') && !String(orgRole || '').includes('หัวหน้า')
+  const totalPerformanceCap = dialysisNurseOctober ? 1600 : october2026 ? insurance + 10 : insurance * 1.5
   const activityCap = Math.max(0, totalPerformanceCap - roleGuarantee)
   const cappedActivityPoints = Math.min(rawActivityPoints, activityCap)
   const rawPerformance = rawActivityPoints + roleGuarantee
   const performance = Math.min(rawPerformance, totalPerformanceCap)
   const excess = Math.max(0, performance - insurance)
-  return { insurance, roleGuarantee, activityPoints: cappedActivityPoints, performance, excess }
+  return { insurance, roleGuarantee, activityPoints: cappedActivityPoints, performance, excess, totalPerformanceCap }
 }
 
-function ActivitySummary({ sb, rows, person, positions, month }: any) {
+function ActivitySummary({ sb, rows, person, positions, month, units = [] }: any) {
   const [payoutResult, setPayoutResult] = useState<any>(null)
   const [payGroups, setPayGroups] = useState<any[]>([])
   const [leaveData, setLeaveData] = useState<any>({ personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 })
@@ -1283,9 +1284,10 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   // นับ pending + approved และตัดออกเฉพาะรายการที่ถูก rejected แล้ว
   const earned = (rows || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const confirmed = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
-  const scoring = scoreBreakdown(person.position, positions, person.org_role, earned, month)
+  const unitName = units.find((u: any) => Number(u.id) === Number(person.unit_id))?.name || person.unit_name || ''
+  const scoring = scoreBreakdown(person.position, positions, person.org_role, earned, month, unitName)
   const displayedEarned = scoring.activityPoints
-  const displayedConfirmed = scoreBreakdown(person.position, positions, person.org_role, confirmed, month).activityPoints
+  const displayedConfirmed = scoreBreakdown(person.position, positions, person.org_role, confirmed, month, unitName).activityPoints
   const performanceTotal = scoring.performance
   const difference = performanceTotal - guarantee
   const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(person.position || '').replace(/\s+/g, '').trim())
@@ -2049,11 +2051,12 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
     const submittedRawPoints = submitted.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
     const g = guaranteeForPosition(p.position, positions, p.org_role)
-    const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints, month)
-    const submittedPoints = scoreBreakdown(p.position, positions, p.org_role, submittedRawPoints, month).activityPoints
+    const unitName = p.unit_name || units.find((u: any) => Number(u.id) === Number(p.unit_id))?.name || ''
+    const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints, month, unitName)
+    const submittedPoints = scoreBreakdown(p.position, positions, p.org_role, submittedRawPoints, month, unitName).activityPoints
     const roleGuarantee = scoring.roleGuarantee
     const displayedWorkPoints = scoring.activityPoints
-    const performancePoints = Math.min(scoring.performance, (String(month || '').startsWith('2026-10') ? g + 10 : g * 1.5))
+    const performancePoints = Math.min(scoring.performance, scoring.totalPerformanceCap)
     const excess = scoring.excess
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').normalize('NFC').replace(/[\\s　]+/g, '').trim() === String(p.position || '').normalize('NFC').replace(/[\\s　]+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
@@ -2373,12 +2376,13 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const workPoints = approved.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
     const submitted = rs.filter((r: any) => r.status === 'pending' || r.status === 'approved')
     const submittedRawPoints = submitted.reduce((t: number, r: any) => t + Number(r.counted_points || 0), 0)
-    const submittedPoints = scoreBreakdown(p.position, positions, p.org_role, submittedRawPoints, month).activityPoints
+    const unitName = p.unit_name || units.find((u: any) => Number(u.id) === Number(p.unit_id))?.name || ''
+    const submittedPoints = scoreBreakdown(p.position, positions, p.org_role, submittedRawPoints, month, unitName).activityPoints
     const pendingWorkDays = countWorkDays(rs.filter((r: any) => r.status === 'pending'))
-    const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints, month)
+    const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints, month, unitName)
     const roleGuarantee = scoring.roleGuarantee
     const displayedWorkPoints = scoring.activityPoints
-    const performancePoints = Math.min(scoring.performance, (String(month || '').startsWith('2026-10') ? g + 10 : g * 1.5))
+    const performancePoints = Math.min(scoring.performance, scoring.totalPerformanceCap)
     const excess = scoring.excess
     const staffId = Number(p.staff_directory_id ?? p.directory_source_row)
     const leave = leaveDrafts[String(staffId || '')] || {}
