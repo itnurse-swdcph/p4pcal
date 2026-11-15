@@ -91,6 +91,15 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
     finally { setBusy(false) }
   }
 
+  const groupAppealPeople = (people: any[]) => {
+    const grouped = new Map<string, any[]>()
+    for (const person of people || []) {
+      const key = String(person.unit_name || 'ไม่ระบุหน่วยงาน')
+      grouped.set(key, [...(grouped.get(key) || []), person])
+    }
+    return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b, 'th'))
+  }
+
   return <div className="space-y-4">
     <section className="card space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -133,14 +142,32 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
     </section>
     <section className="card space-y-3">
       <div className="flex items-center gap-2 font-semibold text-stone-800"><Users size={18}/>รายการคำอุทธรณ์</div>
-      {appeals.length === 0 ? <p className="text-sm text-stone-500">ยังไม่มีคำอุทธรณ์ในเดือนนี้</p> : appeals.map((a: any) => <article key={a.id} className="rounded-xl border border-stone-200 p-3 space-y-2">
+      {appeals.length === 0 ? <p className="text-sm text-stone-500">ยังไม่มีคำอุทธรณ์ในเดือนนี้</p> : appeals.map((a: any) => <article key={a.id} className="rounded-xl border border-stone-200 p-3 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div><b>{a.unit_name || 'คำอุทธรณ์รายบุคคล'}</b><p className="text-xs text-stone-500">ผู้ยื่น: {a.submitter_name} · {new Date(a.created_at).toLocaleString('th-TH')}</p></div>
           <span className={'rounded-full border px-2.5 py-1 text-xs font-semibold ' + (statusTone[a.status] || 'bg-stone-50 text-stone-700')}>{statusText[a.status] || a.status}</span>
         </div>
         <div className="text-sm"><b>เหตุผล:</b> {a.reason}</div>
         {a.details && <div className="text-sm"><b>รายละเอียด:</b> {a.details}</div>}
-        <div className="flex flex-wrap gap-2">{(a.people || []).map((p: any) => <span key={p.staff_directory_id} className="rounded-full bg-stone-100 px-2.5 py-1 text-xs">{p.name}{p.unit_name ? ` · ${p.unit_name}` : ''}</span>)}</div>
+        {groupAppealPeople(a.people || []).map(([unitName, people]: [string, any[]]) => <div key={unitName} className="overflow-hidden rounded-lg border border-stone-200">
+          <div className="bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800">{unitName} <span className="font-normal text-stone-500">({people.length} คน)</span></div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[680px] border-collapse text-sm">
+              <thead><tr className="bg-white text-left text-xs text-stone-500">
+                <th className="border-b px-3 py-2">ชื่อ-สกุล / ตำแหน่ง</th>
+                <th className="border-b px-3 py-2 text-right">แต้มประกัน</th>
+                <th className="border-b px-3 py-2 text-right">แต้มการันตี</th>
+                <th className="border-b px-3 py-2 text-right">ผลรวมการปฏิบัติงาน</th>
+              </tr></thead>
+              <tbody>{people.map((p: any) => <tr key={p.staff_directory_id} className="odd:bg-white even:bg-stone-50/60">
+                <td className="border-b px-3 py-2"><b>{p.name}</b><span className="block text-xs text-stone-500">{p.position || '—'}</span></td>
+                <td className="border-b px-3 py-2 text-right tabular-nums">{Number(p.insurance_points || 0).toLocaleString('th-TH')}</td>
+                <td className="border-b px-3 py-2 text-right tabular-nums">{Number(p.role_points || 0).toLocaleString('th-TH')}</td>
+                <td className="border-b px-3 py-2 text-right font-semibold tabular-nums">{Number(p.performance_points || 0).toLocaleString('th-TH', {maximumFractionDigits:2})}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </div>)}
         {a.expires_at && a.status === 'approved' && <p className="text-xs text-amber-700"><Clock3 className="inline mr-1" size={13}/>สิทธิ์หมดอายุ {new Date(a.expires_at).toLocaleString('th-TH')}</p>}
         {a.reviewer_name && <p className="text-xs text-stone-500">ผู้พิจารณา: {a.reviewer_name}{a.review_comment ? ' · '+a.review_comment : ''}</p>}
         {canDecide && ['pending','needs_info','resubmitted'].includes(a.status) && <div className="space-y-2 border-t pt-2">
