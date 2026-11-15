@@ -33,8 +33,6 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   const [submissionReturns, setSubmissionReturns] = useState<any[]>([])
   const [activityReturns, setActivityReturns] = useState<any[]>([])
   const [submissionReturnedLogRows, setSubmissionReturnedLogRows] = useState<any[]>([])
-  const [reportActivityRows, setReportActivityRows] = useState<any[]>([])
-  const [auditHistory, setAuditHistory] = useState<any[]>([])
   const [reportDataOk, setReportDataOk] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
