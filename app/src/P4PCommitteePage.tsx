@@ -35,7 +35,6 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
   const [submissionReturnedLogRows, setSubmissionReturnedLogRows] = useState<any[]>([])
   const [reportDataOk, setReportDataOk] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
-  const [exportLoading, setExportLoading] = useState(false)
   const [correctionQueueOk, setCorrectionQueueOk] = useState(false)
   const [unitReviews, setUnitReviews] = useState<any[]>([])
   const [reviewOk, setReviewOk] = useState(false)
@@ -330,7 +329,7 @@ export default function P4PCommitteePage({ sb, month, setMonth, isAdmin, isCentr
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-stone-700"><CalendarDays size={16} className="text-teal-800" /><span className="sr-only">เลือกเดือน</span>
             <input type="month" aria-label="เลือกเดือนที่ต้องการตรวจสอบ" className="inp !w-44 bg-white" value={month} onChange={e => { if (e.target.value) { setMonth(e.target.value); setUnitKey(null); setPanel(null) } }} /></label>
-          <button type="button" className="btn" onClick={openExportReport} disabled={loading || exportLoading || !reportDataOk}><FileSpreadsheet size={16} />{exportLoading ? 'กำลังเตรียมรายงาน…' : 'Export รายงาน'}</button>
+          <button type="button" className="btn" onClick={openExportReport} disabled={loading || !reportDataOk}><FileSpreadsheet size={16} />Export รายงาน</button>
           <button type="button" className="btn sec" onClick={refresh} disabled={loading || busy}><RefreshCw size={15} />รีเฟรช</button>
         </div>
       </div>
