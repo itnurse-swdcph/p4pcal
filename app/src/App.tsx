@@ -1227,7 +1227,7 @@ function roleGuaranteeForPosition(position: any, positions: any[] = [], orgRole?
   if (role.includes('หัวหน้างาน') || name.includes('หัวหน้าหอผู้ป่วย') || name.includes('หัวหน้างาน')) return 120
   return 0
 }
-function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, activityPoints = 0, month?: string) {
+function scoreBreakdown(position: any, positions: any[] = [], orgRole?: any, activityPoints = 0, _month?: string) {
   const insurance = guaranteeForPosition(position, positions, orgRole)
   const roleGuarantee = roleGuaranteeForPosition(position, positions, orgRole)
   const rawActivityPoints = Math.max(0, Number(activityPoints || 0))
