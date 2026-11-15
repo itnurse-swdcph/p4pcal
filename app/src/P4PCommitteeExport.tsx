@@ -21,7 +21,7 @@ const sheet = (sheetName: string, title: string, month: string, headers: string[
   colWidths: widths, freeze: { row: 3, col: 0 }
 })
 
-export default function P4PCommitteeExport({ open, onClose, onPrepare, month, units = [], lines = [], statusRows = [], returnedPeopleByUnit }: any) {
+export default function P4PCommitteeExport({ open, onClose, onPrepare, month, units = [], lines = [], groups = [], statusRows = [], returnedPeopleByUnit }: any) {
   const [selected, setSelected] = useState<ReportKey>('all')
   const [prepared, setPrepared] = useState<{ activityRows: any[]; auditHistory: any[] } | null>(null)
   const [preparing, setPreparing] = useState(false)
@@ -35,6 +35,7 @@ export default function P4PCommitteeExport({ open, onClose, onPrepare, month, un
   }, [open, month])
   const unitByKey = useMemo(() => new Map(units.map((u: any) => [Number(u.key), u])), [units])
   const personById = useMemo(() => new Map(lines.map((p: any) => [String(p.id), p])), [lines])
+  const payGroupById = useMemo(() => new Map(groups.map((g: any) => [Number(g.pay_group), g])), [groups])
   const getPerson = (row: any) => personById.get(String(row.person_id)) || lines.find((p: any) => String(p.staff_directory_id) === String(row.staff_directory_id)) || {}
   const getUnit = (row: any) => {
     const person = getPerson(row)
@@ -104,22 +105,40 @@ export default function P4PCommitteeExport({ open, onClose, onPrepare, month, un
     for (const { unit: u, tab } of tabs) {
       const status = u.submissionStatus === 'returned' ? 'รอแก้ไข' : u.reviewed ? 'ตรวจแล้ว' : !u.submitted ? 'ยังไม่ส่งผลงาน' : u.ready ? 'พร้อมตรวจ' : 'ยังไม่พร้อม'
       const reviewStatus = u.reviewed ? 'ตรวจแล้ว' : 'ยังไม่ตรวจ'
-      const rows = [
+      const rows: XCell[][] = [
         [{ v: `สรุปผลการจัดสรร · ${u.name}`, s: 'title' }],
         [{ v: `กลุ่มงาน ${u.group} · เดือน${monthLabel(month)}`, s: 'subtitle' }],
-        ['ลำดับ','ชื่อ-นามสกุล','ตำแหน่ง','แต้มกิจกรรม','คะแนนรวม','มีสิทธิ์','สถานะแต้มประกัน','ยอดจัดสรร (บาท)','สถานะส่งผลงาน','สถานะตรวจ'].map(x => cell(x, 'header')),
-        ...(u.lines || []).map((p: any, i: number) => [
-          numericCell(i + 1, 'center'), cell(p.name || p.person_name, 'labelStrong'), cell(p.position),
-          numericCell(p.activity, 'rate'), numericCell(p.counted, 'rate'),
-          cell(p.eligible ? 'มีสิทธิ์' : 'ไม่มีสิทธิ์'),
-          cell(!p.eligible ? 'ไม่มีสิทธิ์' : p.below ? 'ต่ำกว่าแต้มประกัน' : 'ถึงแต้มประกัน'),
-          { v: Number(p.total || 0), s: 'money' } as XCell,
-          cell(status), cell(reviewStatus)
-        ]),
-        [{ v: 'รวมยอดจัดสรรหน่วยงาน', s: 'labelStrong' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }, { v: Number(u.total || 0), s: 'moneyStrong' }, { v: '', s: 'plain' }, { v: '', s: 'plain' }],
+        ['ลำดับ','ชื่อ-สกุล','ตำแหน่งที่ปฏิบัติงาน','แต้มประกัน/เดือน','จำนวนเงินประกันต่อเดือน','แต้มการันตี','แต้มการปฏิบัติงาน','รวมผลการปฏิบัติงาน','แต้มที่ได้มากกว่าแต้มประกัน','จำนวนเงินที่ได้มากกว่าแต้มประกัน','จำนวนเงินตามผลงาน','จำนวนเงินที่ได้รับ'].map(x => cell(x, 'header')),
+        ...(u.lines || []).map((p: any, i: number) => {
+          const payGroup = payGroupById.get(Number(p.pay_group)) || {}
+          const counted = Number(p.counted || 0)
+          const guarantee = Number(p.guarantee || 0)
+          const excessPoints = p.eligible ? Math.max(0, counted - guarantee) : 0
+          return [
+            numericCell(i + 1, 'center'),
+            cell(p.name || p.person_name, 'labelStrong'),
+            cell(p.position),
+            numericCell(guarantee, 'rate'),
+            numericCell(payGroup.by_score || 0, 'money'),
+            numericCell(guarantee, 'rate'),
+            numericCell(p.points ?? p.activity ?? 0, 'rate'),
+            numericCell(counted, 'rate'),
+            numericCell(excessPoints, 'rate'),
+            numericCell(p.extra || 0, 'money'),
+            numericCell(p.activity || 0, 'money'),
+            numericCell(p.total || 0, 'money')
+          ]
+        }),
+        [
+          { v: 'รวมยอดหน่วยงาน', s: 'labelStrong' },
+          ...Array.from({ length: 9 }, () => ({ v: '', s: 'plain' } as XCell)),
+          numericCell((u.lines || []).reduce((sum: number, p: any) => sum + Number(p.extra || 0), 0), 'moneyStrong'),
+          numericCell((u.lines || []).reduce((sum: number, p: any) => sum + Number(p.activity || 0), 0), 'moneyStrong'),
+          numericCell(u.total || 0, 'moneyStrong')
+        ],
         [{ v: 'กลับไปสารบัญ', s: 'labelStrong', hyperlink: "'00_สารบัญ'!A1" }]
       ]
-      specs.push({ sheetName: tab, rows, colWidths: [9, 30, 28, 15, 15, 12, 22, 22, 22, 18], freeze: { row: 3, col: 0 } })
+      specs.push({ sheetName: tab, rows, colWidths: [9, 30, 30, 16, 22, 15, 18, 18, 22, 24, 22, 22], freeze: { row: 3, col: 0 } })
     }
   }
   const addSummary = (list: any[], name: string) => specs.push(sheet('01_สรุปหน่วยงาน', name, month,
