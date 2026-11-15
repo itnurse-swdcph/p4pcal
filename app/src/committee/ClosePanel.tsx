@@ -119,7 +119,7 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
           <label className="block text-sm font-medium">หมายเหตุการอนุมัติและปิดยอด <span className="text-red-600">*</span>
             <textarea className="inp mt-1 min-h-20 w-full" value={adminNote} onChange={e => setAdminNote(e.target.value)} placeholder="ระบุเหตุผลหรือรายละเอียดการอนุมัติและปิดยอดแทนกรรมการ (อย่างน้อย 5 ตัวอักษร)" />
           </label>
-          <button type="button" className="btn" disabled={busy || !onAdminClose || adminNote.trim().length < 5 || !allReady || pending > 0 || !reviewGate}
+          <button type="button" className="btn" disabled={busy || !onAdminClose || adminNote.trim().length < 5 || !allReady || pending > 0}
             onClick={async () => { if (await onAdminClose!(adminNote.trim())) setAdminNote('') }}>
             <LockKeyhole size={16} />เริ่มรับรอง อนุมัติ และปิดยอดแทนกรรมการ
           </button>
