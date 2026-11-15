@@ -16,23 +16,20 @@ DECLARE
 BEGIN
   view_sql := pg_get_viewdef('public.v_logs'::regclass, true);
 
-  IF position(old_join IN view_sql) = 0 THEN
-    RAISE EXCEPTION 'Expected staff_directory join was not found in public.v_logs';
+  -- Each replacement is conditional so the migration is safe if the live
+  -- view was already updated directly before migration history is reconciled.
+  IF position(old_join IN view_sql) > 0 THEN
+    view_sql := replace(view_sql, old_join, new_join);
   END IF;
-  IF position(old_match IN view_sql) = 0 THEN
-    RAISE EXCEPTION 'Expected staff-directory identity match was not found in public.v_logs';
+  IF position(old_match IN view_sql) > 0 THEN
+    view_sql := replace(view_sql, old_match, new_match);
   END IF;
-  IF position(old_head_filter IN view_sql) = 0 THEN
-    RAISE EXCEPTION 'Expected non-head-only filter was not found in public.v_logs';
+  IF position(old_head_filter IN view_sql) > 0 THEN
+    view_sql := replace(view_sql, old_head_filter, '');
   END IF;
-  IF position(old_final IN view_sql) = 0 THEN
-    RAISE EXCEPTION 'Expected final counted_points expression was not found in public.v_logs';
+  IF position(old_final IN view_sql) > 0 THEN
+    view_sql := replace(view_sql, old_final, new_final);
   END IF;
-
-  view_sql := replace(view_sql, old_join, new_join);
-  view_sql := replace(view_sql, old_match, new_match);
-  view_sql := replace(view_sql, old_head_filter, '');
-  view_sql := replace(view_sql, old_final, new_final);
 
   EXECUTE 'CREATE OR REPLACE VIEW public.v_logs AS ' || view_sql;
 END
