@@ -60,8 +60,8 @@ export default function ClosePanel({ review, votes, roster, currentUserId, isMem
 
   return <div className="space-y-4">
     {closed && <div className="card flex items-start gap-3 border-emerald-200 bg-emerald-50"><Megaphone className="mt-0.5 shrink-0 text-emerald-700" size={22} />
-      <div><div className="font-bold text-emerald-900">ปิดงวดและประกาศผลเรียบร้อยแล้ว</div>
-        <p className="text-sm text-emerald-900">{review?.admin_note ? 'แอดมินกลางบัญชี 11450 อนุมัติและปิดยอดแทนกรรมการ' : `กรรมการอนุมัติครบ ${num(expected.length, 0)} คน`} · ระบบปิดยอดและเผยแพร่ผลให้บุคลากรเห็นแล้ว{review?.approved_at ? ` เมื่อ ${dateTime(review.approved_at)}` : ''}</p>{review?.admin_note && <p className="mt-2 rounded bg-white/70 p-2 text-sm"><b>หมายเหตุการอนุมัติและปิดยอด:</b> {review.admin_note}</p>}</div></div>}
+      <div><div className="font-bold text-emerald-900">รับรองและปิดงวดเสร็จสิ้น</div>
+        <p className="text-sm text-emerald-900">รับรองและปิดงวดเสร็จสิ้นเมื่อ {review?.approved_at ? dateTime(review.approved_at) : 'ไม่พบเวลาบันทึก'} โดย {review?.admin_note ? 'ผู้ดูแลระบบ (บัญชี 11450)' : `คณะกรรมการอนุมัติครบ ${num(expected.length, 0)} คน`} · ระบบเผยแพร่ผลให้บุคลากรเรียบร้อยแล้ว</p>{review?.admin_note && <p className="mt-2 rounded bg-white/70 p-2 text-sm"><b>หมายเหตุจากผู้ดูแลระบบ:</b> {review.admin_note}</p>}</div></div>}
 
     <section className="card">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
