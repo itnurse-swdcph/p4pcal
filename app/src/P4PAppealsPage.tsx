@@ -39,7 +39,7 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
   const staff = data.staff || []
   const appeals = data.appeals || []
   const canDecide = !!data.is_admin || data.role === 'committee'
-  const unitOptions = useMemo(() => [...new Map(staff.filter((p: any) => p.unit_id != null).map((p: any) => [String(p.unit_id), { id: String(p.unit_id), name: p.unit_name || 'หน่วยงาน' }])).values()], [staff])
+  const unitOptions = useMemo(() => Array.from(new Map<string, any>(staff.filter((p: any) => p.unit_id != null).map((p: any) => [String(p.unit_id), { id: String(p.unit_id), name: p.unit_name || 'หน่วยงาน' }])).values()), [staff])
   const visibleStaff = useMemo(() => unitFilter ? staff.filter((p: any) => String(p.unit_id ?? '') === unitFilter) : staff, [staff, unitFilter])
   useEffect(() => { if (!unitFilter && unitOptions.length) setUnitFilter(unitOptions[0].id) }, [unitFilter, unitOptions])
 
