@@ -152,18 +152,20 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
         {groupAppealPeople(a.people || []).map(([unitName, people]: [string, any[]]) => <div key={unitName} className="overflow-hidden rounded-lg border border-stone-200">
           <div className="bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800">{unitName} <span className="font-normal text-stone-500">({people.length} คน)</span></div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] border-collapse text-sm">
+            <table className="w-full min-w-[820px] border-collapse text-sm">
               <thead><tr className="bg-white text-left text-xs text-stone-500">
                 <th className="border-b px-3 py-2">ชื่อ-สกุล / ตำแหน่ง</th>
                 <th className="border-b px-3 py-2 text-right">แต้มประกัน</th>
                 <th className="border-b px-3 py-2 text-right">แต้มการันตี</th>
+                <th className="border-b px-3 py-2 text-right">แต้มปฏิบัติงาน</th>
                 <th className="border-b px-3 py-2 text-right">ผลรวมการปฏิบัติงาน</th>
               </tr></thead>
               <tbody>{people.map((p: any) => <tr key={p.staff_directory_id} className="odd:bg-white even:bg-stone-50/60">
                 <td className="border-b px-3 py-2"><b>{p.name}</b><span className="block text-xs text-stone-500">{p.position || '—'}</span></td>
                 <td className="border-b px-3 py-2 text-right tabular-nums">{Number(p.insurance_points || 0).toLocaleString('th-TH')}</td>
                 <td className="border-b px-3 py-2 text-right tabular-nums">{Number(p.role_points || 0).toLocaleString('th-TH')}</td>
-                <td className="border-b px-3 py-2 text-right font-semibold tabular-nums">{(Number(p.insurance_points || 0) + Number(p.role_points || 0)).toLocaleString('th-TH', {maximumFractionDigits:2})}</td>
+                <td className="border-b px-3 py-2 text-right tabular-nums">{Number(p.activity_points || 0).toLocaleString('th-TH', {maximumFractionDigits:2})}</td>
+                <td className="border-b px-3 py-2 text-right font-semibold tabular-nums">{(Number(p.role_points || 0) + Number(p.activity_points || 0)).toLocaleString('th-TH', {maximumFractionDigits:2})}</td>
               </tr>)}</tbody>
             </table>
           </div>
