@@ -49,7 +49,7 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
       return inUnit && (!q || haystack.includes(q))
     })
   }, [staff, unitFilter, staffSearch, data.is_admin])
-  useEffect(() => { if (!data.is_admin && !unitFilter && unitOptions.length) setUnitFilter(unitOptions[0].id) }, [unitFilter, unitOptions, data.is_admin])
+  // Keep the unit filter optional: group heads without a sub-unit must remain visible.
 
   const submit = async () => {
     if (!selected.length || reason.trim().length < 5) { setError('กรุณาเลือกรายชื่อและระบุเหตุผลอย่างน้อย 5 ตัวอักษร'); return }
@@ -112,14 +112,14 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
       {data.month_closed && staff.length > 0 && <div className="space-y-3 border-t border-stone-200 pt-3">
         <div className="flex items-center gap-2 font-semibold text-stone-800"><FilePlus2 size={17}/>ยื่นอุทธรณ์ / ขอเปิดสิทธิ์บันทึกคะแนนเพิ่มเติม</div>
         <p className="text-xs text-stone-500">{data.is_admin ? 'Admin กลางค้นหาและเลือกเจ้าหน้าที่ข้ามหน่วยงานได้ในคำอุทธรณ์ครั้งเดียว' : data.role === 'head' || data.role === 'group_head' ? 'หัวหน้าหน่วยงานเลือกเจ้าหน้าที่ในขอบเขตที่รับผิดชอบได้หลายคน' : 'เจ้าหน้าที่สามารถยื่นอุทธรณ์คะแนนของตนเองได้'}</p>
-        {!data.is_admin && unitOptions.length > 1 && <label className="block space-y-1 text-sm"><span className="font-semibold">เลือกหน่วยงาน (หัวหน้ายื่นได้เฉพาะหน่วยงานที่รับผิดชอบ)</span><select className="inp w-full" value={unitFilter} onChange={e => { setUnitFilter(e.target.value); setSelected([]) }}><option value="">เลือกหน่วยงาน</option>{unitOptions.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>}
-        {data.is_admin && <label className="block space-y-1 text-sm"><span className="font-semibold">ค้นหาชื่อเจ้าหน้าที่ทุกหน่วยงาน</span><input className="inp w-full" value={staffSearch} onChange={e => setStaffSearch(e.target.value)} placeholder="พิมพ์ชื่อ นามสกุล ตำแหน่ง หรือหน่วยงาน…"/></label>}
+        {!data.is_admin && unitOptions.length > 1 && <label className="block space-y-1 text-sm"><span className="font-semibold">กรองตามหน่วยงาน (ไม่เลือกเพื่อแสดงทุกหน่วยงานที่คุณมีสิทธิ์)</span><select className="inp w-full" value={unitFilter} onChange={e => { setUnitFilter(e.target.value); setSelected([]) }}><option value="">ทุกหน่วยงาน/กลุ่มงานที่รับผิดชอบ</option>{unitOptions.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>}
+        <label className="block space-y-1 text-sm"><span className="font-semibold">ค้นหาชื่อเจ้าหน้าที่{data.is_admin ? 'ทุกหน่วยงาน' : 'ในรายชื่อที่คุณมีสิทธิ์'}</span><input className="inp w-full" value={staffSearch} onChange={e => setStaffSearch(e.target.value)} placeholder="พิมพ์ชื่อ นามสกุล ตำแหน่ง หรือกลุ่มงาน…"/></label>
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500"><span>เลือกแล้ว {selected.length} รายชื่อ · พบ {visibleStaff.length} รายชื่อ</span><div className="flex gap-2"><button type="button" className="underline" onClick={() => setSelected(old => [...new Set([...old, ...visibleStaff.map((p: any) => Number(p.staff_directory_id))])])}>เลือกทั้งหมดที่แสดง</button><button type="button" className="underline" onClick={() => setSelected([])}>ล้างรายชื่อ</button></div></div>
         <div className="max-h-64 overflow-auto rounded-xl border border-stone-200 p-2 space-y-1">
           {visibleStaff.map((p: any) => <label key={p.staff_directory_id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-stone-50 text-sm">
             <input type="checkbox" className="mt-1" checked={selected.includes(Number(p.staff_directory_id))}
               onChange={e => setSelected(old => e.target.checked ? [...old, Number(p.staff_directory_id)] : old.filter(x => x !== Number(p.staff_directory_id)))}/>
-            <span><b>{p.name}</b><span className="block text-xs text-stone-500">{p.position} · {p.unit_name || 'ไม่ระบุหน่วยงาน'}</span></span>
+            <span><b>{p.name}</b><span className="block text-xs text-stone-500">{p.position} · {p.unit_name || p.group_name || 'ไม่ระบุหน่วยงาน'}</span></span>
           </label>)}
         </div>
         <label className="block space-y-1 text-sm"><span className="font-semibold">เหตุผลในการอุทธรณ์</span><textarea className="inp min-h-20 w-full" value={reason} onChange={e => setReason(e.target.value)} placeholder="ระบุเหตุผลที่ต้องการขอเพิ่มหรือแก้ไขคะแนน"/></label>
@@ -140,7 +140,7 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
         </div>
         <div className="text-sm"><b>เหตุผล:</b> {a.reason}</div>
         {a.details && <div className="text-sm"><b>รายละเอียด:</b> {a.details}</div>}
-        <div className="flex flex-wrap gap-2">{(a.people || []).map((p: any) => <span key={p.staff_directory_id} className="rounded-full bg-stone-100 px-2.5 py-1 text-xs">{p.name}</span>)}</div>
+        <div className="flex flex-wrap gap-2">{(a.people || []).map((p: any) => <span key={p.staff_directory_id} className="rounded-full bg-stone-100 px-2.5 py-1 text-xs">{p.name}{p.unit_name ? ` · ${p.unit_name}` : ''}</span>)}</div>
         {a.expires_at && a.status === 'approved' && <p className="text-xs text-amber-700"><Clock3 className="inline mr-1" size={13}/>สิทธิ์หมดอายุ {new Date(a.expires_at).toLocaleString('th-TH')}</p>}
         {a.reviewer_name && <p className="text-xs text-stone-500">ผู้พิจารณา: {a.reviewer_name}{a.review_comment ? ' · '+a.review_comment : ''}</p>}
         {canDecide && ['pending','needs_info','resubmitted'].includes(a.status) && <div className="space-y-2 border-t pt-2">
