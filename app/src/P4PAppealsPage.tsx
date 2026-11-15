@@ -133,7 +133,6 @@ export default function P4PAppealsPage({ sb, month, setMonth }: any) {
           <input className="inp w-full" value={comment} onChange={e => setComment(e.target.value)} placeholder="ความเห็นประกอบการพิจารณา (ถ้ามี)"/>
           <div className="flex flex-wrap gap-2">
             <button className="btn" disabled={busy} onClick={() => void decide(a.id,'approved')}>อนุมัติและเปิดสิทธิ์</button>
-            <button className="btn sec" disabled={busy} onClick={() => void decide(a.id,'needs_info')}>ขอข้อมูลเพิ่มเติม</button>
             <button className="btn danger" disabled={busy} onClick={() => void decide(a.id,'rejected')}>ไม่อนุมัติ</button>
           </div>
         </div>}
