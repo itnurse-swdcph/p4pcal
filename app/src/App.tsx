@@ -2239,7 +2239,24 @@ function ReviewPage({ sb, profile, people, allPeople = [], unit, month, acts, po
   const [certificationSearch, setCertificationSearch] = useState('')
   const [certificationSearchOpen, setCertificationSearchOpen] = useState(false)
   const ap = useContext(ApproverCtx); const me = useContext(MeCtx)
-  const [rowsAll, reload, logsState] = useLogs(sb, month, null, unit)
+  // รวม person_id ของบุคลากรในหน่วยงานจาก people และเชื่อมบัญชีหัวหน้ากลุ่มงานที่ unit_id ว่างผ่าน staff_directory_id
+  // เรียก useLogs ด้วย person IDs โดยไม่ส่ง p_unit_id เพื่อไม่ให้ RPC ตัดกิจกรรมของหัวหน้ากลุ่มงานออก
+  const unitLogPersonIds = useMemo(() => {
+    const ids = new Set<string>()
+    const records = [...(allPeople || []), ...(people || [])]
+    for (const p of records) {
+      if (p?.id && Number(p.unit_id) === Number(unit)) ids.add(String(p.id))
+    }
+    const selectedName = (units || []).find((u: any) => Number(u.id) === Number(unit))?.name || ''
+    const norm = (v: any) => String(v || '').normalize('NFC').replace(/\\s+/g, '').trim()
+    for (const d of directoryPeople || []) {
+      if (norm(d.unit_name) !== norm(selectedName)) continue
+      const linked = records.find((p: any) => Number(p.staff_directory_id ?? p.directory_source_row) === Number(d.source_row))
+      if (linked?.id) ids.add(String(linked.id))
+    }
+    return Array.from(ids)
+  }, [allPeople, people, directoryPeople, unit, units])
+  const [rowsAll, reload, logsState] = useLogs(sb, month, unitLogPersonIds, null)
   const calendarWorkingDays = useCalendarWorkingDays(sb, month)
   useEffect(() => {
     let alive = true
@@ -2455,7 +2472,12 @@ function ReviewPage({ sb, profile, people, allPeople = [], unit, month, acts, po
       const idx = ordered.findIndex((title) => pos.includes(normalize(title)))
       return idx < 0 ? 99 : idx + 12
     }
-    const sortedRoster = [...roster].sort((a: any, b: any) => positionRank(a) - positionRank(b) || String(a.name || '').localeCompare(String(b.name || ''), 'th'))
+    const isPriorityGroupHead = (p: any) => String(p.name || '').normalize('NFC').replace(/\\s+/g, '').trim() === 'นางจรัญญานาคบุตรศรี'
+    const sortedRoster = [...roster].sort((a: any, b: any) =>
+      Number(isPriorityGroupHead(b)) - Number(isPriorityGroupHead(a)) ||
+      positionRank(a) - positionRank(b) ||
+      String(a.name || '').localeCompare(String(b.name || ''), 'th')
+    )
     return sortedRoster.map((p: any, index: number) => {
     const rs = rows.filter((r: any) => r.person_id === p.id); const g = guaranteeForPosition(p.position, positions, p.org_role)
     const approved = rs.filter((r: any) => r.status === 'approved')
