@@ -1198,6 +1198,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(person.position || '').replace(/\s+/g, '').trim())
   const isDialysisOctober = Number(person.unit_id) === 13 && month === '2026-10' && Number(positionInfo?.pay_group) === 1
   const threshold = isDialysisOctober ? guarantee + 10 : guarantee
+  const displayGuarantee = threshold
   const difference = performanceTotal - threshold
   const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
   const performancePay = allocation > 0 ? (isDialysisOctober ? allocation * 0.97 * (performanceTotal >= threshold ? 1 : 0.77) : allocation * (performanceTotal >= threshold ? 0.97 : 0.77)) : null
@@ -1205,7 +1206,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const payoutAvailable = payoutResult?.payout_available === true
   const extraPay = payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
   const cards = [
-    { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
+    { label: 'แต้มประกัน', value: nf(displayGuarantee), color: 'text-slate-900' },
     { label: 'แต้มการันตี', value: nf(roleGuarantee), color: 'text-slate-900' },
     { label: 'แต้มผลงานรวม', value: nf(performanceTotal), color: 'text-slate-900' },
     { label: 'แต้มปฏิบัติงานที่ได้', value: nf(earned), color: 'text-slate-900' },
@@ -2102,6 +2103,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const roleGuarantee = scoring.roleGuarantee
     const performancePoints = scoring.performance
     const threshold = isDialysisOctober ? g + 10 : g
+    const displayGuarantee = threshold
     const excess = isDialysisOctober ? Math.max(0, performancePoints - threshold) : scoring.excess
     const daysRaw = countApprovedWorkShifts(approved)
     const leave = leaveDrafts[String(p.staff_directory_id ?? p.directory_source_row)] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
@@ -2114,7 +2116,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const insurancePay = isDialysisOctober ? Number(serverLine?.activity || 0) : allocation * (1 - reserveRate) * 0.77
     const extraPay = isDialysisOctober ? Number(serverLine?.extra || 0) : payout - insurancePay
     const displayRate = isDialysisOctober ? (excess > 0 ? extraPay / excess : 0) : unitRate
-    return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, performancePoints, roleGuarantee, excess, days, approvedDays, rate: displayRate, basePay, payout, insurancePay, extraPay, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
+    return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, performancePoints, roleGuarantee, excess, days, approvedDays, rate: displayRate, basePay, payout, insurancePay, extraPay, g: displayGuarantee, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
   }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays, leaveDrafts, calculatedPayoutLines, unit, month])
