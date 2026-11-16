@@ -115,7 +115,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     const groupHead = people.find((d: any) => String(d.org_role || '').includes('หัวหน้ากลุ่มงาน') && (String(d.nursing_group || '').trim() === groupName || includesName(d.extra_nursing_group_names, groupName)))
     // หากมีหัวหน้างานและหัวหน้ากลุ่มงานครบ ให้ลงชื่อซ้าย-ขวาตามลำดับ
     // หากขาดตำแหน่งใดตำแหน่งหนึ่ง ให้แสดงผู้ลงนามเพียงคนเดียวทางฝั่งขวา
-    const groupRole = String(groupName || '').trim() === 'กลุ่มงานการพยาบาลผู้คลอด' ? 'รักษาการหัวหน้ากลุ่มงานการพยาบาลผู้คลอด' : `หัวหน้า${/^กลุ่มการ/u.test(String(groupName || '').trim()) ? String(groupName).trim() : officeUnitName(groupName, 'กลุ่มงาน')}`
+    const groupRole = String(groupName || '').normalize('NFC').replace(/\\s+/g, '').includes('ผู้คลอด') ? 'รักษาการหัวหน้ากลุ่มงานการพยาบาลผู้คลอด' : `หัวหน้า${/^กลุ่มการ/u.test(String(groupName || '').trim()) ? String(groupName).trim() : officeUnitName(groupName, 'กลุ่มงาน')}`
     const unitRole = `หัวหน้า${officeUnitName(unitName, 'งาน')}`
     const singleUnitSigner = !!unitName && !(unitHead && groupHead)
     const soleSigner = unitHead || groupHead
@@ -128,7 +128,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       authorRole: unitName ? unitRole : groupRole,
       groupHeadName: unitName ? (singleUnitSigner ? signerName(soleSigner) : signerName(groupHead)) : '',
       groupHeadPosition: unitName ? (singleUnitSigner ? (soleSigner?.position || '') : (groupHead?.position || '')) : '',
-      groupHeadRole: unitName ? (singleUnitSigner ? (soleSigner === unitHead ? unitRole : groupRole) : groupRole) : '',
+      groupHeadRole: unitName ? (singleUnitSigner ? (soleSigner === unitHead && !String(groupName || '').normalize('NFC').replace(/\\s+/g, '').includes('ผู้คลอด') ? unitRole : groupRole) : groupRole) : '',
       committeeName: signerName(committee), committeePosition: committee?.position || '',
     }
   }
