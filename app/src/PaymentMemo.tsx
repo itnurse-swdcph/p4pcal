@@ -76,7 +76,7 @@ const officeUnitName = (value: string, prefix: 'งาน' | 'กลุ่มง
 }
 const fixedSigners = {
   authorName: '', authorPosition: '', authorRole: '', groupHeadName: '', groupHeadPosition: '', groupHeadRole: '', committeeName: '', committeePosition: '', committeeRole: '',
-  directorName: 'นายสิทธิพงษ์ ดำรงค์พิวัฒน์', directorPosition: 'นายแพทย์ชำนาญการพิเศษ',
+  directorName: 'นายสิทธิพงษ์ ดำรงค์พิวัฒน์', directorPosition: 'นายแพทย์ชำนาญการพิเศษ',directorRole: 'ประธานคณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน',
   deputyName: 'นางสาววิยะดา สุวรรณเพชร', deputyPosition: 'นักวิชาการเงินและบัญชีปฏิบัติการ',
   adminName: 'นายจักร์พงษ์ ศุภษร', adminPosition: 'นักจัดการงานทั่วไปชำนาญการพิเศษ',
   approverName: 'นายพันธ์นพ ควรดำรงธรรม', approverPosition: 'ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน',
@@ -251,9 +251,9 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
               <div>{unitName && !form.singleSigner ? <MemoSign name={form.authorName} position={form.authorPosition} role={form.authorRole} /> : null}</div>
               <div><MemoSign name={unitName ? form.groupHeadName : form.authorName} position={unitName ? form.groupHeadPosition : form.authorPosition} role={unitName ? form.groupHeadRole : form.authorRole} /></div>
             </div>
-            <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.committeeName} position={form.committeePosition} role={form.committeeRole} />
+            <ApprovalBlock heading="เรียน คณะกรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน" note="-ตรวจสอบความถูกต้องแล้ว เห็นควรพิจารณาอนุมัติ" name={form.committeeName} position={form.committeePosition} role={form.committeeRole} />
             <div className="memo-approval-pair">
-              <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note={'ได้ตรวจสอบความถูกต้องตามระเบียนแล้ว\nเห็นควรพิจารณาอนุมัติ'} name={form.directorName} position={form.directorPosition} />
+              <ApprovalBlock heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน"note={'ตรวจสอบความถูกต้องตามระเบียบแล้ว\nเห็นควรพิจารณาอนุมัติ'} name={form.directorName} position={form.directorPosition} role={form.directorRole}/>
               <ApprovalBlock heading="เรียน รองผู้อำนวยการฝ่ายบริหาร" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.deputyName} position={form.deputyPosition} />
             </div>
             <ApprovalBlock className="memo-final-approval" heading="เรียน ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" note="เพื่อโปรดทราบและเห็นควรพิจารณา" name={form.adminName} position={form.adminPosition} aside={<><div className="memo-decision-options"><span><i aria-hidden="true" />อนุมัติ</span><span><i aria-hidden="true" />ไม่อนุมัติ&nbsp;.....</span></div><MemoSign name={form.approverName} position={form.approverPosition} className="memo-approver-sign" fitPosition /></>} />
