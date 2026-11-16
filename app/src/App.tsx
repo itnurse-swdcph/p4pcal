@@ -658,7 +658,7 @@ function Main({ sb, session }: any) {
         <p className="text-xs text-stone-600">{role === 'admin' ? 'ผู้ดูแลระบบสามารถเลือกหน่วยงานได้ทั้งหมด' : 'แสดงเฉพาะหน่วยงานที่บัญชีของคุณได้รับมอบหมายให้รับผิดชอบ'}</p>
       </div>
       {reviewGroup && <MonthFilter month={month} setMonth={setMonth} description="เลือกเดือนสำหรับตรวจสอบ รับรอง และสรุปรายงานของกลุ่มงาน/หน่วยงาน" />}
-      {reviewGroup ? (unit != null ? <ReviewPage profile={profile} units={units} sb={sb} people={scope} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'certify' ? <GroupHeadsCertification sb={sb} groupName={reviewGroup} people={people} month={month} acts={acts} /> : <GroupHeadsReport profile={profile} sb={sb} groupName={reviewGroup} people={scope} allPeople={people} month={month} positions={positions} units={units} acts={acts} />) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
+      {reviewGroup ? (unit != null ? <ReviewPage profile={profile} units={units} sb={sb} people={scope} allPeople={people} unit={unit} month={month} acts={acts} positions={positions} canPrint={cur === 'review'} reportOnly={cur === 'review'} certificationOnly={cur === 'certify'} /> : cur === 'certify' ? <GroupHeadsCertification sb={sb} groupName={reviewGroup} people={people} month={month} acts={acts} /> : <GroupHeadsReport profile={profile} sb={sb} groupName={reviewGroup} people={scope} allPeople={people} month={month} positions={positions} units={units} acts={acts} />) : <div className="card text-center text-sm text-stone-600">กรุณาเลือกกลุ่มงานเพื่อแสดง{cur === 'certify' ? 'รายการรอรับรอง' : 'รายงานหน่วยงาน'}</div>}
     </div>}
     {cur === 'people' && <PersonnelPage sb={sb} positions={positions} units={directoryUnits} reload={loadPeople} />}
     {cur === 'users' && <UsersPage sb={sb} units={units} />}
@@ -2192,7 +2192,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
   </div>
 }
 
-function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, units, canPrint, reportOnly = false, certificationOnly = false }: any) {
+function ReviewPage({ sb, profile, people, allPeople = [], unit, month, acts, positions, audit, units, canPrint, reportOnly = false, certificationOnly = false }: any) {
   const [detailFor, setDetailFor] = useState<any>(null)
   const [printingPerson, setPrintingPerson] = useState<any>(null)
   const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
@@ -2361,7 +2361,9 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       const fullName = String(d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`).trim()
       // หากบุคลากรมีบัญชีใน people แต่ unit_id ว่าง (เช่น หัวหน้ากลุ่มงาน)
       // ต้องเชื่อมด้วย staff_directory_id เพื่อใช้ person_id เดิมและดึงกิจกรรมที่รับรองแล้ว
-      const registered = (people || []).find((p: any) => Number(p.staff_directory_id) === Number(d.source_row))
+      // people คือรายชื่อที่ถูกกรองตาม unit_id สำหรับสิทธิ์/หน้าจอ แต่หัวหน้ากลุ่มงานบางรายไม่มี unit_id
+      // จึงต้องค้นหาบัญชีเดิมจาก allPeople ด้วย staff_directory_id เพื่อผูก person_id และดึงกิจกรรม/ยอดจ่ายเดิม
+      const registered = [...(allPeople || []), ...(people || [])].find((p: any) => Number(p.staff_directory_id ?? p.directory_source_row) === Number(d.source_row))
       const found = result.find((p: any) => (d.person_id && p.id === d.person_id) || (p.staff_directory_id && Number(p.staff_directory_id) === Number(d.source_row)) || String(p.name || '').trim() === fullName)
         || registered
       if (found) {
@@ -2411,7 +2413,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       const bLeader = String(b.name || '').normalize('NFC').replace(/\\s+/g, '') === 'นางจรัญญานาคบุตรศรี'
       return Number(bLeader) - Number(aLeader) || String(a.name || '').localeCompare(String(b.name || ''), 'th')
     })
-  }, [people, directoryPeople, signaturePeople, unit, units])
+  }, [people, allPeople, directoryPeople, signaturePeople, unit, units])
   useEffect(() => {
     let alive = true
     const personIds = (roster || []).map((p: any) => p.id).filter((id: any) => typeof id === 'string' && !String(id).startsWith('dir:'))
