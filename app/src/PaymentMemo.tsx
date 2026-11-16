@@ -142,7 +142,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       const normalizedUnit = String(unitName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
       const normalizedGroup = String(groupName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
       const centerMemo = normalizedUnit.includes('ศูนย์เครื่องมือแพทย์')
-      const nursingGroupMemo = !unitName && normalizedGroup.includes('กลุ่มการพยาบาล')
+      const nursingGroupMemo = !unitName && (normalizedGroup === 'กลุ่มการพยาบาล' || normalizedGroup === 'กลุ่มงานการพยาบาล' || normalizedGroup.includes('ภารกิจด้านการพยาบาล'))
       const initialBodyOffice = centerMemo ? 'ศูนย์เครื่องมือแพทย์' : nursingGroupMemo ? 'กลุ่มการพยาบาล' : unitName
         ? [officeUnitName(initialWork, 'งาน'), officeUnitName(initialGroup, 'กลุ่มงาน')].filter(Boolean).join(' ')
         : officeUnitName(initialGroup, 'กลุ่มงาน')
@@ -221,11 +221,11 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const normalizedUnitName = String(unitName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
   const normalizedGroupName = String(groupName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
   const isMedicalEquipmentCenter = normalizedUnitName.includes('ศูนย์เครื่องมือแพทย์')
-  const isNursingGroup = !unitName && ['กลุ่มการพยาบาล', 'กลุ่มงานการพยาบาล'].includes(normalizedGroupName)
+  const isNursingGroup = !unitName && (normalizedGroupName === 'กลุ่มการพยาบาล' || normalizedGroupName === 'กลุ่มงานการพยาบาล' || normalizedGroupName.includes('ภารกิจด้านการพยาบาล'))
   const officeName = isMedicalEquipmentCenter
     ? 'ศูนย์เครื่องมือแพทย์ ภารกิจด้านการพยาบาล'
     : isNursingGroup
-      ? 'กลุ่มการพยาบาล ภารกิจด้านการพยาบาล'
+      ? 'ภารกิจด้านการพยาบาล กลุ่มการพยาบาล'
       : unitName ? officeUnitName(form?.work, 'งาน') : officeUnitName(form?.group, 'กลุ่มงาน')
   const bodyOfficeName = isMedicalEquipmentCenter
     ? 'ศูนย์เครื่องมือแพทย์'
@@ -268,7 +268,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
             </div>
             <div className="memo-line memo-subject"><b>เรื่อง</b><span className="memo-line-value"><ThaiText text="ขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน (ฉ.12)" /></span></div>
             <p className="memo-to"><b>เรียน</b> <ThaiText text="ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" /></p>
-            <div className="memo-body">{String(toThaiDigits(form.bodyText ?? defaultBodyText)).replace(/กลุ่มการพยาบาล/g, 'ภารกิจด้านการพยาบาล').split('\n').map((line: string, i: number, all: string[]) => {
+            <div className="memo-body">{String(toThaiDigits(form.bodyText ?? defaultBodyText)).split('\n').map((line: string, i: number, all: string[]) => {
               const boldParts = [toThaiDigits(`${bodyOfficeName || '................................'} ภารกิจด้านการพยาบาล`), toThaiDigits(`ประจำเดือน ${form.monthText || '................'}`), toThaiDigits(`จำนวนเงิน ${money.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${form.amountText || moneyText(money)})`)]
               const pieces: string[] = [line]
               boldParts.forEach(bold => {
