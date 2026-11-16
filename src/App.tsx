@@ -1906,6 +1906,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   const [directoryPeople, setDirectoryPeople] = useState<any[]>([])
   const [signaturePeople, setSignaturePeople] = useState<any[]>([])
   const [unitRate, setUnitRate] = useState(0)
+  const [calculatedPayoutLines, setCalculatedPayoutLines] = useState<any[]>([])
   const [payGroups, setPayGroups] = useState<any[]>([])
   const [actingChief, setActingChief] = useState<any>({ name: 'นางสาวมัณฑนา เพชรคำ', position: 'พยาบาลวิชาชีพชำนาญการพิเศษ' })
   const [printReport, setPrintReport] = useState(false)
@@ -1949,7 +1950,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     let alive = true
     const unitName = (units || []).find((u: any) => Number(u.id) === Number(unit))?.name
     const parentGroup = (units || []).find((u: any) => Number(u.id) === Number(unit))?.parent_group || ''
-    if (!unit || !unitName) { setDirectoryPeople([]); setSignaturePeople([]); setUnitRate(0); return }
+    if (!unit || !unitName) { setDirectoryPeople([]); setSignaturePeople([]); setUnitRate(0); setCalculatedPayoutLines([]); return }
     const normalizeUnit = (v: any) => String(v || '').normalize('NFC').replace(/\s+/g, '').trim().toLocaleLowerCase('th')
     const unitKey = normalizeUnit(unitName)
     const splitNames = (v: any) => String(v || '').split(/[,;|]/).map(normalizeUnit).filter(Boolean)
@@ -2022,6 +2023,13 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       if (!alive) return
       setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0)
     })
+    if (Number(unit) === 13 && month === '2026-10') {
+      sb.rpc('p4p_calc', { p_month: monthDate }).then(({ data, error }: any) => {
+        if (!alive) return
+        if (error) { console.error('โหลดผลคำนวณแยกเงินกองกลางและเงินหน่วยงานไตเทียมไม่สำเร็จ:', error); setCalculatedPayoutLines([]); return }
+        setCalculatedPayoutLines(Array.isArray(data?.lines) ? data.lines : [])
+      }).catch((error: any) => { if (alive) { console.error('โหลดผลคำนวณไตเทียมไม่สำเร็จ:', error); setCalculatedPayoutLines([]) } })
+    } else setCalculatedPayoutLines([])
     return () => { alive = false }
   }, [sb, unit, month, units])
   const roster = useMemo(() => {
@@ -2066,6 +2074,9 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const sortedRoster = [...roster].sort((a: any, b: any) => positionRank(a) - positionRank(b) || String(a.name || '').localeCompare(String(b.name || ''), 'th'))
     return sortedRoster.map((p: any, index: number) => {
     const rs = rows.filter((r: any) => r.person_id === p.id); const g = guaranteeForPosition(p.position, positions, p.org_role)
+    const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
+    const isDialysisOctober = Number(unit) === 13 && month === '2026-10' && Number(positionInfo?.pay_group) === 1
+    const serverLine = isDialysisOctober ? calculatedPayoutLines.find((x: any) => Number(x.staff_directory_id) === Number(p.staff_directory_id ?? p.directory_source_row)) : null
     const approved = rs.filter((r: any) => r.status === 'approved')
     const d = (x: string) => rs.filter((r: any) => r.domain === x).reduce((s: number, r: any) => s + Number(r.counted_points), 0)
     const tot = d('บริหาร') + d('บริการ') + d('วิชาการ')
@@ -2073,22 +2084,23 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const scoring = scoreBreakdown(p.position, positions, p.org_role, workPoints)
     const roleGuarantee = scoring.roleGuarantee
     const performancePoints = scoring.performance
-    const excess = scoring.excess
+    const threshold = isDialysisOctober ? g + 10 : g
+    const excess = isDialysisOctober ? Math.max(0, performancePoints - threshold) : scoring.excess
     const daysRaw = countApprovedWorkShifts(approved)
     const leave = leaveDrafts[String(p.staff_directory_id ?? p.directory_source_row)] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
     const days = calculateNetWorkingDays(daysRaw, leave, calendarWorkingDays)
-    const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-    const basePay = allocation * (performancePoints >= g ? 0.97 : 0.77)
-    const payout = basePay + excess * unitRate
+    const basePay = isDialysisOctober ? Number(serverLine?.activity || 0) : allocation * (performancePoints >= threshold ? 0.97 : 0.77)
+    const payout = isDialysisOctober ? Number(serverLine?.total || 0) : basePay + excess * unitRate
     const approvedDays = new Set(approved.map((r: any) => String(r.work_date || ''))).size
     const reserveRate = month === '2026-10' ? 0 : 0.03
-    const insurancePay = allocation * (1 - reserveRate) * 0.77
-    const extraPay = payout - insurancePay
-    return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, performancePoints, roleGuarantee, excess, days, approvedDays, rate: unitRate, basePay, payout, insurancePay, extraPay, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
+    const insurancePay = isDialysisOctober ? Number(serverLine?.activity || 0) : allocation * (1 - reserveRate) * 0.77
+    const extraPay = isDialysisOctober ? Number(serverLine?.extra || 0) : payout - insurancePay
+    const displayRate = isDialysisOctober ? (excess > 0 ? extraPay / excess : 0) : unitRate
+    return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, performancePoints, roleGuarantee, excess, days, approvedDays, rate: displayRate, basePay, payout, insurancePay, extraPay, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
     })
-  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays, leaveDrafts])
+  }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays, leaveDrafts, calculatedPayoutLines, unit, month])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
   const saveLeaveData = async (person: any) => {
     const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
