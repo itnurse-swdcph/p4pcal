@@ -1124,7 +1124,7 @@ function PrintSheet({ sb, person, rows: rowsIn, month, units, positions, onClose
       const groupName = String(h.approver_nursing_group || '').trim()
       const normalizedRole = role.replace(/\s+/g, '')
       const managerial = role.includes('หัวหน้ากลุ่มงาน')
-        ? (groupName ? 'หัวหน้า' + groupName : role)
+        ? (groupName ? (groupName.includes('ผู้คลอด') ? 'รักษาการหัวหน้ากลุ่มงาน' + groupName.replace(/^กลุ่มงาน/, '') : 'หัวหน้ากลุ่มงาน' + groupName.replace(/^กลุ่มงาน/, '')) : role)
         : role.includes('หัวหน้างาน')
           ? (unitName && !role.includes(unitName) ? 'หัวหน้างาน' + unitName.replace(/^งาน/, '') : role)
           : role
