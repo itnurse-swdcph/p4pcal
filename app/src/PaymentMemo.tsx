@@ -221,8 +221,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const normalizedUnitName = String(unitName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
   const normalizedGroupName = String(groupName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
   const isMedicalEquipmentCenter = normalizedUnitName.includes('ศูนย์เครื่องมือแพทย์')
-  const isNursingGroup = !unitName && normalizedGroupName.includes('กลุ่มการพยาบาล')
-  const isActingNursingSigner = isMedicalEquipmentCenter || isNursingGroup
+  const isNursingGroup = !unitName && normalizedGroupName.includes('การพยาบาล')
   const officeName = isMedicalEquipmentCenter
     ? 'ศูนย์เครื่องมือแพทย์ ภารกิจด้านการพยาบาล'
     : isNursingGroup
