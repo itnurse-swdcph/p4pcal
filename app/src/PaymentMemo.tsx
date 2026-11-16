@@ -139,8 +139,8 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       const signers = await loadSignerDefaults()
       const initialWork = unitName || profile?.staff_group || ''
       const initialGroup = groupName || profile?.nursing_group || ''
-      const normalizedUnit = String(unitName || '').normalize('NFC').replace(/[\\s　]+/g, '').trim()
-      const normalizedGroup = String(groupName || '').normalize('NFC').replace(/[\\s　]+/g, '').trim()
+      const normalizedUnit = String(unitName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
+      const normalizedGroup = String(groupName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
       const centerMemo = normalizedUnit.includes('ศูนย์เครื่องมือแพทย์')
       const nursingGroupMemo = !unitName && normalizedGroup.includes('กลุ่มการพยาบาล')
       const initialBodyOffice = centerMemo ? 'ศูนย์เครื่องมือแพทย์' : nursingGroupMemo ? 'กลุ่มการพยาบาล' : unitName
@@ -169,12 +169,13 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       payload.groupHeadName = 'นางสาวมัณฑนา เพชรคำ'
       payload.groupHeadPosition = 'พยาบาลวิชาชีพชำนาญการพิเศษ'
       payload.groupHeadRole = ''
-      payload.bodyText = String(payload.bodyText || '').replace(/ด้วยงานศูนย์เครื่องมือแพทย์[^ ]*|ด้วยศูนย์เครื่องมือแพทย์[^ ]*/u, 'ด้วยศูนย์เครื่องมือแพทย์')
+      payload.bodyText = [`ด้วยศูนย์เครื่องมือแพทย์ ภารกิจด้านการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข`, `ประจำเดือน ${payload.monthText || monthLabel(month)} จำนวนเงิน ${Number(payload.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${payload.amountText || moneyText(Number(payload.amount || 0))}) ตามรายละเอียดที่แนบมาพร้อมนี้`].join(' ')
     } else if (isNursingGroup) {
       payload.phone = '1201'
       payload.authorName = 'นางสาวมัณฑนา เพชรคำ'
       payload.authorPosition = 'พยาบาลวิชาชีพชำนาญการพิเศษ'
       payload.authorRole = ''
+      payload.bodyText = [`ด้วยกลุ่มการพยาบาล ภารกิจด้านการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข`, `ประจำเดือน ${payload.monthText || monthLabel(month)} จำนวนเงิน ${Number(payload.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${payload.amountText || moneyText(Number(payload.amount || 0))}) ตามรายละเอียดที่แนบมาพร้อมนี้`].join(' ')
     }
     // รองรับบันทึกข้อความเดิม: หากมีผู้ลงนามเพียงคนเดียว ให้ย้ายช่องชื่อไปแสดงฝั่งขวา
     if (unitName && !(payload.authorName && payload.groupHeadName)) {
@@ -217,8 +218,8 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     return () => { window.removeEventListener('beforeprint', preparePrint); window.removeEventListener('afterprint', cleanupPrint); cleanupPrint() }
   }, [open])
   const money = Number(form?.amount || 0)
-  const normalizedUnitName = String(unitName || '').normalize('NFC').replace(/[\\s　]+/g, '').trim()
-  const normalizedGroupName = String(groupName || '').normalize('NFC').replace(/[\\s　]+/g, '').trim()
+  const normalizedUnitName = String(unitName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
+  const normalizedGroupName = String(groupName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
   const isMedicalEquipmentCenter = normalizedUnitName.includes('ศูนย์เครื่องมือแพทย์')
   const isNursingGroup = !unitName && normalizedGroupName.includes('กลุ่มการพยาบาล')
   const isActingNursingSigner = isMedicalEquipmentCenter || isNursingGroup
