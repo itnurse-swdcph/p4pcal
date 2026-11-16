@@ -1450,7 +1450,7 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
 .memo-paper, .memo-paper * { font-family: 'TH SarabunPSK', 'TH Sarabun New', 'THSarabun', 'Sarabun', sans-serif !important; }
 .memo-paper p { margin: 0 0 1.2mm; }
 .memo-letterhead { position: relative; height: 24mm; margin-bottom: .5mm; display: flex; align-items: center; justify-content: center; padding-top: 0; }
-.memo-garuda { position: absolute; top: 50%; left: 0; width: 30mm; height: 30mm; transform: translateY(calc(-50% - 5.5mm)); object-fit: contain; }
+.memo-garuda { position: absolute; top: 50%; left: 0; width: 15mm; height: 15mm; transform: translateY(calc(-50% - 5.5mm)); object-fit: contain; }
 .memo-letterhead h1 { margin: 0; font-size: 26pt; line-height: 1.15; font-weight: 700; }
 .memo-official-line { display: grid; grid-template-columns: 25mm minmax(0,1fr); align-items: baseline; gap: 1mm; min-height: 8mm; white-space: normal; }
 .memo-official-line b, .memo-number b, .memo-subject b { font-size: 20pt; line-height: 1; font-weight: 700; }
@@ -1497,7 +1497,7 @@ body .unit-report-print .unit-report-watermark-text span { color: #dc2626 !impor
   body.print-payment-memo .memo-paper { width: auto !important; height: 282mm !important; min-height: 282mm !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; box-shadow: none !important; font-size: 16pt !important; line-height: 1.04 !important; }
   body.print-payment-memo .memo-letterhead { height: 24mm !important; }
   body.print-payment-memo .memo-letterhead h1 { font-size: 26pt !important; }
-  body.print-payment-memo .memo-garuda { width: 30mm !important; height: 30mm !important; }
+  body.print-payment-memo .memo-garuda { width: 15mm !important; height: 15mm !important; }
   body.print-payment-memo .memo-sign-space { height: 8mm !important; }
   body.print-payment-memo .memo-approval .memo-sign { margin-left: 5% !important; }
   @page memoPage { size: A4 portrait !important; margin: 10mm 15mm 5mm 30mm; }
