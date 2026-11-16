@@ -2025,15 +2025,30 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       if (!alive) return
       setUnitRate(!error && data ? Number(data.baht_per_point || 0) : 0)
     })
-    if (Number(unit) === 13 && month === '2026-10') {
-      sb.rpc('p4p_calc', { p_month: monthDate }).then(({ data, error }: any) => {
-        if (!alive) return
-        if (error) { console.error('โหลดผลคำนวณแยกเงินกองกลางและเงินหน่วยงานไตเทียมไม่สำเร็จ:', error); setCalculatedPayoutLines([]); return }
-        setCalculatedPayoutLines(Array.isArray(data?.lines) ? data.lines : [])
-      }).catch((error: any) => { if (alive) { console.error('โหลดผลคำนวณไตเทียมไม่สำเร็จ:', error); setCalculatedPayoutLines([]) } })
-    } else setCalculatedPayoutLines([])
     return () => { alive = false }
-  }, [sb, unit, month, units, rowsAll])
+  }, [sb, unit, month, units])
+  useEffect(() => {
+    let alive = true
+    if (Number(unit) !== 13 || month !== '2026-10') {
+      setCalculatedPayoutLines([])
+      return () => { alive = false }
+    }
+    sb.rpc('p4p_calc', { p_month: month + '-01' }).then(({ data, error }: any) => {
+      if (!alive) return
+      if (error) {
+        console.error('โหลดผลคำนวณแยกเงินกองกลางและเงินหน่วยงานไตเทียมไม่สำเร็จ:', error)
+        setCalculatedPayoutLines([])
+        return
+      }
+      setCalculatedPayoutLines(Array.isArray(data?.lines) ? data.lines : [])
+    }).catch((error: any) => {
+      if (alive) {
+        console.error('โหลดผลคำนวณไตเทียมไม่สำเร็จ:', error)
+        setCalculatedPayoutLines([])
+      }
+    })
+    return () => { alive = false }
+  }, [sb, unit, month, rowsAll])
   const roster = useMemo(() => {
     const result = (people || []).filter((p: any) => Number(p.unit_id) === Number(unit)).map((p: any) => ({ ...p }))
     for (const d of directoryPeople) {
