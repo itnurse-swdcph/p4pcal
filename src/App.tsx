@@ -1745,7 +1745,7 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
 
 function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [], month, positions = [], units = [], acts = [] }: any) {
   // เทียบชื่อกลุ่มงานแบบ normalize เพื่อรองรับช่องว่าง/Unicode ที่อาจติดมากับค่าจากตัวเลือก
-  const isResearchDevelopmentGroup = String(groupName || '').normalize('NFC').replace(/\\s+/g, ' ').trim() === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล'
+  const isResearchDevelopmentGroup = String(groupName || '').normalize('NFC').replace(/\s+/g, ' ').trim() === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล'
   const [heads, setHeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detailFor, setDetailFor] = useState<any>(null)
@@ -1768,7 +1768,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
       if (error) { console.error('โหลดหัวหน้ากลุ่มงานไม่สำเร็จ', error); setHeads([]) }
       else setHeads((Array.isArray(data) ? data : [])
         .filter((p: any) => isResearchDevelopmentGroup
-          ? String(p.nursing_group || '').normalize('NFC').replace(/\\s+/g, ' ').trim() === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล' && p.active !== false
+          ? String(p.nursing_group || '').normalize('NFC').replace(/\s+/g, ' ').trim() === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล' && p.active !== false
           : String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))
         .map((p: any) => {
           const displayName = p.full_name || `${p.prefix || ''}${p.first_name || ''} ${p.last_name || ''}`.trim()
