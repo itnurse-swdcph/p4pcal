@@ -142,7 +142,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       const normalizedUnit = String(unitName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
       const normalizedGroup = String(groupName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
       const centerMemo = normalizedUnit.includes('ศูนย์เครื่องมือแพทย์')
-      const nursingGroupMemo = !normalizedUnit && (normalizedGroup === 'กลุ่มการพยาบาล' || normalizedGroup === 'กลุ่มงานการพยาบาล' || normalizedGroup.includes('ภารกิจด้านการพยาบาล'))
+      const nursingGroupMemo = (!normalizedUnit || isNursingGroupUnitName(normalizedUnit)) && (normalizedGroup === 'กลุ่มการพยาบาล' || normalizedGroup === 'กลุ่มงานการพยาบาล' || normalizedGroup.includes('ภารกิจด้านการพยาบาล'))
       const initialBodyOffice = centerMemo ? 'ศูนย์เครื่องมือแพทย์' : nursingGroupMemo ? 'กลุ่มการพยาบาล' : unitName
         ? [officeUnitName(initialWork, 'งาน'), officeUnitName(initialGroup, 'กลุ่มงาน')].filter(Boolean).join(' ')
         : officeUnitName(initialGroup, 'กลุ่มงาน')
@@ -151,7 +151,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       const actingSignerFields = centerMemo
         ? { singleSigner: true, authorName: '', authorPosition: '', authorRole: '', groupHeadName: actingSigner.name, groupHeadPosition: actingSigner.position, groupHeadRole: 'หัวหน้าศูนย์เครื่องมือแพทย์' }
         : nursingGroupMemo
-          ? { authorName: actingSigner.name, authorPosition: actingSigner.position, authorRole: '' }
+          ? { singleSigner: true, authorName: actingSigner.name, authorPosition: actingSigner.position, authorRole: '', groupHeadName: actingSigner.name, groupHeadPosition: actingSigner.position, groupHeadRole: '' }
           : {}
       setForm({ docNo: prefixData?.prefix || '', date: '', phone: centerMemo ? '1114' : nursingGroupMemo ? '1201' : prefixData?.phone || '', work: initialWork, group: initialGroup, monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: initialBodyText, ...fixedSigners, ...signers, ...actingSignerFields, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ', committeeRole: 'รักษาการหัวหน้าภารกิจด้านการพยาบาล' })
       setAmountTextTouched(false)
@@ -175,6 +175,10 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       payload.authorName = 'นางสาวมัณฑนา เพชรคำ'
       payload.authorPosition = 'พยาบาลวิชาชีพชำนาญการพิเศษ'
       payload.authorRole = ''
+      payload.singleSigner = true
+      payload.groupHeadName = 'นางสาวมัณฑนา เพชรคำ'
+      payload.groupHeadPosition = 'พยาบาลวิชาชีพชำนาญการพิเศษ'
+      payload.groupHeadRole = ''
       payload.committeeName = 'นางสาวมัณฑนา เพชรคำ'
       payload.committeePosition = 'พยาบาลวิชาชีพชำนาญการพิเศษ'
       payload.committeeRole = 'รักษาการหัวหน้าภารกิจด้านการพยาบาล'
@@ -224,7 +228,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const normalizedUnitName = String(unitName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
   const normalizedGroupName = String(groupName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
   const isMedicalEquipmentCenter = normalizedUnitName.includes('ศูนย์เครื่องมือแพทย์')
-  const isNursingGroup = !normalizedUnitName && (normalizedGroupName === 'กลุ่มการพยาบาล' || normalizedGroupName === 'กลุ่มงานการพยาบาล' || normalizedGroupName.includes('ภารกิจด้านการพยาบาล'))
+  const isNursingGroup = (!normalizedUnitName || isNursingGroupUnitName(normalizedUnitName)) && (normalizedGroupName === 'กลุ่มการพยาบาล' || normalizedGroupName === 'กลุ่มงานการพยาบาล' || normalizedGroupName.includes('ภารกิจด้านการพยาบาล'))
   const officeName = isMedicalEquipmentCenter
     ? 'ศูนย์เครื่องมือแพทย์ ภารกิจด้านการพยาบาล'
     : isNursingGroup
@@ -301,6 +305,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     </div>, document.body)}
   </>
 }
+const isNursingGroupUnitName = (v: any) => { const s = String(v || '').normalize('NFC').replace(/[\s　]+/g, '').replace(/^งาน/, '').replace(/^กลุ่มงาน/, 'กลุ่ม'); return s === 'กลุ่มการพยาบาล' }
 function MemoSign({ name, position, role = '', className = '', fitPosition = false }: any) { return <div className={`memo-sign ${className}`}><div className="memo-sign-space" aria-hidden="true" /><div>(<ThaiText text={name || '................................................'} />)</div><div>{fitPosition ? <FitLine text={position || 'ตำแหน่ง................................................'} /> : <ThaiText text={position || 'ตำแหน่ง................................................'} />}</div>{role && <div><ThaiText text={role} /></div>}</div> }
 function ApprovalBlock({ heading, note, name, position, role = '', aside = null, className = '' }: any) {
   return (
