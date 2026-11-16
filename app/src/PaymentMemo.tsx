@@ -142,7 +142,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       const normalizedUnit = String(unitName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
       const normalizedGroup = String(groupName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
       const centerMemo = normalizedUnit.includes('ศูนย์เครื่องมือแพทย์')
-      const nursingGroupMemo = !unitName && (normalizedGroup === 'กลุ่มการพยาบาล' || normalizedGroup === 'กลุ่มงานการพยาบาล' || normalizedGroup.includes('ภารกิจด้านการพยาบาล'))
+      const nursingGroupMemo = !normalizedUnit && (normalizedGroup === 'กลุ่มการพยาบาล' || normalizedGroup === 'กลุ่มงานการพยาบาล' || normalizedGroup.includes('ภารกิจด้านการพยาบาล'))
       const initialBodyOffice = centerMemo ? 'ศูนย์เครื่องมือแพทย์' : nursingGroupMemo ? 'กลุ่มการพยาบาล' : unitName
         ? [officeUnitName(initialWork, 'งาน'), officeUnitName(initialGroup, 'กลุ่มงาน')].filter(Boolean).join(' ')
         : officeUnitName(initialGroup, 'กลุ่มงาน')
@@ -221,7 +221,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const normalizedUnitName = String(unitName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
   const normalizedGroupName = String(groupName || '').normalize('NFC').replace(/[\s　]+/g, '').trim()
   const isMedicalEquipmentCenter = normalizedUnitName.includes('ศูนย์เครื่องมือแพทย์')
-  const isNursingGroup = !unitName && (normalizedGroupName === 'กลุ่มการพยาบาล' || normalizedGroupName === 'กลุ่มงานการพยาบาล' || normalizedGroupName.includes('ภารกิจด้านการพยาบาล'))
+  const isNursingGroup = !normalizedUnitName && (normalizedGroupName === 'กลุ่มการพยาบาล' || normalizedGroupName === 'กลุ่มงานการพยาบาล' || normalizedGroupName.includes('ภารกิจด้านการพยาบาล'))
   const officeName = isMedicalEquipmentCenter
     ? 'ศูนย์เครื่องมือแพทย์ ภารกิจด้านการพยาบาล'
     : isNursingGroup
