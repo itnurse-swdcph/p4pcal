@@ -1929,6 +1929,9 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
 }
 
 function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [], month, positions = [], units = [], acts = [] }: any) {
+  // กลุ่มงานวิจัยและพัฒนาการพยาบาลไม่มีหน่วยงานย่อย: แสดงบุคลากรทั้งหมดของกลุ่มงาน (ไม่จำกัดเฉพาะผู้ที่มี org_role = หัวหน้ากลุ่มงาน)
+  const normGroupText = (v: any) => String(v || '').normalize('NFC').replace(/\s+/g, ' ').trim()
+  const isResearchDevelopmentGroup = normGroupText(groupName) === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล'
   const [heads, setHeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detailFor, setDetailFor] = useState<any>(null)
@@ -1976,7 +1979,9 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
       if (!alive) return
       if (error) { console.error('โหลดหัวหน้ากลุ่มงานไม่สำเร็จ', error); setHeads([]) }
       else setHeads((Array.isArray(data) ? data : [])
-        .filter((p: any) => String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))
+        .filter((p: any) => isResearchDevelopmentGroup
+          ? normGroupText(p.nursing_group) === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล' && p.active !== false
+          : String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))
         .map((p: any) => {
           const displayName = p.full_name || `${p.prefix || ''}${p.first_name || ''} ${p.last_name || ''}`.trim()
           const personRecords = [...(allPeople || []), ...(people || [])].filter((x: any, i: number, a: any[]) => a.findIndex((y: any) => y.id === x.id) === i)
@@ -1990,7 +1995,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
       setLoading(false)
     })
     return () => { alive = false }
-  }, [sb, groupName, people, allPeople])
+  }, [sb, groupName, people, allPeople, isResearchDevelopmentGroup])
   useEffect(() => {
     let alive = true
     sb.from('pay_groups').select('id,full_amount').order('id').then(({ data, error }: any) => {
@@ -2124,7 +2129,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
   }
   const closePrintReport = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
   return <div className="card space-y-3">
-    <div><h2 className="text-lg font-bold">สรุปรายงานหน่วยงาน · {groupName}</h2><p className="text-sm text-stone-600">แสดงเฉพาะรายชื่อหัวหน้ากลุ่มงาน โดยไม่รวมบุคลากรของหน่วยงานย่อย · ประจำเดือน {monthText}</p></div>
+    <div><h2 className="text-lg font-bold">สรุปรายงานหน่วยงาน · {groupName}</h2><p className="text-sm text-stone-600">{isResearchDevelopmentGroup ? 'แสดงรายชื่อบุคลากรทั้งหมดในกลุ่มงานนี้ (ไม่มีหน่วยงานย่อย)' : 'แสดงเฉพาะรายชื่อหัวหน้ากลุ่มงาน โดยไม่รวมบุคลากรของหน่วยงานย่อย'} · ประจำเดือน {monthText}</p></div>
     <P4PSubmissionControl sb={sb} profile={profile} unitId={null} groupName={groupName} scopeLabel={groupName} month={month} scopeType="group" />
     <div className="flex flex-wrap gap-2">
       <button type="button" className="btn" onClick={openPrintReport} disabled={loading || logsState.loading || !!logsState.error || !sum.length}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์รายงานกลุ่มงาน</button>
@@ -2155,7 +2160,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
             <td className="p-2"><button type="button" className="btn sec !py-1" disabled={!x.p.id} onClick={() => setPrintingPerson({ ...x.p, name: x.p.displayName, group_name: groupName, staff_directory_id: staffId || x.p.staff_directory_id })}>พิมพ์</button></td>
           </tr>
         })}
-        {!sum.length && <tr><td colSpan={9} className="py-6 text-center text-stone-500">ไม่พบรายชื่อหัวหน้ากลุ่มงาน</td></tr>}
+        {!sum.length && <tr><td colSpan={9} className="py-6 text-center text-stone-500">{isResearchDevelopmentGroup ? 'ไม่พบรายชื่อบุคลากรในกลุ่มงานนี้' : 'ไม่พบรายชื่อหัวหน้ากลุ่มงาน'}</td></tr>}
       </tbody></table></div>
     </div>}
     {logsState.loading && <p className="text-sm text-teal-700">กำลังโหลดคะแนนกิจกรรมของหัวหน้ากลุ่มงาน…</p>}
