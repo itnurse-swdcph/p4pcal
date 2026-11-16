@@ -2180,7 +2180,7 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
         </table>
         <div className="unit-report-grand-total">รวม {monthClosed === true ? nf(sum.filter((x: any) => Number(x.g || 0) > 0 && Number(x.days || 0) > 0).reduce((v: number, x: any) => v + Number(x.payout || 0), 0)) : 'รอผล'}{monthClosed === true ? ' บาท (' + thaiBahtText(sum.filter((x: any) => Number(x.g || 0) > 0 && Number(x.days || 0) > 0).reduce((v: number, x: any) => v + Number(x.payout || 0), 0)) + ')' : ''}</div>
         <div className="unit-report-certification">ขอรับรองว่าผู้มีรายนามข้างต้น ได้ปฏิบัติงานจริง</div>
-        <div className="unit-report-signatures"><div>ลงชื่อ ................................................<br/> (................................................)<div>หัวหน้ากลุ่มงาน{String(groupName || '').replace(/^กลุ่มงาน/, '')}</div></div></div>
+        <div className="unit-report-signatures"><div>ลงชื่อ ................................................<br/> (................................................)<div>{groupHeadTitle}</div></div></div>
         <div className="unit-report-approval-row"><div className="unit-report-committee-sign">ลงชื่อ ........................................................<br/>(........................................................)<br/>กรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน</div><div className="unit-report-approver">ลงชื่อ ........................................................ ผู้อนุมัติ<br/>(นายพันธ์นพ ควรดำรงธรรม)<br/>ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div></div>
       </div>
     </div>, document.body)}
@@ -2356,9 +2356,21 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     for (const d of directoryPeople) {
       if (Number(d.source_row) === 2) continue
       const fullName = String(d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`).trim()
+      // หากบุคลากรมีบัญชีใน people แต่ unit_id ว่าง (เช่น หัวหน้ากลุ่มงาน)
+      // ต้องเชื่อมด้วย staff_directory_id เพื่อใช้ person_id เดิมและดึงกิจกรรมที่รับรองแล้ว
+      const registered = (people || []).find((p: any) => Number(p.staff_directory_id) === Number(d.source_row))
       const found = result.find((p: any) => (d.person_id && p.id === d.person_id) || (p.staff_directory_id && Number(p.staff_directory_id) === Number(d.source_row)) || String(p.name || '').trim() === fullName)
-      if (found) { found.org_role = found.org_role || d.org_role; found.staff_directory_id = found.staff_directory_id || d.source_row; found.fromDirectory = d.registered !== true; if (!found.position) found.position = d.position }
-      else result.push({ id: d.person_id || `dir:${d.source_row}`, directory_source_row: d.source_row, staff_directory_id: d.source_row, name: fullName, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, position: d.position, org_role: d.org_role, unit_id: unit, active: true, fromDirectory: d.registered !== true })
+        || registered
+      if (found) {
+        const merged = { ...found, unit_id: found.unit_id ?? unit, unit_name: found.unit_name || d.unit_name || '' }
+        merged.org_role = merged.org_role || d.org_role
+        merged.staff_directory_id = merged.staff_directory_id || d.source_row
+        merged.fromDirectory = d.registered !== true
+        if (!merged.position) merged.position = d.position
+        const existingIndex = result.findIndex((p: any) => Number(p.staff_directory_id ?? p.directory_source_row) === Number(d.source_row))
+        if (existingIndex >= 0) result[existingIndex] = { ...result[existingIndex], ...merged }
+        else result.push(merged)
+      } else result.push({ id: d.person_id || `dir:${d.source_row}`, directory_source_row: d.source_row, staff_directory_id: d.source_row, name: fullName, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, position: d.position, org_role: d.org_role, unit_id: unit, active: true, fromDirectory: d.registered !== true })
     }
     // เพิ่มหัวหน้ากลุ่มงานการพยาบาลผู้ป่วยอายุรกรรมในรายงานของหน่วยผู้ป่วยในอายุรกรรมชาย
     // ใช้ตัวตน/รหัสบุคลากรจากทะเบียนเดิมเพื่อดึงคะแนนและยอดจ่ายของบุคคลเดิม ไม่สร้างข้อมูลการเงินซ้ำ
@@ -2529,6 +2541,9 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   const signerName = (d: any) => d?.full_name || ((d?.prefix || '') + (d?.first_name || '') + ' ' + (d?.last_name || '')).trim()
   const unitHeadName = signerName(unitHead)
   const groupHeadName = signerName(groupHead)
+  const groupHeadTitle = String(groupName || '').includes('ผู้คลอด')
+    ? 'รักษาการหัวหน้ากลุ่มงาน' + String(groupName).replace(/^กลุ่มงาน/, '')
+    : 'หัวหน้ากลุ่มงาน' + String(groupName || '').replace(/^กลุ่มงาน/, '')
   useEffect(() => {
     if (!printReport) return
     const afterPrint = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
@@ -2649,7 +2664,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       <div className="unit-report-certification">ขอรับรองว่าผู้มีรายนามข้างต้น ได้ปฏิบัติงานจริง</div>
       <div className="unit-report-signatures">
         <div>ลงชื่อ ................................................<br/>({unitHeadName || '................................................'})<div>{unitHead?.position || ''}</div><span>หัวหน้า{unitName}</span></div>
-        <div>ลงชื่อ ................................................<br/>({groupHeadName || '................................................'})<div>{groupHead?.position || ''}</div><span>หัวหน้ากลุ่มงาน{groupName.replace(/^กลุ่มงาน/, '')}</span></div>
+        <div>ลงชื่อ ................................................<br/>({groupHeadName || '................................................'})<div>{groupHead?.position || ''}</div><span>{groupHeadTitle}</span></div>
         <div>ลงชื่อ ................................................<br/>(................................................)<div>ผู้จ่ายเงิน</div></div>
       </div>
       <div className="unit-report-approval-row"><div className="unit-report-committee-sign">ลงชื่อ ........................................................<br/>(........................................................)<br/>กรรมการตรวจสอบค่าคะแนนผลการปฏิบัติงาน</div><div className="unit-report-approver">ลงชื่อ ........................................................ ผู้อนุมัติ<br/>(นายพันธ์นพ ควรดำรงธรรม)<br/>ผู้อำนวยการโรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</div></div></div></div></div>, document.body)}
