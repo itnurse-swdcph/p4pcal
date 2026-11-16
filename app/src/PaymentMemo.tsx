@@ -47,7 +47,7 @@ function ThaiText({ text: rawText }: { text: string }) {
 }
 // บีบข้อความให้พอดีหนึ่งบรรทัด (กรณีชื่อหน่วยงานยาว): ไม่ลดขนาดตัวอักษร บีบเฉพาะความกว้าง
 // ใช้ข้อความล้วนไม่ใส่ <wbr> เพราะ <wbr> เปิดช่องตัดบรรทัดได้แม้ตั้ง nowrap
-function FitLine({ text }: { text: string }) {
+function FitLine({ text, thaiDigits = true }: { text: string; thaiDigits?: boolean }) {
   const wrapRef = useRef<HTMLSpanElement>(null)
   const innerRef = useRef<HTMLSpanElement>(null)
   const fit = useCallback(() => {
@@ -66,7 +66,7 @@ function FitLine({ text }: { text: string }) {
     window.addEventListener('resize', again); window.addEventListener('beforeprint', again)
     return () => { window.removeEventListener('resize', again); window.removeEventListener('beforeprint', again) }
   }, [fit])
-  return <span ref={wrapRef} className="memo-fit-wrap"><span ref={innerRef} className="memo-fit-inner">{toThaiDigits(text)}</span></span>
+  return <span ref={wrapRef} className="memo-fit-wrap"><span ref={innerRef} className="memo-fit-inner">{thaiDigits ? toThaiDigits(text) : text}</span></span>
 }
 // บรรทัดที่ผู้ใช้ตัดเองและยาวอย่างน้อยเท่านี้จะจัดให้ชิดขอบขวา (บรรทัดสั้นมากจะไม่ถ่างตัวอักษร)
 const BODY_JUSTIFY_MIN_CHARS = 45
@@ -261,7 +261,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
           </aside>
           {form && <div className="memo-preview-wrap"><div className="memo-paper" lang="th">
             <div className="memo-letterhead"><img src="/garuda-emblem.png" alt="" className="memo-garuda" /><h1>บันทึกข้อความ</h1></div>
-            <div className="memo-line memo-official-line"><b>ส่วนราชการ</b><span className="memo-line-value"><FitLine text={officialLine} /></span></div>
+            <div className="memo-line memo-official-line"><b>ส่วนราชการ</b><span className="memo-line-value"><FitLine text={officialLine} thaiDigits={!isNursingGroup} /></span></div>
             <div className="memo-number">
               <div className="memo-line"><b>ที่</b><span className="memo-line-value">{toThaiDigits(form.docNo || 'สน 0033.305/................')}</span></div>
               <div className="memo-line"><b>วันที่</b><span className="memo-line-value">{form.date ? toThaiDigits(dateThai(form.date)) : ''}</span></div>
