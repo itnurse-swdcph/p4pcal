@@ -2054,19 +2054,30 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       setCalculatedPayoutLines([])
       return () => { alive = false }
     }
-    // ใช้ผลจาก p4p_calc ทั้ง 5 กลุ่ม; เมื่องวดปิด RPC จะคืน Final Snapshot
-    // จึงไม่คำนวณเงินซ้ำด้วยสูตรเดิมในหน้าแสดงรายงาน
-    sb.rpc('p4p_calc', { p_month: month + '-01' }).then(({ data, error }: any) => {
+    // อ่าน Final Snapshot เฉพาะงวดที่ปิดแล้ว เพื่อไม่เรียกคำนวณสดราคาแพงซ้ำในงวดที่ยังเปิด
+    sb.rpc('p4p_month_is_closed', { p_month: month + '-01' }).then(({ data: isClosed, error: closeError }: any) => {
       if (!alive) return
-      if (error) {
-        console.error('โหลดผลคำนวณ P4P จากฐานข้อมูลไม่สำเร็จ:', error)
+      if (closeError || isClosed !== true) {
         setCalculatedPayoutLines([])
         return
       }
-      setCalculatedPayoutLines(Array.isArray(data?.lines) ? data.lines : [])
+      sb.rpc('p4p_calc', { p_month: month + '-01' }).then(({ data, error }: any) => {
+        if (!alive) return
+        if (error) {
+          console.error('โหลด Final Snapshot P4P จากฐานข้อมูลไม่สำเร็จ:', error)
+          setCalculatedPayoutLines([])
+          return
+        }
+        setCalculatedPayoutLines(Array.isArray(data?.lines) ? data.lines : [])
+      }).catch((error: any) => {
+        if (alive) {
+          console.error('โหลด Final Snapshot P4P ไม่สำเร็จ:', error)
+          setCalculatedPayoutLines([])
+        }
+      })
     }).catch((error: any) => {
       if (alive) {
-        console.error('โหลดผลคำนวณ P4P ไม่สำเร็จ:', error)
+        console.error('ตรวจสอบสถานะปิดงวด P4P ไม่สำเร็จ:', error)
         setCalculatedPayoutLines([])
       }
     })
