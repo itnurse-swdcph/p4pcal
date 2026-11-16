@@ -268,7 +268,7 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
           </aside>
           {form && <div className="memo-preview-wrap"><div className="memo-paper" lang="th">
             <div className="memo-letterhead"><img src="/garuda-emblem.png" alt="" className="memo-garuda" /><h1>บันทึกข้อความ</h1></div>
-            <div className="memo-line memo-official-line"><b>ส่วนราชการ</b><span className="memo-line-value"><FitLine text={officialLine} thaiDigits={!isNursingGroup} /></span></div>
+            <div className="memo-line memo-official-line"><b>ส่วนราชการ</b><span className="memo-line-value"><FitLine text={officialLine} thaiDigits /></span></div>
             <div className="memo-number">
               <div className="memo-line"><b>ที่</b><span className="memo-line-value">{toThaiDigits(form.docNo || 'สน 0033.305/................')}</span></div>
               <div className="memo-line"><b>วันที่</b><span className="memo-line-value">{form.date ? toThaiDigits(dateThai(form.date)) : ''}</span></div>
