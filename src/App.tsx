@@ -1195,10 +1195,12 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const confirmed = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const scoring = scoreBreakdown(person.position, positions, person.org_role, earned)
   const performanceTotal = scoring.performance
-  const difference = performanceTotal - guarantee
   const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(person.position || '').replace(/\s+/g, '').trim())
+  const isDialysisOctober = Number(person.unit_id) === 13 && month === '2026-10' && Number(positionInfo?.pay_group) === 1
+  const threshold = isDialysisOctober ? guarantee + 10 : guarantee
+  const difference = performanceTotal - threshold
   const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-  const performancePay = allocation > 0 ? allocation * (performanceTotal >= guarantee ? 0.97 : 0.77) : null
+  const performancePay = allocation > 0 ? (isDialysisOctober ? allocation * 0.97 * (performanceTotal >= threshold ? 1 : 0.77) : allocation * (performanceTotal >= threshold ? 0.97 : 0.77)) : null
   const closed = payoutResult?.closed === true
   const payoutAvailable = payoutResult?.payout_available === true
   const extraPay = payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
@@ -1215,7 +1217,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   return <div className="space-y-1" aria-label="สรุปแต้มและเงินเพิ่มประจำเดือน">
     <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
       {cards.map((item) => <div key={item.label} className="card !p-3 sm:!p-4 min-w-0"><div className="text-xs sm:text-sm text-stone-600">{item.label}</div><div className={'mt-1 text-xl sm:text-2xl font-bold tabular-nums ' + item.color}>{item.value}</div>
-        {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!closed ? 'เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังประธานคณะกรรมการยืนยันปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · อัตรา {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
+        {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!closed ? 'เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังประธานคณะกรรมการยืนยันปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · อัตรา {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม{isDialysisOctober && <> · กองกลางปกติ {nf(payoutResult.tier1_extra)} บาท + เงินหน่วยงานไตเทียม {nf(payoutResult.tier2_extra)} บาท</>}</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
       </div>)}
     </div>
     <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: จำนวนเงินตามผลงานเป็นยอดประมาณการจากคะแนนที่บันทึกไว้ (รวมรายการรอรับรอง) โดยใช้เกณฑ์ 97% หรือ 77%; เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังปิดงวด</p>
@@ -2031,7 +2033,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       }).catch((error: any) => { if (alive) { console.error('โหลดผลคำนวณไตเทียมไม่สำเร็จ:', error); setCalculatedPayoutLines([]) } })
     } else setCalculatedPayoutLines([])
     return () => { alive = false }
-  }, [sb, unit, month, units])
+  }, [sb, unit, month, units, rowsAll])
   const roster = useMemo(() => {
     const result = (people || []).filter((p: any) => Number(p.unit_id) === Number(unit)).map((p: any) => ({ ...p }))
     for (const d of directoryPeople) {
