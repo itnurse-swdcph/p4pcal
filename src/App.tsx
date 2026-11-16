@@ -1744,6 +1744,8 @@ function ActivityLibrary({ sb, acts, positions, isAdmin, reloadActs, myLine, see
 }
 
 function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [], month, positions = [], units = [], acts = [] }: any) {
+  // เทียบชื่อกลุ่มงานแบบ normalize เพื่อรองรับช่องว่าง/Unicode ที่อาจติดมากับค่าจากตัวเลือก
+  const isResearchDevelopmentGroup = String(groupName || '').normalize('NFC').replace(/\\s+/g, ' ').trim() === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล'
   const [heads, setHeads] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detailFor, setDetailFor] = useState<any>(null)
@@ -1765,8 +1767,8 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
       if (!alive) return
       if (error) { console.error('โหลดหัวหน้ากลุ่มงานไม่สำเร็จ', error); setHeads([]) }
       else setHeads((Array.isArray(data) ? data : [])
-        .filter((p: any) => String(groupName || '').trim() === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล'
-          ? String(p.nursing_group || '').trim() === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล' && p.active !== false
+        .filter((p: any) => isResearchDevelopmentGroup
+          ? String(p.nursing_group || '').normalize('NFC').replace(/\\s+/g, ' ').trim() === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล' && p.active !== false
           : String(p.org_role || '').includes('หัวหน้ากลุ่มงาน'))
         .map((p: any) => {
           const displayName = p.full_name || `${p.prefix || ''}${p.first_name || ''} ${p.last_name || ''}`.trim()
@@ -1867,14 +1869,14 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
   }
   const closePrintReport = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
   return <div className="card space-y-3">
-    <div><h2 className="text-lg font-bold">สรุปรายงานหน่วยงาน · {groupName}</h2><p className="text-sm text-stone-600">{groupName === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล' ? 'แสดงรายชื่อบุคลากรในกลุ่มงานนี้ (ไม่มีหน่วยงานย่อย)' : 'แสดงเฉพาะรายชื่อหัวหน้ากลุ่มงาน โดยไม่รวมบุคลากรของหน่วยงานย่อย'} · ประจำเดือน {monthText}</p></div>
+    <div><h2 className="text-lg font-bold">สรุปรายงานหน่วยงาน · {groupName}</h2><p className="text-sm text-stone-600">{isResearchDevelopmentGroup ? 'แสดงรายชื่อบุคลากรทั้งหมดในกลุ่มงานนี้ (ไม่มีหน่วยงานย่อย)' : 'แสดงเฉพาะรายชื่อหัวหน้ากลุ่มงาน โดยไม่รวมบุคลากรของหน่วยงานย่อย'} · ประจำเดือน {monthText}</p></div>
     <div className="flex flex-wrap gap-2">
       <button type="button" className="btn" onClick={openPrintReport} disabled={loading || !sum.length}><Printer size={16} className="inline mr-1 -mt-0.5" />พิมพ์รายงานกลุ่มงาน</button>
       <button type="button" className={leaveReportOpen ? 'btn sec' : 'btn'} onClick={() => setLeaveReportOpen(v => !v)} disabled={loading || !sum.length}>{leaveReportOpen ? 'กลับสรุปรายงานกลุ่มงาน' : 'สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)'}</button>
       <PaymentMemo sb={sb} profile={profile} groupName={groupName} month={month} amount={sum.reduce((total: number, person: any) => total + Number(person.payout || 0), 0)} />
     </div>
     {leaveReportOpen && <div className="space-y-3">
-      <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · {groupName === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล' ? 'แสดงบุคลากรในกลุ่มงาน' : 'แสดงเฉพาะหัวหน้ากลุ่มงาน'}</p></div>
+      <div className="rounded-xl border border-stone-200 bg-white p-3"><h3 className="font-bold">สรุปผลการปฏิบัติงาน (เอกสารส่งเบิก)</h3><p className="text-sm text-stone-600">{groupName} · ประจำเดือน {monthText} · วันทำการตามปฏิทิน {calendarWorkingDays ?? '…'} วัน · {isResearchDevelopmentGroup ? 'แสดงบุคลากรทั้งหมดในกลุ่มงาน' : 'แสดงเฉพาะหัวหน้ากลุ่มงาน'}</p></div>
       <div className="overflow-x-auto rounded-xl border border-stone-200"><table className="w-full min-w-[900px] text-sm"><thead><tr><th>ลำดับ</th><th>ชื่อ-สกุล</th><th>ตำแหน่งที่ปฏิบัติงาน</th><th>จำนวนวันปฏิบัติงาน</th><th>ลากิจ (วัน)</th><th>ลาป่วย (วัน)</th><th>ลาพักผ่อน (วัน)</th><th>บันทึกข้อมูล</th><th>พิมพ์</th></tr></thead><tbody>
         {sum.map((x: any) => {
           const staffId = Number(x.p.staff_directory_id ?? x.p.directory_source_row)
