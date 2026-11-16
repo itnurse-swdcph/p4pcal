@@ -1217,7 +1217,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const performancePay = payoutClosed
     ? (payoutAvailable ? Number(payoutResult.base_amount || 0) : 0)
     : allocation > 0
-      ? (performanceTotal >= threshold ? Number((allocation * 0.97).toFixed(2)) : Number(groupPay?.fixed_pay || 0))
+      ? (performanceTotal >= threshold ? Number((allocation - Math.trunc(allocation * 0.03 * 100) / 100).toFixed(2)) : Number(groupPay?.fixed_pay || 0))
       : null
   const closed = payoutClosed
   const extraPay = payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
@@ -2132,7 +2132,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const groupPay = payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))
     const allocation = Number(groupPay?.full_amount || 0)
     const fixedPay = Number(groupPay?.fixed_pay || 0)
-    const estimatedBasePay = performancePoints >= threshold ? Number((allocation * 0.97).toFixed(2)) : fixedPay
+    const estimatedBasePay = performancePoints >= threshold ? Number((allocation - Math.trunc(allocation * 0.03 * 100) / 100).toFixed(2)) : fixedPay
     const basePay = serverLine ? Number(serverLine.activity || 0) : estimatedBasePay
     const payout = serverLine ? Number(serverLine.total || 0) : basePay + excess * unitRate
     const approvedDays = new Set(approved.map((r: any) => String(r.work_date || ''))).size
@@ -2518,10 +2518,10 @@ function PayGroupsCard({ sb }: any) {
     }
     if (Number(draft.reserve_pct) > 100) { setMsg('เงินกันเฉลี่ยคืนต้องไม่เกิน 100%'); return }
     if (Number(draft.cap_mult) > 10) { setMsg('เพดานคะแนนต้องไม่เกิน 10 เท่า'); return }
-    setBusy(true); setMsg('')
     const fixedPay = Number(draft.fixed_pay)
     if (!(fixedPay > 0)) { setMsg('กรุณาระบุเงินจ่ายคงที่เมื่อคะแนนต่ำกว่าแต้มประกันให้มากกว่า 0'); return }
     body.fixed_pay = fixedPay
+    setBusy(true); setMsg('')
     const { error } = await sb.from('pay_groups').update(body).eq('id', editing.id)
     if (error) { setBusy(false); setMsg('บันทึกไม่สำเร็จ: ' + error.message); return }
     const { error: rateError } = await sb.from('positions').update({ rate: Number(draft.rate) }).eq('pay_group', editing.id)
@@ -2546,7 +2546,7 @@ function PayGroupsCard({ sb }: any) {
   const minimumPay = (g: any) => Number(g.fixed_pay || 0)
   return <div className="card xl:col-span-2 space-y-3">
     <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ยอดจ่ายเมื่อคะแนนต่ำกว่าแต้มประกันเป็นจำนวนคงที่ตามกลุ่ม · เมื่อถึงเกณฑ์จ่ายฐาน 97% และจัดสรรเงินส่วนเกินตามแต้มส่วนเกิน · กันสำรอง 3%</p></div>
-    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ / ประเภทบุคลากร</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>เงินจ่ายขั้นต่ำ (บาท)</th><th>แต้มการันตี</th><th>จัดการ</th></tr></thead>
+    <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ / ประเภทบุคลากร</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>เงินจ่ายเมื่อคะแนนต่ำกว่าเกณฑ์ (บาท)</th><th>แต้มการันตี</th><th>จัดการ</th></tr></thead>
       <tbody>{gs.map(g => {
         const rows = g.id === 1 ? groupOneRows : [{ label: g.name, guarantee: Number(g.guarantee), key: 'group' }]
         return rows.map((row) => <tr key={`${g.id}-${row.key}`}>
