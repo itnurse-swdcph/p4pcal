@@ -745,8 +745,16 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
     setPeopleLoadError('')
     loadDirectoryGroupStaff(sb, groupSel).then((list) => {
       if (!alive) return
+      const researchDevelopmentGroup = 'กลุ่มงานวิจัยและพัฒนาการพยาบาล'
+      const isResearchDevelopmentGroup = String(groupSel || '').trim() === researchDevelopmentGroup
       const unitName = String((unitOptions || []).find((u: any) => u.id === uSel)?.name || '').trim()
-      setDirectoryStaff(uSel ? list.filter((d: any) => String(d.unit_name || '').trim() === unitName) : list.filter((d: any) => !String(d.unit_name || '').trim()))
+      // กลุ่มงานวิจัยและพัฒนาการพยาบาลไม่มีหน่วยงานย่อย: แสดงบุคลากรทั้งกลุ่มทันที
+      // กลุ่มงานอื่นคงการกรองตามหน่วยงาน/หัวหน้ากลุ่มงานแบบเดิม
+      setDirectoryStaff(isResearchDevelopmentGroup
+        ? list.filter((d: any) => String(d.nursing_group || '').trim() === researchDevelopmentGroup)
+        : uSel
+          ? list.filter((d: any) => String(d.unit_name || '').trim() === unitName)
+          : list.filter((d: any) => !String(d.unit_name || '').trim()))
       setPeopleLoading(false)
     }).catch((error: any) => {
       if (!alive) return
@@ -948,8 +956,8 @@ function LogPage({ units, sb, people: peopleProp, allPeople, unitOptions, defaul
         {entryMode === 'other' && <>
         <label className="field-label">1. เลือกกลุ่มงาน</label>
         <select className="inp" value={groupSel} onChange={e => { setGroupSel(e.target.value); setUSel(null); setPid(''); setErr('') }}><option value="">— เลือกกลุ่มงาน —</option>{groupNames.map((g: string) => <option key={g} value={g}>{g}</option>)}</select>
-        <label className="field-label">2. เลือกหน่วยงาน <span className="text-xs font-normal text-stone-500">(หากเป็นหัวหน้ากลุ่มงานที่ไม่มีหน่วยงาน ให้เว้นว่าง)</span></label>
-        <select className="inp" value={uSel ?? ''} disabled={!groupSel} onChange={e => { setUSel(e.target.value ? +e.target.value : null); setPid(''); setErr('') }}><option value="">— ไม่เลือกหน่วยงาน / หัวหน้ากลุ่มงาน —</option>{(unitOptions || []).filter((u: any) => String(u.parent_group || '').trim() === groupSel).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+        <label className="field-label">2. เลือกหน่วยงาน <span className="text-xs font-normal text-stone-500">{groupSel === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล' ? '(กลุ่มงานนี้ไม่มีหน่วยงานย่อย ระบบจะแสดงรายชื่อผู้ปฏิบัติทันที)' : '(หากเป็นหัวหน้ากลุ่มงานที่ไม่มีหน่วยงาน ให้เว้นว่าง)'}</span></label>
+        <select className="inp" value={uSel ?? ''} disabled={!groupSel || groupSel === 'กลุ่มงานวิจัยและพัฒนาการพยาบาล'} onChange={e => { setUSel(e.target.value ? +e.target.value : null); setPid(''); setErr('') }}><option value="">— ไม่เลือกหน่วยงาน / หัวหน้ากลุ่มงาน —</option>{(unitOptions || []).filter((u: any) => String(u.parent_group || '').trim() === groupSel).map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
         <label className="field-label">3. เลือกชื่อบุคลากร</label>
         <select className="inp" value={pid} disabled={selectingStaff} onChange={async e => {
           const value = e.target.value; setErr(''); setPid(value)
