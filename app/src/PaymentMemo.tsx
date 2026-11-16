@@ -139,11 +139,21 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       const signers = await loadSignerDefaults()
       const initialWork = unitName || profile?.staff_group || ''
       const initialGroup = groupName || profile?.nursing_group || ''
-      const initialBodyOffice = unitName
+      const normalizedUnit = String(unitName || '').normalize('NFC').replace(/[\\s　]+/g, '').trim()
+      const normalizedGroup = String(groupName || '').normalize('NFC').replace(/[\\s　]+/g, '').trim()
+      const centerMemo = normalizedUnit.includes('ศูนย์เครื่องมือแพทย์')
+      const nursingGroupMemo = !unitName && normalizedGroup.includes('กลุ่มการพยาบาล')
+      const initialBodyOffice = centerMemo ? 'ศูนย์เครื่องมือแพทย์' : nursingGroupMemo ? 'กลุ่มการพยาบาล' : unitName
         ? [officeUnitName(initialWork, 'งาน'), officeUnitName(initialGroup, 'กลุ่มงาน')].filter(Boolean).join(' ')
         : officeUnitName(initialGroup, 'กลุ่มงาน')
       const initialBodyText = [`ด้วย${initialBodyOffice || '................................'} ภารกิจด้านการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข`,`ประจำเดือน ${monthLabel(month)} จำนวนเงิน ${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${moneyText(n)}) ตามรายละเอียดที่แนบมาพร้อมนี้`].join(' ')
-      setForm({ docNo: prefixData?.prefix || '', date: '', phone: prefixData?.phone || '', work: initialWork, group: initialGroup, monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: initialBodyText, ...fixedSigners, ...signers, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ', committeeRole: 'รักษาการหัวหน้าภารกิจด้านการพยาบาล' })
+      const actingSigner = { name: 'นางสาวมัณฑนา เพชรคำ', position: 'พยาบาลวิชาชีพชำนาญการพิเศษ' }
+      const actingSignerFields = centerMemo
+        ? { singleSigner: true, authorName: '', authorPosition: '', authorRole: '', groupHeadName: actingSigner.name, groupHeadPosition: actingSigner.position, groupHeadRole: '' }
+        : nursingGroupMemo
+          ? { authorName: actingSigner.name, authorPosition: actingSigner.position, authorRole: '' }
+          : {}
+      setForm({ docNo: prefixData?.prefix || '', date: '', phone: centerMemo ? '1114' : nursingGroupMemo ? '1201' : prefixData?.phone || '', work: initialWork, group: initialGroup, monthText: monthLabel(month), amount: String(n.toFixed(2)), amountText: moneyText(n), bodyText: initialBodyText, ...fixedSigners, ...signers, ...actingSignerFields, committeeName: 'นางสาวมัณฑนา เพชรคำ', committeePosition: 'พยาบาลวิชาชีพชำนาญการพิเศษ', committeeRole: 'รักษาการหัวหน้าภารกิจด้านการพยาบาล' })
       setAmountTextTouched(false)
     } catch (e: any) {
       setError(`โหลดข้อมูลผู้ลงนามไม่สำเร็จ: ${e?.message || 'กรุณาลองใหม่'}`)
@@ -152,6 +162,20 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
   const field = (key: string, value: any) => setForm((v: any) => ({ ...v, [key]: value }))
   const openHistory = (row: any) => {
     const payload = { ...(row.payload || {}) }
+    if (isMedicalEquipmentCenter) {
+      payload.phone = '1114'
+      payload.singleSigner = true
+      payload.authorName = ''; payload.authorPosition = ''; payload.authorRole = ''
+      payload.groupHeadName = 'นางสาวมัณฑนา เพชรคำ'
+      payload.groupHeadPosition = 'พยาบาลวิชาชีพชำนาญการพิเศษ'
+      payload.groupHeadRole = ''
+      payload.bodyText = String(payload.bodyText || '').replace(/ด้วยงานศูนย์เครื่องมือแพทย์[^ ]*|ด้วยศูนย์เครื่องมือแพทย์[^ ]*/u, 'ด้วยศูนย์เครื่องมือแพทย์')
+    } else if (isNursingGroup) {
+      payload.phone = '1201'
+      payload.authorName = 'นางสาวมัณฑนา เพชรคำ'
+      payload.authorPosition = 'พยาบาลวิชาชีพชำนาญการพิเศษ'
+      payload.authorRole = ''
+    }
     // รองรับบันทึกข้อความเดิม: หากมีผู้ลงนามเพียงคนเดียว ให้ย้ายช่องชื่อไปแสดงฝั่งขวา
     if (unitName && !(payload.authorName && payload.groupHeadName)) {
       payload.singleSigner = true
@@ -193,12 +217,23 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
     return () => { window.removeEventListener('beforeprint', preparePrint); window.removeEventListener('afterprint', cleanupPrint); cleanupPrint() }
   }, [open])
   const money = Number(form?.amount || 0)
-  const officeName = unitName
-    ? officeUnitName(form?.work, 'งาน')
-    : officeUnitName(form?.group, 'กลุ่มงาน')
-  const bodyOfficeName = unitName
-    ? [officeUnitName(form?.work, 'งาน'), officeUnitName(form?.group, 'กลุ่มงาน')].filter(Boolean).join(' ')
-    : officeUnitName(form?.group, 'กลุ่มงาน')
+  const normalizedUnitName = String(unitName || '').normalize('NFC').replace(/[\\s　]+/g, '').trim()
+  const normalizedGroupName = String(groupName || '').normalize('NFC').replace(/[\\s　]+/g, '').trim()
+  const isMedicalEquipmentCenter = normalizedUnitName.includes('ศูนย์เครื่องมือแพทย์')
+  const isNursingGroup = !unitName && normalizedGroupName.includes('กลุ่มการพยาบาล')
+  const isActingNursingSigner = isMedicalEquipmentCenter || isNursingGroup
+  const officeName = isMedicalEquipmentCenter
+    ? 'ศูนย์เครื่องมือแพทย์ ภารกิจด้านการพยาบาล'
+    : isNursingGroup
+      ? 'กลุ่มการพยาบาล ภารกิจด้านการพยาบาล'
+      : unitName ? officeUnitName(form?.work, 'งาน') : officeUnitName(form?.group, 'กลุ่มงาน')
+  const bodyOfficeName = isMedicalEquipmentCenter
+    ? 'ศูนย์เครื่องมือแพทย์'
+    : isNursingGroup
+      ? 'กลุ่มการพยาบาล'
+      : unitName
+        ? [officeUnitName(form?.work, 'งาน'), officeUnitName(form?.group, 'กลุ่มงาน')].filter(Boolean).join(' ')
+        : officeUnitName(form?.group, 'กลุ่มงาน')
   const officialLine = `โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน${officeName ? ` ${officeName}` : ''}${form?.phone ? ` โทร. ${form.phone}` : ''}`
   const setAmount = (value: string) => { setForm((old: any) => ({ ...old, amount: value, ...(!amountTextTouched ? { amountText: moneyText(Number(value)) } : {}) })) }
   const defaultBodyText = [`ด้วย${bodyOfficeName || '................................'} ภารกิจด้านการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข`,`ประจำเดือน ${form?.monthText || '................'} จำนวนเงิน ${money.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${form?.amountText || moneyText(money)}) ตามรายละเอียดที่แนบมาพร้อมนี้`].join(' ')
