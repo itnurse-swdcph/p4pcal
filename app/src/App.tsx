@@ -1298,9 +1298,14 @@ function ActivitySummary({ sb, rows, person, positions, month, units = [] }: any
   const leaveDays = Number(leaveData.personal_leave_days || 0) + Number(leaveData.sick_leave_days || 0) + Number(leaveData.annual_leave_days || 0)
   const eligibleWorkDays = calculateNetWorkDays((rows || []).filter((r: any) => r.status === 'approved'), calendarWorkingDays, leaveDays)
   const paymentEligible = eligibleWorkDays > 0
-  const performancePay = allocation > 0 ? basePayoutForMonth(month, allocation, performanceTotal, guarantee, paymentEligible) : null
   const closed = payoutResult?.closed === true
   const payoutAvailable = payoutResult?.payout_available === true
+  const estimatedPerformancePay = allocation > 0 ? basePayoutForMonth(month, allocation, performanceTotal, guarantee, paymentEligible) : null
+  // งวดที่ปิดแล้วให้แสดงยอดจ่ายจริงจาก Snapshot (เงินฐาน + เงินเพิ่ม) ไม่ใช่เฉพาะเงินฐาน
+  // ครอบคลุมหัวหน้ากลุ่มงานที่ไม่มี unit_id แต่มีสิทธิ์รับเงินเพิ่มจากแต้มส่วนเกิน
+  const performancePay = closed && payoutAvailable && paymentEligible
+    ? Number(payoutResult.total_amount || 0)
+    : estimatedPerformancePay
   const extraPay = paymentEligible && payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
   const cards = [
     { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
