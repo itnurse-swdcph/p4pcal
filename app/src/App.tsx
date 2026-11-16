@@ -2088,7 +2088,6 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     const days = calculateNetWorkDays(approved, calendarWorkingDays, leaveDays)
     const paymentEligible = days > 0
     const estimatedBasePay = basePayoutForMonth(month, allocation, performancePoints, g, paymentEligible)
-    const staffId = Number(p.staff_directory_id ?? p.directory_source_row)
     const snapshotLine = closedPayoutLines.find((line: any) =>
       (staffId > 0 && Number(line.staff_directory_id) === staffId) ||
       (p.id && String(line.id || '') === String(p.id)) ||
