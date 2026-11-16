@@ -1200,9 +1200,14 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const threshold = isDialysisOctober ? guarantee + 10 : guarantee
   const difference = performanceTotal - threshold
   const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-  const performancePay = allocation > 0 ? (isDialysisOctober ? allocation * 0.97 * (performanceTotal >= threshold ? 1 : 0.77) : allocation * (performanceTotal >= threshold ? 0.97 : 0.77)) : null
   const closed = payoutResult?.closed === true
   const payoutAvailable = payoutResult?.payout_available === true
+  const estimatedPerformancePay = allocation > 0 ? (isDialysisOctober ? allocation * 0.97 * (performanceTotal >= threshold ? 1 : 0.77) : allocation * (performanceTotal >= threshold ? 0.97 : 0.77)) : null
+  // งวดที่ปิดแล้วให้แสดงยอดจ่ายจริงจาก Snapshot (ฐาน + เงินเพิ่ม) ไม่ใช่ยอดฐาน 97% เพียงอย่างเดียว
+  // โดยเฉพาะหัวหน้ากลุ่มงานที่ไม่มี unit_id ซึ่งยังมีสิทธิ์รับเงินเพิ่มตามแต้มส่วนเกิน
+  const performancePay = closed && payoutAvailable
+    ? Number(payoutResult.total_amount || 0)
+    : estimatedPerformancePay
   const extraPay = payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
   const cards = [
     { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
