@@ -1199,8 +1199,11 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const roleGuarantee = roleGuaranteeForPosition(person.position, positions, person.org_role)
   // ประมาณการจากคะแนนที่แสดงในการ์ด "แต้มปฏิบัติงานที่ได้":
   // นับ pending + approved และตัดออกเฉพาะรายการที่ถูก rejected แล้ว
-  const earned = (rows || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
-  const confirmed = (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
+  const snapshotCounted = Number(payoutResult?.counted)
+  const hasClosedSnapshotScore = payoutResult?.closed === true && payoutResult?.payout_available === true && Number.isFinite(snapshotCounted)
+  // เมื่อปิดงวดแล้วให้ยึดคะแนนที่ยืนยันใน Snapshot เดียวกับยอดเงินจริง ป้องกันคะแนนหน้ากิจกรรมไม่ตรงกับยอดจ่าย
+  const earned = hasClosedSnapshotScore ? snapshotCounted : (rows || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
+  const confirmed = hasClosedSnapshotScore ? snapshotCounted : (rows || []).filter((r: any) => r.status === 'approved').reduce((sum: number, r: any) => sum + Number(r.counted_points || 0), 0)
   const scoring = scoreBreakdown(person.position, positions, person.org_role, earned)
   const performanceTotal = scoring.performance
   const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(person.position || '').replace(/\s+/g, '').trim())
@@ -1208,7 +1211,8 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const threshold = isDialysisOctober ? guarantee + 10 : guarantee
   const difference = performanceTotal - threshold
   const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-  const performancePay = allocation > 0 ? (isDialysisOctober ? allocation * 0.97 * (performanceTotal >= threshold ? 1 : 0.77) : allocation * (performanceTotal >= threshold ? 0.97 : 0.77)) : null
+  const isOctober2026 = month === '2026-10'
+  const performancePay = allocation > 0 ? (isOctober2026 ? allocation * (performanceTotal >= threshold ? 1 : 0.77) : allocation * (performanceTotal >= threshold ? 0.97 : 0.77)) : null
   const closed = payoutResult?.closed === true
   const payoutAvailable = payoutResult?.payout_available === true
   const extraPay = payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
