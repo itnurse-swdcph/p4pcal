@@ -1949,6 +1949,18 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
   const [printingPerson, setPrintingPerson] = useState<any>(null)
   const [rates, setRates] = useState<Record<string, number>>({})
   const [payGroups, setPayGroups] = useState<any[]>([])
+  const [closedPayoutLines, setClosedPayoutLines] = useState<any[]>([])
+  useEffect(() => {
+    let alive = true
+    if (!month) { setClosedPayoutLines([]); return () => { alive = false } }
+    sb.from('p4p_closed_months').select('result').eq('month', month + '-01').maybeSingle().then(({ data, error }: any) => {
+      if (!alive) return
+      if (error) { console.error('โหลด Snapshot การจ่ายเงินกลุ่มงานไม่สำเร็จ:', error); setClosedPayoutLines([]); return }
+      const lines = Array.isArray(data?.result?.lines) ? data.result.lines : []
+      setClosedPayoutLines(lines)
+    }).catch((error: any) => { if (alive) { console.error('โหลด Snapshot การจ่ายเงินกลุ่มงานไม่สำเร็จ:', error); setClosedPayoutLines([]) } })
+    return () => { alive = false }
+  }, [sb, month])
   // Load only the selected group's head activities instead of the whole hospital.
   // This avoids monthly RPC timeouts that made existing approved scores appear as zero.
   const headPersonIds = heads.map((p: any) => p.id || p.person_id).filter((id: any) => !!id).map((id: any) => String(id))
@@ -2075,11 +2087,19 @@ function GroupHeadsReport({ sb, profile, groupName, people = [], allPeople = [],
     const leaveDays = Number(leave.personal_leave_days || 0) + Number(leave.sick_leave_days || 0) + Number(leave.annual_leave_days || 0)
     const days = calculateNetWorkDays(approved, calendarWorkingDays, leaveDays)
     const paymentEligible = days > 0
-    const basePay = basePayoutForMonth(month, allocation, performancePoints, g, paymentEligible)
-    const payout = paymentEligible ? basePay + excess * rate : 0
+    const estimatedBasePay = basePayoutForMonth(month, allocation, performancePoints, g, paymentEligible)
+    const staffId = Number(p.staff_directory_id ?? p.directory_source_row)
+    const snapshotLine = closedPayoutLines.find((line: any) =>
+      (staffId > 0 && Number(line.staff_directory_id) === staffId) ||
+      (p.id && String(line.id || '') === String(p.id)) ||
+      (p.person_id && String(line.id || '') === String(p.person_id))
+    )
+    const basePay = snapshotLine ? Number(snapshotLine.activity ?? snapshotLine.base_amount ?? estimatedBasePay) : estimatedBasePay
+    const extraPay = snapshotLine ? Number(snapshotLine.extra ?? snapshotLine.extra_amount ?? 0) : (paymentEligible ? excess * rate : 0)
+    const payout = snapshotLine ? Number(snapshotLine.total ?? snapshotLine.total_amount ?? (basePay + extraPay)) : (paymentEligible ? basePay + extraPay : 0)
     const pendingWorkDays = countWorkDays(rs.filter((r: any) => r.status === 'pending'))
-    return { p, order: index + 1, g, roleGuarantee, workPoints: displayedWorkPoints, submittedPoints, pendingWorkDays, days, performancePoints, excess, rate, allocation, basePay, payout, rs }
-  }), [heads, rowsAll, positions, rates, groupRate, payGroups, month, calendarWorkingDays, groupLeaveData, groupLeaveDrafts])
+    return { p, order: index + 1, g, roleGuarantee, workPoints: displayedWorkPoints, submittedPoints, pendingWorkDays, days, performancePoints, excess, rate, allocation, basePay, extraPay, payout, rs }
+  }), [heads, rowsAll, positions, rates, groupRate, payGroups, month, calendarWorkingDays, groupLeaveData, groupLeaveDrafts, closedPayoutLines])
   useEffect(() => {
     if (!printReport) return
     const afterPrint = () => { document.body.classList.remove('print-unit-report', 'unit-report-preview-open'); setPrintReport(false) }
