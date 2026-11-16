@@ -2499,6 +2499,9 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     })
   }, [rows, roster, positions, unitRate, payGroups, calendarWorkingDays, month, leaveDrafts, octoberPayoutLines, eligibilityNotes])
   const avg = (pos: string) => { const a = sum.filter((x: any) => x.p.position === pos && x.tot > 0); return a.length ? a.reduce((s: number, x: any) => s + x.tot, 0) / a.length : 0 }
+  const groupHeadTitle = String(groupName || '').includes('ผู้คลอด')
+    ? 'รักษาการหัวหน้ากลุ่มงาน' + String(groupName).replace(/^กลุ่มงาน/, '')
+    : 'หัวหน้ากลุ่มงาน' + String(groupName || '').replace(/^กลุ่มงาน/, '')
   const saveLeaveData = async (person: any) => {
     const staffId = Number(person.staff_directory_id ?? person.directory_source_row)
     if (!staffId) { appAlert('ไม่พบรหัสบุคลากรจากทะเบียนกลาง จึงยังบันทึกข้อมูลวันลาไม่ได้'); return }
