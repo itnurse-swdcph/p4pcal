@@ -1189,7 +1189,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
     sb.rpc('p4p_my_payout', { p_month: month + '-01' }).then(({ data, error }: any) => {
       if (alive) setPayoutResult(!error && data ? data : null)
     })
-    sb.from('pay_groups').select('id,full_amount').order('id').then(({ data, error }: any) => {
+    sb.from('pay_groups').select('id,full_amount,fixed_pay').order('id').then(({ data, error }: any) => {
       if (alive) setPayGroups(!error && Array.isArray(data) ? data : [])
     })
     return () => { alive = false }
@@ -1211,10 +1211,15 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
   const threshold = isDialysisOctober ? guarantee + 10 : guarantee
   const difference = performanceTotal - threshold
   const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-  const isOctober2026 = month === '2026-10'
-  const performancePay = allocation > 0 ? (isOctober2026 ? allocation * (performanceTotal >= threshold ? 1 : 0.77) : allocation * (performanceTotal >= threshold ? 0.97 : 0.77)) : null
-  const closed = payoutResult?.closed === true
+  const groupPay = payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))
+  const payoutClosed = payoutResult?.closed === true
   const payoutAvailable = payoutResult?.payout_available === true
+  const performancePay = payoutClosed
+    ? (payoutAvailable ? Number(payoutResult.base_amount || 0) : 0)
+    : allocation > 0
+      ? (performanceTotal >= threshold ? Number((allocation * 0.97).toFixed(2)) : Number(groupPay?.fixed_pay || 0))
+      : null
+  const closed = payoutClosed
   const extraPay = payoutAvailable ? Number(payoutResult.extra_amount || 0) : 0
   const cards = [
     { label: 'แต้มประกัน', value: nf(guarantee), color: 'text-slate-900' },
@@ -1232,7 +1237,7 @@ function ActivitySummary({ sb, rows, person, positions, month }: any) {
         {item.label === 'เงินเพิ่มจากแต้มส่วนเกิน' && <div className="mt-1 text-xs text-stone-500">{!closed ? 'เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังประธานคณะกรรมการยืนยันปิดงวดเท่านั้น' : payoutAvailable ? <>ยอดพื้นฐาน {nf(payoutResult.base_amount)} บาท + เงินเพิ่ม {nf(extraPay)} บาท · รวม {nf(payoutResult.total_amount)} บาท · {isDialysisOctober ? <>อัตรากองกลาง {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม · อัตราเงินหน่วยงาน {nf(payoutResult.unit_rate_per_point, 6)} บาท/แต้ม · กองกลางปกติ {nf(payoutResult.tier1_extra)} บาท + เงินหน่วยงานไตเทียม {nf(payoutResult.tier2_extra)} บาท</> : <>อัตรา {nf(payoutResult.rate_per_point, 6)} บาท/แต้ม</>}</> : 'ยังไม่พบระเบียนบุคลากรที่เชื่อมโยงกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ'}</div>}
       </div>)}
     </div>
-    <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: จำนวนเงินตามผลงานเป็นยอดประมาณการจากคะแนนที่บันทึกไว้ (รวมรายการรอรับรอง) โดยใช้เกณฑ์ 97% หรือ 77%; เงินเพิ่มจากแต้มส่วนเกินจะแสดงหลังปิดงวด</p>
+    <p className="px-1 text-xs leading-relaxed text-stone-600">หมายเหตุ: ก่อนปิดงวดเป็นยอดประมาณการตามฐาน 97% หรือเงินจ่ายคงที่ของกลุ่มเมื่อคะแนนต่ำกว่าแต้มประกัน; หลังปิดงวดจะแสดงยอดจาก Snapshot ที่รับรองแล้ว</p>
   </div>
 }
 function Totals({ rows, people, positions }: any) {
@@ -1963,7 +1968,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       })
     return () => { alive = false }
   }, [sb, unit, month])
-  useEffect(() => { let alive = true; sb.from('pay_groups').select('id,full_amount').order('id').then(({ data, error }: any) => { if (alive) setPayGroups(!error && Array.isArray(data) ? data : []) }); return () => { alive = false } }, [sb])
+  useEffect(() => { let alive = true; sb.from('pay_groups').select('id,full_amount,fixed_pay').order('id').then(({ data, error }: any) => { if (alive) setPayGroups(!error && Array.isArray(data) ? data : []) }); return () => { alive = false } }, [sb])
   useEffect(() => {
     let alive = true
     const unitName = (units || []).find((u: any) => Number(u.id) === Number(unit))?.name
@@ -2045,21 +2050,23 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
   }, [sb, unit, month, units])
   useEffect(() => {
     let alive = true
-    if (Number(unit) !== 13 || month !== '2026-10') {
+    if (!unit || !month) {
       setCalculatedPayoutLines([])
       return () => { alive = false }
     }
+    // ใช้ผลจาก p4p_calc ทั้ง 5 กลุ่ม; เมื่องวดปิด RPC จะคืน Final Snapshot
+    // จึงไม่คำนวณเงินซ้ำด้วยสูตรเดิมในหน้าแสดงรายงาน
     sb.rpc('p4p_calc', { p_month: month + '-01' }).then(({ data, error }: any) => {
       if (!alive) return
       if (error) {
-        console.error('โหลดผลคำนวณแยกเงินกองกลางและเงินหน่วยงานไตเทียมไม่สำเร็จ:', error)
+        console.error('โหลดผลคำนวณ P4P จากฐานข้อมูลไม่สำเร็จ:', error)
         setCalculatedPayoutLines([])
         return
       }
       setCalculatedPayoutLines(Array.isArray(data?.lines) ? data.lines : [])
     }).catch((error: any) => {
       if (alive) {
-        console.error('โหลดผลคำนวณไตเทียมไม่สำเร็จ:', error)
+        console.error('โหลดผลคำนวณ P4P ไม่สำเร็จ:', error)
         setCalculatedPayoutLines([])
       }
     })
@@ -2109,7 +2116,7 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const rs = rows.filter((r: any) => r.person_id === p.id); const g = guaranteeForPosition(p.position, positions, p.org_role)
     const positionInfo = (positions || []).find((x: any) => String(x.name || '').replace(/\s+/g, '').trim() === String(p.position || '').replace(/\s+/g, '').trim())
     const isDialysisOctober = Number(unit) === 13 && month === '2026-10' && Number(positionInfo?.pay_group) === 1
-    const serverLine = isDialysisOctober ? calculatedPayoutLines.find((x: any) => Number(x.staff_directory_id) === Number(p.staff_directory_id ?? p.directory_source_row)) : null
+    const serverLine = calculatedPayoutLines.find((x: any) => Number(x.staff_directory_id) === Number(p.staff_directory_id ?? p.directory_source_row)) || null
     const approved = rs.filter((r: any) => r.status === 'approved')
     const d = (x: string) => rs.filter((r: any) => r.domain === x).reduce((s: number, r: any) => s + Number(r.counted_points), 0)
     const tot = d('บริหาร') + d('บริการ') + d('วิชาการ')
@@ -2122,13 +2129,15 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
     const daysRaw = countApprovedWorkShifts(approved)
     const leave = leaveDrafts[String(p.staff_directory_id ?? p.directory_source_row)] || { personal_leave_days: 0, sick_leave_days: 0, annual_leave_days: 0 }
     const days = calculateNetWorkingDays(daysRaw, leave, calendarWorkingDays)
-    const allocation = Number(payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))?.full_amount || 0)
-    const basePay = isDialysisOctober ? Number(serverLine?.activity || 0) : allocation * (performancePoints >= threshold ? 0.97 : 0.77)
-    const payout = isDialysisOctober ? Number(serverLine?.total || 0) : basePay + excess * unitRate
+    const groupPay = payGroups.find((x: any) => Number(x.id) === Number(positionInfo?.pay_group))
+    const allocation = Number(groupPay?.full_amount || 0)
+    const fixedPay = Number(groupPay?.fixed_pay || 0)
+    const estimatedBasePay = performancePoints >= threshold ? Number((allocation * 0.97).toFixed(2)) : fixedPay
+    const basePay = serverLine ? Number(serverLine.activity || 0) : estimatedBasePay
+    const payout = serverLine ? Number(serverLine.total || 0) : basePay + excess * unitRate
     const approvedDays = new Set(approved.map((r: any) => String(r.work_date || ''))).size
-    const reserveRate = month === '2026-10' ? 0 : 0.03
-    const insurancePay = isDialysisOctober ? Number(serverLine?.activity || 0) : allocation * (1 - reserveRate) * 0.77
-    const extraPay = isDialysisOctober ? Number(serverLine?.extra || 0) : payout - insurancePay
+    const insurancePay = basePay
+    const extraPay = serverLine ? Number(serverLine.extra || 0) : payout - insurancePay
     const displayRate = isDialysisOctober ? (excess > 0 ? extraPay / excess : 0) : unitRate
     return { p, order: index + 1, allocation, adm: d('บริหาร'), svc: d('บริการ'), acd: d('วิชาการ'), tot, workPoints, performancePoints, roleGuarantee, excess, days, approvedDays, rate: displayRate, basePay, payout, insurancePay, extraPay, g, appr: workPoints, n: rs.length, err: rs.filter((r: any) => r.errors.length).length,
       warn: rs.filter((r: any) => r.warnings.length).length, pend: rs.filter((r: any) => r.status === 'pending').length }
@@ -2510,7 +2519,9 @@ function PayGroupsCard({ sb }: any) {
     if (Number(draft.reserve_pct) > 100) { setMsg('เงินกันเฉลี่ยคืนต้องไม่เกิน 100%'); return }
     if (Number(draft.cap_mult) > 10) { setMsg('เพดานคะแนนต้องไม่เกิน 10 เท่า'); return }
     setBusy(true); setMsg('')
-    if (editing.id === 1) body.fixed_pay = Math.round(Number(draft.full_amount) * 0.77 * 100) / 100
+    const fixedPay = Number(draft.fixed_pay)
+    if (!(fixedPay > 0)) { setMsg('กรุณาระบุเงินจ่ายคงที่เมื่อคะแนนต่ำกว่าแต้มประกันให้มากกว่า 0'); return }
+    body.fixed_pay = fixedPay
     const { error } = await sb.from('pay_groups').update(body).eq('id', editing.id)
     if (error) { setBusy(false); setMsg('บันทึกไม่สำเร็จ: ' + error.message); return }
     const { error: rateError } = await sb.from('positions').update({ rate: Number(draft.rate) }).eq('pay_group', editing.id)
@@ -2532,9 +2543,9 @@ function PayGroupsCard({ sb }: any) {
     { label: 'พยาบาลวิชาชีพหัวหน้างาน', guarantee: 1200, key: 'supervisor', roleGuarantee: 120 },
     { label: 'พยาบาลวิชาชีพ ผู้ปฏิบัติ', guarantee: 1200, key: 'staff', roleGuarantee: 0 },
   ]
-  const minimumPay = (g: any) => Number((Number(g.full_amount) * 0.77).toFixed(2))
+  const minimumPay = (g: any) => Number(g.fixed_pay || 0)
   return <div className="card xl:col-span-2 space-y-3">
-    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ยอดจ่ายขั้นต่ำ = 77% ของยอดจัดสรรต่อคน เมื่อคะแนนต่ำกว่าแต้มประกัน · เมื่อคะแนนถึงเกณฑ์จ่าย 97% · เงินกันเฉลี่ยคืน 3% และยกเลิกการกันเงินคุณภาพ</p></div>
+    <div><h2 className="text-lg font-bold">กลุ่มวิชาชีพและยอดค่าตอบแทน</h2><p className="text-sm text-stone-600">ยอดจ่ายเมื่อคะแนนต่ำกว่าแต้มประกันเป็นจำนวนคงที่ตามกลุ่ม · เมื่อถึงเกณฑ์จ่ายฐาน 97% และจัดสรรเงินส่วนเกินตามแต้มส่วนเกิน · กันสำรอง 3%</p></div>
     <div className="overflow-x-auto"><table className="w-full"><thead><tr><th>กลุ่มวิชาชีพ / ประเภทบุคลากร</th>{fields.map(([, l]) => <th key={l}>{l}</th>)}<th>เงินจ่ายขั้นต่ำ (บาท)</th><th>แต้มการันตี</th><th>จัดการ</th></tr></thead>
       <tbody>{gs.map(g => {
         const rows = g.id === 1 ? groupOneRows : [{ label: g.name, guarantee: Number(g.guarantee), key: 'group' }]
@@ -2554,9 +2565,9 @@ function PayGroupsCard({ sb }: any) {
     {editing && draft && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="pay-group-edit-title">
       <div className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl space-y-4">
         <div className="flex items-start gap-3"><div className="flex-1"><h3 id="pay-group-edit-title" className="text-lg font-bold">แก้ไขรายละเอียดค่าตอบแทน</h3><p className="text-sm text-stone-600">{editing.row.label}</p></div><button type="button" className="btn sec" onClick={() => { setEditing(null); setDraft(null) }}>ปิด</button></div>
-        <div className="rounded-xl bg-stone-50 p-3 text-sm"><div><b>กลุ่มวิชาชีพ:</b> {editing.name}</div><div><b>แต้มประกันของแถวนี้:</b> {nf(editing.row.guarantee, 0)} แต้ม</div><div><b>แต้มการันตีตามบทบาท:</b> {nf(editing.row.roleGuarantee || 0, 0)} แต้ม</div><div><b>แต้มการันตีตามบทบาท:</b> {nf(editing.row.roleGuarantee || 0, 0)} แต้ม</div><div><b>เงินจ่ายขั้นต่ำ:</b> {nf(Number(draft.full_amount) * 0.77)} บาท</div><p className="mt-1 text-xs text-stone-500">การแก้ไขข้อมูลกลุ่มจะมีผลกับการคำนวณของกลุ่มวิชาชีพนี้</p></div>
+        <div className="rounded-xl bg-stone-50 p-3 text-sm"><div><b>กลุ่มวิชาชีพ:</b> {editing.name}</div><div><b>แต้มประกันของแถวนี้:</b> {nf(editing.row.guarantee, 0)} แต้ม</div><div><b>แต้มการันตีตามบทบาท:</b> {nf(editing.row.roleGuarantee || 0, 0)} แต้ม</div><div><b>แต้มการันตีตามบทบาท:</b> {nf(editing.row.roleGuarantee || 0, 0)} แต้ม</div><div><b>เงินจ่ายเมื่อคะแนนต่ำกว่าแต้มประกัน:</b> {nf(Number(draft.fixed_pay || 0))} บาท</div><p className="mt-1 text-xs text-stone-500">การแก้ไขข้อมูลกลุ่มจะมีผลกับการคำนวณของกลุ่มวิชาชีพนี้</p></div>
         <div className="grid sm:grid-cols-2 gap-3">{fields.map(([k, label]) => <label key={k} className="field-label">{label}<input className="inp mt-1" type="number" min="0.01" step={k === 'rate' ? '0.001' : '0.01'} value={draft[k] ?? ''} onChange={e => setDraft({ ...draft, [k]: e.target.value })} /></label>)}</div>
-        <label className="field-label block">เงินจ่ายขั้นต่ำ (บาท)<input className="inp mt-1" type="number" min="0.01" step="0.01" value={Number((Number(draft.full_amount) * 0.77).toFixed(2))} readOnly /><span className="field-hint">คำนวณอัตโนมัติจากยอดจัดสรรต่อคน × 77%</span></label>
+        <label className="field-label block">เงินจ่ายคงที่เมื่อคะแนนต่ำกว่าแต้มประกัน (บาท)<input className="inp mt-1" type="number" min="0.01" step="0.01" value={draft.fixed_pay ?? ''} onChange={e => setDraft({ ...draft, fixed_pay: e.target.value })} /><span className="field-hint">กำหนดแยกตามกลุ่มวิชาชีพ ไม่คำนวณเป็นเปอร์เซ็นต์จากยอดจัดสรร</span></label>
         <div className="flex justify-end gap-2"><button className="btn sec" disabled={busy} onClick={() => { setEditing(null); setDraft(null) }}>ยกเลิก</button><button className="btn" disabled={busy} onClick={save}>{busy ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}</button></div>
       </div>
     </div>}
