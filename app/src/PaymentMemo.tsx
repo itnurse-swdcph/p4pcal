@@ -175,6 +175,9 @@ export default function PaymentMemo({ sb, groupName = '', unitName = '', month, 
       payload.authorName = 'นางสาวมัณฑนา เพชรคำ'
       payload.authorPosition = 'พยาบาลวิชาชีพชำนาญการพิเศษ'
       payload.authorRole = ''
+      payload.committeeName = 'นางสาวมัณฑนา เพชรคำ'
+      payload.committeePosition = 'พยาบาลวิชาชีพชำนาญการพิเศษ'
+      payload.committeeRole = 'รักษาการหัวหน้าภารกิจด้านการพยาบาล'
       payload.bodyText = [`ด้วยกลุ่มการพยาบาล ภารกิจด้านการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน มีความประสงค์จะขออนุมัติเบิกจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงาน ตามหลักเกณฑ์ วิธีการ และเงื่อนไขการจ่ายเงินค่าตอบแทนตามผลการปฏิบัติงานของเจ้าหน้าที่ที่ปฏิบัติงานให้กับหน่วยบริการในสังกัดกระทรวงสาธารณสุข`, `ประจำเดือน ${payload.monthText || monthLabel(month)} จำนวนเงิน ${Number(payload.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท (${payload.amountText || moneyText(Number(payload.amount || 0))}) ตามรายละเอียดที่แนบมาพร้อมนี้`].join(' ')
     }
     // รองรับบันทึกข้อความเดิม: หากมีผู้ลงนามเพียงคนเดียว ให้ย้ายช่องชื่อไปแสดงฝั่งขวา
