@@ -2360,8 +2360,43 @@ function ReviewPage({ sb, profile, people, unit, month, acts, positions, audit, 
       if (found) { found.org_role = found.org_role || d.org_role; found.staff_directory_id = found.staff_directory_id || d.source_row; found.fromDirectory = d.registered !== true; if (!found.position) found.position = d.position }
       else result.push({ id: d.person_id || `dir:${d.source_row}`, directory_source_row: d.source_row, staff_directory_id: d.source_row, name: fullName, prefix: d.prefix, first_name: d.first_name, last_name: d.last_name, position: d.position, org_role: d.org_role, unit_id: unit, active: true, fromDirectory: d.registered !== true })
     }
-    return result.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'th'))
-  }, [people, directoryPeople, unit])
+    // เพิ่มหัวหน้ากลุ่มงานการพยาบาลผู้ป่วยอายุรกรรมในรายงานของหน่วยผู้ป่วยในอายุรกรรมชาย
+    // ใช้ตัวตน/รหัสบุคลากรจากทะเบียนเดิมเพื่อดึงคะแนนและยอดจ่ายของบุคคลเดิม ไม่สร้างข้อมูลการเงินซ้ำ
+    const selectedUnitName = (units || []).find((u: any) => Number(u.id) === Number(unit))?.name || ''
+    const isTargetUnit = String(selectedUnitName).normalize('NFC').replace(/\\s+/g, '').includes('งานการพยาบาลผู้ป่วยในอายุรกรรมชาย')
+    const groupLeader = (signaturePeople || []).find((d: any) => {
+      const fullName = String(d.full_name || `${d.prefix || ''}${d.first_name || ''} ${d.last_name || ''}`).normalize('NFC').replace(/\\s+/g, '').trim()
+      return fullName === 'นางจรัญญานาคบุตรศรี' &&
+        String(d.org_role || '').replace(/\\s+/g, '').includes('หัวหน้ากลุ่มงาน') &&
+        Number(d.source_row) !== 2
+    })
+    if (isTargetUnit && groupLeader) {
+      const fullName = String(groupLeader.full_name || `${groupLeader.prefix || ''}${groupLeader.first_name || ''} ${groupLeader.last_name || ''}`).trim()
+      const exists = result.some((p: any) =>
+        (groupLeader.person_id && String(p.id) === String(groupLeader.person_id)) ||
+        (groupLeader.source_row != null && Number(p.staff_directory_id ?? p.directory_source_row) === Number(groupLeader.source_row))
+      )
+      if (!exists) result.push({
+        id: groupLeader.person_id || `dir:${groupLeader.source_row}`,
+        directory_source_row: groupLeader.source_row,
+        staff_directory_id: groupLeader.source_row,
+        name: fullName,
+        prefix: groupLeader.prefix,
+        first_name: groupLeader.first_name,
+        last_name: groupLeader.last_name,
+        position: groupLeader.position,
+        org_role: groupLeader.org_role,
+        unit_id: unit,
+        active: true,
+        fromDirectory: groupLeader.registered !== true
+      })
+    }
+    return result.sort((a: any, b: any) => {
+      const aLeader = String(a.name || '').normalize('NFC').replace(/\\s+/g, '') === 'นางจรัญญานาคบุตรศรี'
+      const bLeader = String(b.name || '').normalize('NFC').replace(/\\s+/g, '') === 'นางจรัญญานาคบุตรศรี'
+      return Number(bLeader) - Number(aLeader) || String(a.name || '').localeCompare(String(b.name || ''), 'th')
+    })
+  }, [people, directoryPeople, signaturePeople, unit, units])
   useEffect(() => {
     let alive = true
     const personIds = (roster || []).map((p: any) => p.id).filter((id: any) => typeof id === 'string' && !String(id).startsWith('dir:'))
