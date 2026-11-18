@@ -2326,10 +2326,20 @@ function ReviewPage({ sb, profile, people, allPeople = [], unit, month, acts, po
         (!!personKey(a) && personKey(a) === personKey(b))
       // ใช้ทะเบียนหลักเป็นตัวกำหนดสมาชิกของหน่วยงาน แล้วรับข้อมูลจาก RPC เฉพาะคนที่อยู่ในทะเบียนหลักชุดเดียวกัน
       // เพื่อไม่ให้ RPC เพิ่มคนจาก extra_unit_names เข้ามาเป็นสมาชิกหน่วยงานอื่น
+      // รวมสมาชิกจากทั้งทะเบียนหลักและ RPC: บางแถวอาจถูก RPC ส่งกลับมา
+      // แต่ไม่ปรากฏในผล query ตรง (เช่นข้อมูลสังกัด/สถานะที่ RPC จัดการไว้ต่างกัน)
+      // รับ RPC เฉพาะหน่วยงานหลักที่ตรงกับหน่วยงานที่เลือก เพื่อไม่ดึง extra_unit_names
+      // มาทำให้บุคลากรไปซ้ำอยู่ในหลายหน่วยงาน
       const primaryRows = directRows.map((d: any) => {
         const extra = rpcRows.find((r: any) => samePerson(r, d))
         return extra ? { ...extra, ...d } : d
       })
+      for (const rpcRow of rpcRows) {
+        if (normalizeUnit(rpcRow.unit_name) !== unitKey) continue
+        const existingIndex = primaryRows.findIndex((d: any) => samePerson(d, rpcRow))
+        if (existingIndex >= 0) primaryRows[existingIndex] = { ...rpcRow, ...primaryRows[existingIndex] }
+        else primaryRows.push(rpcRow)
+      }
       const unique = primaryRows.filter((d: any, i: number, arr: any[]) =>
         arr.findIndex((x: any) => samePerson(x, d)) === i
       )
